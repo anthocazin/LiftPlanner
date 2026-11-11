@@ -1,4 +1,4 @@
-// Petites opérations vectorielles 3D (unités libres, en pratique : m)
+// Small 3D vector helpers (any unit, in practice m)
 
 export const v3 = (x = 0, y = 0, z = 0) => ({ x, y, z });
 export const vadd = (a, b) => ({ x: a.x + b.x, y: a.y + b.y, z: a.z + b.z });
@@ -21,7 +21,7 @@ export const hdist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const deg = (rad) => (rad * 180) / Math.PI;
 export const rad = (d) => (d * Math.PI) / 180;
 
-/** Résout A·x = b (A n×n) par élimination de Gauss avec pivot partiel. Retourne null si singulier. */
+/** Solves A·x = b (A n×n) by Gaussian elimination with partial pivoting. Returns null if singular. */
 export function solveLinear(A, b) {
   const n = A.length;
   const M = A.map((row, i) => [...row, b[i]]);
@@ -44,7 +44,7 @@ export function solveLinear(A, b) {
   return x;
 }
 
-/** Moindres carrés : min |A·x − b|² (A m×n, m ≥ n) via équations normales. */
+/** Least squares: min |A·x − b|² (A m×n, m ≥ n) via the normal equations. */
 export function leastSquares(A, b) {
   const n = A[0].length;
   const AtA = Array.from({ length: n }, () => new Array(n).fill(0));

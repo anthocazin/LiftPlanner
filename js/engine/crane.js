@@ -1,10 +1,10 @@
-// Grue : lecture du tableau de charge et géométrie de flèche.
+// Crane: load chart reading and boom geometry.
 
 /**
- * Capacité au rayon R (m) dans la colonne col du tableau de charge.
- * chart = { columns: ['Hs 0 m', ...], rows: [[rayon, cap1, cap2, ...], ...] }
- * mode 'step' (défaut, conservatif) : capacité du premier rayon tabulé ≥ R (pas d'interpolation)
- * mode 'linear' : interpolation linéaire entre rayons encadrants.
+ * Capacity at radius R (m) in column col of the load chart.
+ * chart = { columns: ['Hs 0 m', ...], rows: [[radius, cap1, cap2, ...], ...] }
+ * mode 'step' (default, conservative): capacity of the first tabulated radius ≥ R (no interpolation)
+ * mode 'linear': linear interpolation between the bracketing radii.
  */
 export function chartCapacity(chart, R, col = 0, mode = 'step') {
   const rows = (chart?.rows || [])
@@ -24,23 +24,23 @@ export function chartCapacity(chart, R, col = 0, mode = 'step') {
 }
 
 /**
- * Géométrie de flèche treillis/télescopique simplifiée.
- * crane.boom = { length, pivotHeight, pivotOffset } (m) — rayon mesuré depuis l'axe d'orientation.
- * Retourne l'angle de flèche (° / horizontale) et la hauteur de tête de flèche.
+ * Simplified lattice / telescopic boom geometry.
+ * crane.boom = { length, pivotHeight, pivotOffset } (m) — radius measured from the slew axis.
+ * Returns the boom angle (° to horizontal) and the boom tip height.
  */
 export function boomGeometry(crane, R) {
   const L = Number(crane?.boom?.length) || 0;
   const hp = Number(crane?.boom?.pivotHeight) || 0;
   const a = Number(crane?.boom?.pivotOffset) || 0;
   const dx = R - a;
-  if (!(L > 0)) return { valid: false, reason: 'Longueur de flèche non renseignée' };
-  if (Math.abs(dx) > L) return { valid: false, reason: 'Rayon supérieur à la portée géométrique de la flèche' };
+  if (!(L > 0)) return { valid: false, reason: 'Boom length not entered' };
+  if (Math.abs(dx) > L) return { valid: false, reason: 'Radius beyond the geometric reach of the boom' };
   const angle = (Math.acos(dx / L) * 180) / Math.PI;
   const tipHeight = hp + Math.sqrt(L * L - dx * dx);
   return { valid: true, angle, tipHeight, pivot: { r: a, z: hp }, tip: { r: R, z: tipHeight } };
 }
 
-/** Hauteur maxi du crochet (point d'appui du crochet) sous tête de flèche. */
+/** Maximum hook height (hook bearing point) under the boom tip. */
 export function maxHookHeight(crane, R) {
   const g = boomGeometry(crane, R);
   if (!g.valid) return null;

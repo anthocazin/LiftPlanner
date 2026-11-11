@@ -12,12 +12,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Tests du moteur de calcul
+      - name: Calculation engine tests
         run: npm test
-      - name: Construction de la version autonome
+      - name: Build the standalone version
         run: npm run build
-      - name: Vérifie que dist/ est à jour
-        run: git diff --exit-code -- dist/ || (echo "::warning::dist/LiftPlanner.html n'est pas à jour — lancez npm run build" && exit 0)
+      - name: Check that dist/ is up to date
+        run: git diff --exit-code -- dist/ || (echo "::warning::dist/LiftPlanner.html is out of date — run npm run build" && exit 0)
       - uses: actions/upload-artifact@v4
         with:
           name: LiftPlanner-standalone

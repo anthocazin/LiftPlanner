@@ -1,14 +1,14 @@
 {
-  "schema": 1,
+  "schema": 2,
   "project": {
-    "name": "Exemple — transfert offshore depuis supply",
+    "name": "Example — offshore container transfer from supply vessel",
     "liftId": "LP-003",
     "revision": "A",
     "date": "2026-11-11",
     "client": "",
-    "site": "Plateforme XYZ",
+    "site": "Platform XYZ",
     "vessel": "Supply vessel",
-    "description": "Levage du skid depuis la remorque et pose sur sa fondation.",
+    "description": "Back-load / transfer of a 20 ft tool container between the supply vessel deck and the platform laydown area.",
     "preparedBy": "",
     "checkedBy": "",
     "approvedBy": ""
@@ -32,7 +32,7 @@
   },
   "rules": {},
   "load": {
-    "name": "Conteneur outillage 20'",
+    "name": "20' tool container",
     "weight_t": 8.2,
     "wcfPreset": "weighed",
     "wcf": 1.03,
@@ -108,7 +108,7 @@
     ]
   },
   "crane": {
-    "name": "EXEMPLE — grue pedestal offshore 50 t (tableau fictif, NE PAS UTILISER)",
+    "name": "EXAMPLE — 50 t offshore pedestal crane (fictitious chart, DO NOT USE)",
     "type": "offshore",
     "boom": {
       "length": 40,
@@ -127,9 +127,9 @@
     "activeColumn": 1,
     "chart": {
       "columns": [
-        "Interne (plateforme)",
-        "Externe Hs ≤ 1,5 m",
-        "Externe Hs ≤ 2,5 m"
+        "Internal (platform)",
+        "External Hs ≤ 1.5 m",
+        "External Hs ≤ 2.5 m"
       ],
       "rows": [
         [
@@ -179,6 +179,7 @@
   },
   "rigging": {
     "type": "hook",
+    "slingFamily": "WIRE",
     "design": {
       "mode": "angle",
       "targetAngle_deg": 60,
@@ -196,22 +197,9 @@
       "enabled": false,
       "itemId": "auto"
     },
-    "legs": {
-      "A": {
-        "topConnector": "shackle"
-      },
-      "B": {
-        "topConnector": "shackle"
-      },
-      "C": {
-        "topConnector": "shackle"
-      },
-      "D": {
-        "topConnector": "shackle"
-      }
-    },
+    "legs": {},
     "spreader": {
-      "name": "Palonnier PB-01",
+      "name": "Spreader bar SB-01",
       "certNo": "",
       "length_m": 5.4,
       "depth_m": 0.35,
@@ -240,7 +228,7 @@
     },
     "obstacles": [
       {
-        "name": "Pont du supply",
+        "name": "Supply vessel deck",
         "x": 26,
         "y": 0,
         "sx": 40,
@@ -250,7 +238,7 @@
         "color": "#9aa5b1"
       },
       {
-        "name": "Garde-corps plateforme",
+        "name": "Platform handrail",
         "x": 8,
         "y": 0,
         "sx": 0.3,
@@ -272,28 +260,28 @@
     ],
     "steps": [
       {
-        "name": "1. Prise sur le supply",
+        "name": "1. Pick from the supply vessel",
         "radius_m": 24,
         "slew_deg": 0,
         "loadElevation_m": -12,
         "heading_deg": 0,
-        "note": "Prise franche sur crête de houle, tag lines par l'équipage du supply."
+        "note": "Clean lift-off on a wave crest; tag lines handled by the vessel crew."
       },
       {
-        "name": "2. Remontée et rotation",
+        "name": "2. Hoist and slew",
         "radius_m": 18,
         "slew_deg": 60,
         "loadElevation_m": 3,
         "heading_deg": 60,
-        "note": "Garde au-dessus du garde-corps ≥ 1 m."
+        "note": "Keep ≥ 1 m clearance above the handrail."
       },
       {
-        "name": "3. Dépose laydown",
+        "name": "3. Set down in laydown",
         "radius_m": 12,
         "slew_deg": 120,
         "loadElevation_m": 0.2,
         "heading_deg": 30,
-        "note": "Dépose sur madriers."
+        "note": "Set down on timber dunnage."
       }
     ]
   },
@@ -301,56 +289,56 @@
     "hsMax_m": 1.5,
     "windMax_ms": 15,
     "windGust_ms": 18,
-    "visibility": "Jour, > 1 NM",
-    "notes": "Prévisions consultées 12 h avant ; arrêt si Hs > 1,5 m ou rafales > 18 m/s."
+    "visibility": "Daylight, > 1 NM",
+    "notes": "Forecast checked 12 h before; stop if Hs > 1.5 m or gusts > 18 m/s."
   },
   "checklist": [
     {
-      "label": "Matériel de levage inspecté, certificats valides et identifiés (n° de série)",
+      "label": "Lifting equipment inspected, certificates valid and identified (serial numbers)",
       "checked": false
     },
     {
-      "label": "Grue : certificat en cours de validité, inspection journalière faite, limiteur de charge opérationnel",
+      "label": "Crane: certificate in date, daily inspection done, rated capacity limiter operational",
       "checked": false
     },
     {
-      "label": "Poids et COG confirmés (certificat de pesée ou note de calcul)",
+      "label": "Weight and COG confirmed (weighing certificate or calculation note)",
       "checked": false
     },
     {
-      "label": "Points de levage inspectés (contrôle visuel / CND si requis)",
+      "label": "Lift points inspected (visual / NDT if required)",
       "checked": false
     },
     {
-      "label": "Sol / pont : capacité portante vérifiée (calage, plaques de répartition)",
+      "label": "Ground / deck: bearing capacity checked (cribbing, load spreading mats)",
       "checked": false
     },
     {
-      "label": "Conditions météo dans les limites (vent, houle, visibilité) — prévisions consultées",
+      "label": "Weather within limits (wind, sea state, visibility) — forecast reviewed",
       "checked": false
     },
     {
-      "label": "Zone de levage balisée, personne sous la charge",
+      "label": "Lifting zone barriered off, nobody under the load",
       "checked": false
     },
     {
-      "label": "Communication définie (radio / signaux), signaleur désigné",
+      "label": "Communication agreed (radio / hand signals), banksman / signaller appointed",
       "checked": false
     },
     {
-      "label": "Lignes de guidage (tag lines) en place",
+      "label": "Tag lines in place",
       "checked": false
     },
     {
-      "label": "Analyse de risques (JSA / TRA) et toolbox talk réalisés",
+      "label": "Risk assessment (JSA / TRA) and toolbox talk completed",
       "checked": false
     },
     {
-      "label": "Permis de travail émis",
+      "label": "Permit to work issued",
       "checked": false
     },
     {
-      "label": "Procédure d'arrêt / plan de secours défini",
+      "label": "Stop / emergency and rescue plan defined",
       "checked": false
     }
   ],

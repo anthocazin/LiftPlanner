@@ -5,59 +5,59 @@ import { ENVIRONMENTS } from '../../engine/factors.js';
 export function render(root) {
   const p = 'project.';
   const info = panel(
-    'Identification du levage',
+    'Lift identification',
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Nom du levage', path: `${p}name`, type: 'text', cls: 'span2' }),
-      field({ label: 'Réf. lift plan', path: `${p}liftId`, type: 'text' }),
-      field({ label: 'Révision', path: `${p}revision`, type: 'text' }),
+      field({ label: 'Lift name', path: `${p}name`, type: 'text', cls: 'span2' }),
+      field({ label: 'Lift plan ref.', path: `${p}liftId`, type: 'text' }),
+      field({ label: 'Revision', path: `${p}revision`, type: 'text' }),
       field({ label: 'Date', path: `${p}date`, type: 'date' }),
-      field({ label: 'Client / projet', path: `${p}client`, type: 'text' }),
+      field({ label: 'Client / project', path: `${p}client`, type: 'text' }),
       field({ label: 'Site / installation', path: `${p}site`, type: 'text' }),
-      field({ label: 'Navire / barge', path: `${p}vessel`, type: 'text' }),
-      field({ label: 'Préparé par', path: `${p}preparedBy`, type: 'text' }),
-      field({ label: 'Vérifié par', path: `${p}checkedBy`, type: 'text' }),
-      field({ label: 'Approuvé par', path: `${p}approvedBy`, type: 'text' }),
-      field({ label: 'Description de l\'opération', path: `${p}description`, type: 'textarea', cls: 'full' }),
+      field({ label: 'Vessel / barge', path: `${p}vessel`, type: 'text' }),
+      field({ label: 'Prepared by', path: `${p}preparedBy`, type: 'text' }),
+      field({ label: 'Checked by', path: `${p}checkedBy`, type: 'text' }),
+      field({ label: 'Approved by', path: `${p}approvedBy`, type: 'text' }),
+      field({ label: 'Description of the operation', path: `${p}description`, type: 'textarea', cls: 'full' }),
     ),
   );
 
   const env = panel(
-    'Environnement & nature du levage',
+    'Environment & type of lift',
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Environnement', path: 'environment', type: 'select', options: Object.entries(ENVIRONMENTS) }),
-      field({ label: 'Seuil "charge lourde"', path: 'flags.heavyThreshold_t', unit: 't' }),
+      field({ label: 'Environment', path: 'environment', type: 'select', options: Object.entries(ENVIRONMENTS) }),
+      field({ label: '"Heavy load" threshold', path: 'flags.heavyThreshold_t', unit: 't' }),
     ),
     el(
       'div',
       { class: 'row', style: { marginTop: '10px', gap: '16px' } },
-      field({ label: 'Levage en tandem (2 grues)', path: 'flags.tandem', type: 'checkbox' }),
-      field({ label: 'Au-dessus d\'installations en service', path: 'flags.overLive', type: 'checkbox' }),
-      field({ label: 'Levage de personnel', path: 'flags.personnel', type: 'checkbox' }),
-      field({ label: 'Passage zone de déferlement / immersion', path: 'flags.subsea', type: 'checkbox' }),
-      field({ label: 'Transfert navire ↔ navire / plateforme', path: 'flags.vesselToVessel', type: 'checkbox' }),
+      field({ label: 'Tandem lift (2 cranes)', path: 'flags.tandem', type: 'checkbox' }),
+      field({ label: 'Over live plant', path: 'flags.overLive', type: 'checkbox' }),
+      field({ label: 'Personnel lift', path: 'flags.personnel', type: 'checkbox' }),
+      field({ label: 'Splash zone / subsea', path: 'flags.subsea', type: 'checkbox' }),
+      field({ label: 'Vessel ↔ vessel / platform transfer', path: 'flags.vesselToVessel', type: 'checkbox' }),
     ),
     el('div', { class: 'note', style: { marginTop: '10px' }, id: 'cat-box' }),
   );
 
   const weather = panel(
-    'Limites météo-océaniques',
+    'Weather limits',
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Hs max', path: 'weather.hsMax_m', unit: 'm' }),
-      field({ label: 'Vent moyen max', path: 'weather.windMax_ms', unit: 'm/s' }),
-      field({ label: 'Rafales max', path: 'weather.windGust_ms', unit: 'm/s' }),
-      field({ label: 'Visibilité', path: 'weather.visibility', type: 'text' }),
-      field({ label: 'Autres conditions', path: 'weather.notes', type: 'textarea', cls: 'full', placeholder: 'Période de houle, courant, fenêtre météo, critères d\'arrêt…' }),
+      field({ label: 'Max Hs', path: 'weather.hsMax_m', unit: 'm' }),
+      field({ label: 'Max mean wind', path: 'weather.windMax_ms', unit: 'm/s' }),
+      field({ label: 'Max gusts', path: 'weather.windGust_ms', unit: 'm/s' }),
+      field({ label: 'Visibility', path: 'weather.visibility', type: 'text' }),
+      field({ label: 'Other conditions', path: 'weather.notes', type: 'textarea', cls: 'full', placeholder: 'Swell period, current, weather window, stop criteria…' }),
     ),
   );
 
-  const checklist = panel('Check-list avant levage', el('div', { id: 'checklist' }));
-  const notes = panel('Notes / séquence détaillée', field({ path: 'notes', type: 'textarea', placeholder: 'Séquence, moyens de communication, personnel, plan de secours…' }));
+  const checklist = panel('Pre-lift checklist', el('div', { id: 'checklist' }));
+  const notes = panel('Notes / detailed sequence', field({ path: 'notes', type: 'textarea', placeholder: 'Sequence, communication, personnel, rescue plan…' }));
 
   root.append(el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, info, notes), el('div', { class: 'grid' }, env, weather, checklist)));
   renderChecklist();
@@ -77,11 +77,11 @@ function renderChecklist() {
         { class: 'row', style: { borderBottom: '1px solid var(--line)', padding: '4px 0' } },
         el('input', { type: 'checkbox', checked: !!item.checked, onchange: (e) => app.set(`checklist.${i}.checked`, e.target.checked) }),
         el('input', { type: 'text', value: item.label, style: { flex: 1, border: 'none', font: 'inherit' }, onchange: (e) => app.set(`checklist.${i}.label`, e.target.value) }),
-        el('button', { class: 'small danger', title: 'Supprimer', onclick: () => { list.splice(i, 1); app.recompute(); renderChecklist(); } }, '✕'),
+        el('button', { class: 'small danger', title: 'Delete', onclick: () => { list.splice(i, 1); app.recompute(); renderChecklist(); } }, '✕'),
       ),
     );
   });
-  box.append(el('button', { class: 'small', style: { marginTop: '6px' }, onclick: () => { list.push({ label: 'Nouveau point', checked: false }); app.recompute(); renderChecklist(); } }, '+ Ajouter un point'));
+  box.append(el('button', { class: 'small', style: { marginTop: '6px' }, onclick: () => { list.push({ label: 'New item', checked: false }); app.recompute(); renderChecklist(); } }, '+ Add item'));
 }
 
 function update(res) {
@@ -89,9 +89,9 @@ function update(res) {
   if (!box || !res?.category) return;
   box.innerHTML = '';
   box.append(
-    el('b', {}, `Catégorie indicative : ${res.category.cat} `),
+    el('b', {}, `Indicative category: ${res.category.cat} `),
     badge(res.status || 'info'),
-    el('div', { class: 'muted', style: { marginTop: '4px' } }, res.category.reasons.length ? `Motifs : ${res.category.reasons.join(', ')}` : 'Aucun critère de levage complexe détecté'),
-    el('div', { class: 'muted', style: { fontSize: '11px' } }, 'Classification indicative — appliquez la procédure de levage de votre entreprise / du client.'),
+    el('div', { class: 'muted', style: { marginTop: '4px' } }, res.category.reasons.length ? `Reasons: ${res.category.reasons.join(', ')}` : 'No complex-lift criterion detected'),
+    el('div', { class: 'muted', style: { fontSize: '11px' } }, 'Indicative classification — apply your company / client lifting procedure.'),
   );
 }

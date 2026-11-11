@@ -1,4 +1,4 @@
-// Vues du gréement : isométrique, plan (dessus), élévations face (XZ) et côté (YZ).
+// Rigging views: isometric, plan (top), front (XZ) and side (YZ) elevations.
 import { svgDoc, fitter, line, poly, circle, text, label, path, dim, group, STEEL_DARK } from './svg.js';
 import { fmt } from './fmt.js';
 
@@ -10,10 +10,10 @@ export const PROJ = {
   side: (p) => [p.y, -p.z],
 };
 export const VIEW_TITLES = {
-  iso: 'Vue isométrique',
-  plan: 'Vue de dessus (X-Y)',
-  front: 'Élévation face (X-Z)',
-  side: 'Élévation côté (Y-Z)',
+  iso: 'Isometric view',
+  plan: 'Plan view (X-Y)',
+  front: 'Front elevation (X-Z)',
+  side: 'Side elevation (Y-Z)',
 };
 
 const P = (x, y, z) => ({ x, y, z });
@@ -36,7 +36,7 @@ function boxFaces(b) {
 }
 
 function hookGlyph(x, y, s = 1) {
-  // crochet de grue stylisé, point d'appui en (x, y)
+  // stylised crane hook, bearing point at (x, y)
   const d = `M ${x} ${y - 30 * s} L ${x} ${y - 14 * s} M ${x - 5 * s} ${y - 14 * s} h ${10 * s} v ${-8 * s} h ${-10 * s} z
     M ${x} ${y - 6 * s} C ${x + 10 * s} ${y - 6 * s} ${x + 11 * s} ${y + 8 * s} ${x} ${y + 8 * s} C ${x - 7 * s} ${y + 8 * s} ${x - 9 * s} ${y + 2 * s} ${x - 8 * s} ${y - 1 * s}`;
   return path(d, { fill: 'none', stroke: STEEL_DARK, 'stroke-width': 2.4 * s, 'stroke-linecap': 'round' }) +
@@ -50,11 +50,11 @@ function linkGlyph(x, yTop, len, w, color = STEEL_DARK) {
   });
 }
 
-/** Petit symbole de manille au point bas d'une élingue, orienté selon l'élingue (écran). */
+/** Small shackle symbol at the bottom of a sling, oriented along the sling (screen space). */
 function shackleGlyph(p, dir, color = STEEL_DARK) {
   const [x, y] = p;
   const L = Math.hypot(dir[0], dir[1]) || 1;
-  const ux = dir[0] / L, uy = dir[1] / L; // vers le haut de l'élingue
+  const ux = dir[0] / L, uy = dir[1] / L; // towards the top of the sling
   const nx = -uy, ny = ux;
   const len = 11, w = 5;
   const a = [x + nx * w, y + ny * w], b = [x - nx * w, y - ny * w];
@@ -67,14 +67,14 @@ function shackleGlyph(p, dir, color = STEEL_DARK) {
 }
 
 /**
- * Dessine une vue. opts : { width, height, labels, forces, dims }
- * Retourne une chaîne SVG.
+ * Draws one view. opts: { width, height, labels, forces, dims }
+ * Returns an SVG string.
  */
 export function drawRiggingView(project, res, view = 'iso', opts = {}) {
   const W = opts.width || 620, H = opts.height || 440;
   const rig = res?.rig;
   const pr = PROJ[view];
-  if (!rig || rig.error) return svgDoc(W, H, text(20, 30, rig?.error || 'Pas de résultat', { fill: '#c0392b' }));
+  if (!rig || rig.error) return svgDoc(W, H, text(20, 30, rig?.error || 'No result', { fill: '#c0392b' }));
   const load = project.load;
   const b = boxCorners(load);
   const faces = boxFaces(b);
@@ -84,12 +84,12 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
   const subLen = rig.head?.useSub && rig.head.subLink ? (rig.head.subLink.dims.insideLength || 0) / 1000 : 0;
   const hookTop = P(hook.x, hook.y, hook.z + 1.2);
 
-  // points pour le cadrage
+  // points used for framing
   const pts3 = [...faces.top, ...faces.bottom, hook, hookTop, ...rig.legs.map((l) => l.bottom)];
   const f = fitter(pts3.map(pr), W, H, 34, { top: 40, bottom: 34 });
   const pp = (p) => f(pr(p));
   let body = '';
-  // anti-chevauchement des étiquettes : décale vers le bas, ou masque si identique à une étiquette proche
+  // label de-cluttering: shift down, or hide when no free slot is found
   const placed = [];
   const place = (x, y, w, h) => {
     for (let k = 0; k < 6; k++) {
@@ -102,7 +102,7 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
     return null;
   };
 
-  // ---------- charge
+  // ---------- load
   const faceStyle = { stroke: '#4a5562', 'stroke-width': 1.1, 'stroke-linejoin': 'round' };
   if (view === 'iso') {
     body += poly(faces.ymin.map(pp), { ...faceStyle, fill: '#c9d3dd' });
@@ -122,7 +122,7 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
     path(`M ${cog[0]} ${cog[1] - 7} A 7 7 0 0 1 ${cog[0] + 7} ${cog[1]} L ${cog[0]} ${cog[1]} Z M ${cog[0]} ${cog[1] + 7} A 7 7 0 0 1 ${cog[0] - 7} ${cog[1]} L ${cog[0]} ${cog[1]} Z`, { fill: '#111' });
   if (opts.labels !== false) body += label(cog[0] + 10, cog[1] + 4, 'COG', { 'font-size': 10, 'font-weight': 700 });
 
-  // ---------- palonnier
+  // ---------- spreader bar
   if (rig.spreader) {
     const s = rig.spreader;
     const half = 0.09;
@@ -137,10 +137,10 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
     ];
     facesBar.forEach((fc) => (body += poly(fc.map(pp), { fill: '#f0a35e', stroke: '#9b5a1d', 'stroke-width': 1 })));
     const mid = pp(P((s.lugA.x + s.lugB.x) / 2, (s.lugA.y + s.lugB.y) / 2, s.zTop));
-    if (opts.labels !== false) body += label(mid[0], mid[1] - 6, `Palonnier ${fmt(s.length)} m`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#9b5a1d', 'font-weight': 700 });
+    if (opts.labels !== false) body += label(mid[0], mid[1] - 6, `Spreader ${fmt(s.length)} m`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#9b5a1d', 'font-weight': 700 });
   }
 
-  // ---------- élingues
+  // ---------- slings
   const convergeTop = (leg) => {
     if (leg.level === 'bottom') return leg.top;
     return P(leg.top.x, leg.top.y, leg.top.z - mlLen - subLen);
@@ -166,7 +166,7 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
       body += label(a[0] - 4, a[1] + 15, p.id, { 'font-size': 11, 'font-weight': 800, fill: '#c0392b', 'text-anchor': 'middle' });
     });
 
-  // ---------- tête : masterlink / crochet
+  // ---------- head: master link / hook
   const ht = pp(hook);
   const htop = pp(hookTop);
   body += line(ht[0], ht[1] - 30, htop[0], htop[1], { stroke: '#555', 'stroke-width': 1.2, 'stroke-dasharray': '4 3' });
@@ -183,15 +183,15 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
   }
   body += hookGlyph(ht[0], ht[1], 0.9);
   if (opts.labels !== false) {
-    body += label(ht[0] + 14, ht[1] - 18, `Crochet · ${fmt(res.shlCrane)} t (statique)`, { 'font-size': 10, 'font-weight': 700 });
+    body += label(ht[0] + 14, ht[1] - 18, `Hook · ${fmt(res.shlCrane)} t (static)`, { 'font-size': 10, 'font-weight': 700 });
   }
 
-  // ---------- cotes (élévations)
+  // ---------- dimensions (elevations)
   if (opts.dims !== false && (view === 'front' || view === 'side')) {
     const zPad = Math.max(...rig.pts.map((p) => p.pos.z));
     const xEdge = view === 'front' ? b.x1 + 0.4 : b.y1 + 0.4;
     const mk = (z) => (view === 'front' ? P(xEdge, 0, z) : P(0, xEdge, z));
-    // cotes à droite de la pièce (texte vers l'extérieur) et sous la pièce
+    // dimensions to the right of the load (text outside) and under the load
     body += dim(pp(mk(hook.z)), pp(mk(zPad)), `${fmt(hook.z - zPad)} m`, { offset: 26, side: -1 });
     body += dim(pp(mk(b.z1)), pp(mk(b.z0)), `${fmt(b.z1 - b.z0)} m`, { offset: 8, side: -1, color: '#777' });
     const a1 = view === 'front' ? P(b.x0, 0, b.z0) : P(0, b.y0, b.z0);
@@ -203,7 +203,7 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
     body += dim(pp(P(b.x0, b.y0, 0)), pp(P(b.x0, b.y1, 0)), `${fmt(b.y1 - b.y0)} m`, { offset: 14, side: -1, color: '#777' });
   }
 
-  // ---------- repère
+  // ---------- axes
   body += axesGlyph(view, 16, H - 16);
   body += text(12, 20, VIEW_TITLES[view], { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
   return svgDoc(W, H, body, { title: VIEW_TITLES[view] });

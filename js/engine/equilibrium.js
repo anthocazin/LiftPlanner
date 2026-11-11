@@ -1,7 +1,7 @@
-// Estimation de l'assiette (inclinaison) d'une charge suspendue avec des longueurs d'élingues données.
-// Modèle : corps rigide pivotant autour de son COG, crochet à la verticale du COG, élingues inextensibles.
-// 1–3 jambes : solution exacte ; 4 jambes et + : moindres carrés (≈ élingues de même raideur),
-// avec détection des élingues détendues.
+// Estimate of the attitude (tilt) of a suspended load with given sling lengths.
+// Model: rigid body rotating about its COG, hook vertically above the COG, inextensible slings.
+// 1–3 legs: exact solution; 4 legs and more: least squares (≈ equally stiff slings), with
+// detection of slack slings.
 import { vsub, vlen, vcross, vnorm, solveLinear, deg } from './vec.js';
 
 function rotX(v, a) {
@@ -25,8 +25,8 @@ function rotAxis(v, k, a) {
 }
 
 /**
- * pts : points de levage (m), cog : COG (m), L : longueurs effectives (m).
- * Retour : { tilt_deg, tiltX_deg, tiltY_deg, hz, residual_mm[], slack[] }
+ * pts: lift points (m), cog: COG (m), L: effective lengths (m).
+ * Returns: { tilt_deg, tiltX_deg, tiltY_deg, hz, residual_mm[], slack[] }
  */
 export function estimateTilt(pts, cog, L) {
   const n = pts.length;
@@ -84,7 +84,7 @@ export function estimateTilt(pts, cog, L) {
   let active = pts.map((_, i) => i);
   let q = fit(active);
   const slack = [];
-  // 4 jambes et + : une élingue plus courte que la distance → les autres la "détendent"
+  // 4 legs and more: a sling longer than needed goes slack and the others carry the load
   for (let pass = 0; pass < n - 3 && n >= 4; pass++) {
     const all = residual(q, pts.map((_, i) => i));
     let worst = -1, wv = -2e-3;
@@ -103,7 +103,7 @@ export function estimateTilt(pts, cog, L) {
     tilt_deg: tilt,
     tiltX_deg: n === 2 ? null : deg(q[0]),
     tiltY_deg: n === 2 ? null : deg(q[1]),
-    tiltAxis: n === 2 ? 'axe ⟂ aux 2 points' : null,
+    tiltAxis: n === 2 ? 'axis ⟂ to the 2 points' : null,
     hz: q[nq - 1],
     residual_mm: res,
     slack,

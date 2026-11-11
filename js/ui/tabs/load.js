@@ -8,7 +8,7 @@ import { pdfPanel } from '../pdfview.js';
 export function render(root) {
   const L = 'load.';
   const presetField = field({
-    label: 'Contingence de poids (WCF)',
+    label: 'Weight contingency (WCF)',
     path: `${L}wcfPreset`,
     type: 'select',
     options: WCF_PRESETS.map((p) => [p.id, p.label]),
@@ -19,37 +19,37 @@ export function render(root) {
     },
   });
   const ident = panel(
-    'Charge',
+    'Load',
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Désignation', path: `${L}name`, type: 'text', cls: 'span2' }),
-      field({ label: 'Poids net', path: `${L}weight_t`, unit: 't', hint: 'Poids de la pièce seule' }),
+      field({ label: 'Description', path: `${L}name`, type: 'text', cls: 'span2' }),
+      field({ label: 'Net weight', path: `${L}weight_t`, unit: 't', hint: 'Weight of the item alone' }),
       presetField,
-      field({ label: 'Facteur WCF', path: `${L}wcf`, unit: '×', step: 0.01, onchange: () => app.set(`${L}wcfPreset`, 'custom', { silent: true }) }),
-      el('div', { class: 'field' }, el('span', { class: 'lbl' }, 'Poids de calcul'), el('div', { class: 'card', id: 'wdesign' }, '—')),
+      field({ label: 'WCF', path: `${L}wcf`, unit: '×', step: 0.01, onchange: () => app.set(`${L}wcfPreset`, 'custom', { silent: true }) }),
+      el('div', { class: 'field' }, el('span', { class: 'lbl' }, 'Design weight'), el('div', { class: 'card', id: 'wdesign' }, '—')),
     ),
-    el('h3', {}, 'Encombrement (boîte englobante)'),
+    el('h3', {}, 'Envelope (bounding box)'),
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Longueur L (X)', path: `${L}dims_mm.L`, unit: 'mm' }),
-      field({ label: 'Largeur l (Y)', path: `${L}dims_mm.W`, unit: 'mm' }),
-      field({ label: 'Hauteur H (Z)', path: `${L}dims_mm.H`, unit: 'mm' }),
-      field({ label: 'Origine boîte X', path: `${L}origin_mm.x`, unit: 'mm', hint: 'Coin mini dans le repère pièce' }),
-      field({ label: 'Origine boîte Y', path: `${L}origin_mm.y`, unit: 'mm' }),
-      field({ label: 'Origine boîte Z', path: `${L}origin_mm.z`, unit: 'mm' }),
+      field({ label: 'Length L (X)', path: `${L}dims_mm.L`, unit: 'mm' }),
+      field({ label: 'Width W (Y)', path: `${L}dims_mm.W`, unit: 'mm' }),
+      field({ label: 'Height H (Z)', path: `${L}dims_mm.H`, unit: 'mm' }),
+      field({ label: 'Box origin X', path: `${L}origin_mm.x`, unit: 'mm', hint: 'Minimum corner in the load frame' }),
+      field({ label: 'Box origin Y', path: `${L}origin_mm.y`, unit: 'mm' }),
+      field({ label: 'Box origin Z', path: `${L}origin_mm.z`, unit: 'mm' }),
     ),
-    el('h3', {}, 'Centre de gravité'),
+    el('h3', {}, 'Centre of gravity'),
     el(
       'div',
       { class: 'fields' },
       field({ label: 'COG X', path: `${L}cog_mm.x`, unit: 'mm' }),
       field({ label: 'COG Y', path: `${L}cog_mm.y`, unit: 'mm' }),
       field({ label: 'COG Z', path: `${L}cog_mm.z`, unit: 'mm' }),
-      field({ label: 'Enveloppe COG ± X', path: `${L}cogEnvelope_mm.dx`, unit: 'mm', hint: 'Incertitude : efforts max sur l\'enveloppe' }),
-      field({ label: 'Enveloppe COG ± Y', path: `${L}cogEnvelope_mm.dy`, unit: 'mm' }),
-      field({ label: 'Surface au vent', path: `${L}windArea_m2`, unit: 'm²', hint: 'Information (rapport)' }),
+      field({ label: 'COG envelope ± X', path: `${L}cogEnvelope_mm.dx`, unit: 'mm', hint: 'Uncertainty: max forces over the envelope' }),
+      field({ label: 'COG envelope ± Y', path: `${L}cogEnvelope_mm.dy`, unit: 'mm' }),
+      field({ label: 'Wind area', path: `${L}windArea_m2`, unit: 'm²', hint: 'Information (report)' }),
     ),
   );
 
@@ -58,19 +58,19 @@ export function render(root) {
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Points de levage (padeyes)'),
+      el('h2', {}, 'Lift points (padeyes)'),
       el(
         'div',
         { class: 'row' },
         el('button', { class: 'small', onclick: addPoint }, '+ Point'),
-        el('button', { class: 'small', title: 'Crée 4 points aux coins supérieurs, à 300 mm des bords', onclick: corners }, '4 coins (dessus)'),
+        el('button', { class: 'small', title: 'Creates 4 points at the top corners, 300 mm from the edges', onclick: corners }, '4 top corners'),
       ),
     ),
     el('div', { class: 'tbl-wrap', id: 'lp-table' }),
     el(
       'div',
       { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } },
-      'Coordonnées en mm dans le repère de la pièce (Z vers le haut). Azimut = orientation du plan du padeye en vue de dessus (° depuis l\'axe X) ; laisser vide si le padeye est orienté vers le crochet. Épaisseur = tôle + flasques.',
+      'Coordinates in mm in the load frame (Z up). Azimuth = orientation of the padeye plane in plan view (° from the X axis); leave empty if the padeye faces the hook. Thickness = main plate + cheek plates.',
     ),
   );
 
@@ -86,7 +86,7 @@ function renderPoints() {
   if (!box) return;
   const list = app.project.load.liftPoints;
   const res = app.result;
-  const head = ['Id', 'X', 'Y', 'Z', 'SWL (t)', 'Ø trou', 'Ép.', 'Rayon', 'Azimut °', 'Actif', 'Effort calc.', ''];
+  const head = ['Id', 'X', 'Y', 'Z', 'SWL (t)', 'Hole Ø', 'Thk.', 'Radius', 'Azimuth °', 'Active', 'Design force', ''];
   const tb = el('tbody');
   list.forEach((p, i) => {
     const b = `load.liftPoints.${i}.`;
@@ -99,7 +99,7 @@ function renderPoints() {
         ...['x', 'y', 'z', 'swl_t', 'holeDia_mm', 'thk_mm', 'radius_mm', 'azimuth_deg'].map((k) => el('td', {}, cell(b + k, 'number', { onchange: () => app.recompute() }))),
         el('td', { style: { textAlign: 'center' } }, cell(`${b}used`, 'checkbox', { onchange: () => app.recompute() })),
         el('td', { class: 'num' }, leg ? `${fmt(leg.Fdesign)} t` : '—'),
-        el('td', {}, el('button', { class: 'small danger', title: 'Supprimer', onclick: () => { list.splice(i, 1); app.recompute(); renderPoints(); } }, '✕')),
+        el('td', {}, el('button', { class: 'small danger', title: 'Delete', onclick: () => { list.splice(i, 1); app.recompute(); renderPoints(); } }, '✕')),
       ),
     );
   });
@@ -145,11 +145,11 @@ function update(res) {
   if (pv) {
     pv.innerHTML = '';
     pv.append(
-      figure(drawRiggingView(app.project, res, 'plan', { width: 560, height: 330, forces: false }), 'vue-dessus'),
-      figure(drawRiggingView(app.project, res, 'front', { width: 560, height: 330, forces: false }), 'elevation-face'),
+      figure(drawRiggingView(app.project, res, 'plan', { width: 560, height: 330, forces: false }), 'plan-view'),
+      figure(drawRiggingView(app.project, res, 'front', { width: 560, height: 330, forces: false }), 'front-elevation'),
     );
   }
-  // met à jour la colonne "Effort calc." sans reconstruire les champs en cours d'édition
+  // refresh the "Design force" column without rebuilding the fields being edited
   const rows = document.querySelectorAll('#lp-table tbody tr');
   rows.forEach((tr, i) => {
     const p = app.project.load.liftPoints[i];

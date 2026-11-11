@@ -1,4 +1,4 @@
-// Storyboard : vue en plan du site et coupe radiale (élévation) grue / charge pour chaque étape.
+// Storyboard: site plan view and radial section (elevation) of crane / load for each step.
 import { svgDoc, fitter, line, poly, circle, text, label, path, dim, rect } from './svg.js';
 import { fmt } from './fmt.js';
 import { boomGeometry, maxHookHeight } from '../engine/crane.js';
@@ -10,7 +10,7 @@ function rectCorners(cx, cy, sx, sy, rotDeg) {
   return [[-sx / 2, -sy / 2], [sx / 2, -sy / 2], [sx / 2, sy / 2], [-sx / 2, sy / 2]].map(([x, y]) => [cx + x * c - y * s, cy + x * s + y * c]);
 }
 
-/** Intervalle [r1, r2] de la droite radiale (origine grue, angle θ) traversant un rectangle orienté. */
+/** Interval [r1, r2] of the radial line (crane origin, angle θ) crossing an oriented rectangle. */
 function radialSpan(ob, crane, thetaDeg, rMax) {
   const a = rad(ob.rot_deg || 0);
   const ca = Math.cos(-a), sa = Math.sin(-a);
@@ -37,7 +37,7 @@ function loadFootprint(load) {
   return { L: (d.L || 0) / 1000, W: (d.W || 0) / 1000, H: (d.H || 0) / 1000 };
 }
 
-/** Vue en plan d'une étape (ou de toutes si stepIndex = null). */
+/** Plan view of one step (or of all steps when stepIndex = null). */
 export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   const W = opts.width || 520, H = opts.height || 420;
   const sb = project.storyboard || {};
@@ -53,7 +53,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   const f = fitter(pts, W, H, 26, { top: 34 });
   const P = (x, y) => f([x, -y]);
   let body = '';
-  // grille
+  // grid
   const step = ext > 30 ? 10 : 5;
   for (let g = -Math.ceil(ext / step) * step; g <= ext; g += step) {
     const a = P(cr.x + g, cr.y - ext), b = P(cr.x + g, cr.y + ext);
@@ -67,7 +67,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     const m = P(o.x, o.y);
     body += label(m[0], m[1] + 3, `${o.name} (h ${fmt(o.h, 1)} m)`, { 'text-anchor': 'middle', 'font-size': 9.5 });
   }
-  // grue
+  // crane
   const c0 = P(cr.x, cr.y);
   const fpC = rectCorners(cr.x, cr.y, cr.footprint?.L || 10, cr.footprint?.W || 3, cr.heading_deg).map(([x, y]) => P(x, y));
   body += poly(fpC, { fill: '#f2c14e', 'fill-opacity': 0.5, stroke: '#7a5a10', 'stroke-width': 1.2 });
@@ -76,16 +76,16 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     body += circle(c0[0], c0[1], r, { fill: 'none', stroke: '#c0392b', 'stroke-dasharray': '2 4', 'stroke-width': 0.8 });
   }
   body += circle(c0[0], c0[1], 5, { fill: '#7a5a10' });
-  body += label(c0[0] + 8, c0[1] - 8, 'Grue', { 'font-size': 10, 'font-weight': 700 });
+  body += label(c0[0] + 8, c0[1] - 8, 'Crane', { 'font-size': 10, 'font-weight': 700 });
 
-  // étapes
+  // steps
   const draw = (st, i, faint) => {
     const R = Number(st.radius_m) || 0;
     const th = rad(Number(st.slew_deg) || 0);
     const lx = cr.x + R * Math.cos(th), ly = cr.y + R * Math.sin(th);
     const corners = rectCorners(lx, ly, fp.L, fp.W, st.heading_deg).map(([x, y]) => P(x, y));
     const res_i = res?.steps?.[i];
-    const util = res_i?.checks?.find((c) => c.cat === 'Grue' && c.util != null)?.util;
+    const util = res_i?.checks?.find((c) => c.cat === 'Crane' && c.util != null)?.util;
     const col = util > 1 ? '#c0392b' : util > (project.crane?.utilLimit || 0.85) ? '#b7791f' : '#1f8f4e';
     const lp = P(lx, ly);
     if (!faint) {
@@ -101,7 +101,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     if (stepIndex == null || i !== stepIndex) draw(st, i, stepIndex != null);
   });
   if (stepIndex != null && steps[stepIndex]) draw(steps[stepIndex], stepIndex, false);
-  // trajectoire
+  // load path
   if (steps.length > 1) {
     const ptsPath = steps.map((st) => {
       const th = rad(Number(st.slew_deg) || 0);
@@ -109,24 +109,24 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     });
     body += path(`M ${ptsPath.map((p) => p.join(' ')).join(' L ')}`, { fill: 'none', stroke: '#173a5e', 'stroke-width': 0.8, 'stroke-dasharray': '3 3', 'marker-end': null });
   }
-  // échelle
+  // scale bar
   const sbLen = step;
   const s0 = [W - 20 - sbLen * f.scale, H - 16];
   body += line(s0[0], s0[1], s0[0] + sbLen * f.scale, s0[1], { stroke: '#333', 'stroke-width': 2 }) + text(s0[0], s0[1] - 4, `${sbLen} m`, { 'font-size': 9.5 });
   // axes
   body += line(16, H - 16, 40, H - 16, { stroke: '#c0392b', 'stroke-width': 1.5 }) + text(43, H - 13, 'X', { 'font-size': 9, fill: '#c0392b' });
   body += line(16, H - 16, 16, H - 40, { stroke: '#1f8f4e', 'stroke-width': 1.5 }) + text(13, H - 43, 'Y', { 'font-size': 9, fill: '#1f8f4e' });
-  const ttl = stepIndex != null && steps[stepIndex] ? `Plan — ${steps[stepIndex].name || `Étape ${stepIndex + 1}`}` : 'Plan du site — toutes étapes';
+  const ttl = stepIndex != null && steps[stepIndex] ? `Plan — ${steps[stepIndex].name || `Step ${stepIndex + 1}`}` : 'Site plan — all steps';
   body += text(12, 20, ttl, { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
   return svgDoc(W, H, body, { title: ttl });
 }
 
-/** Coupe radiale (élévation) grue + charge pour une étape. */
+/** Radial section (elevation) of crane + load for one step. */
 export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   const W = opts.width || 520, H = opts.height || 420;
   const st = project.storyboard?.steps?.[stepIndex];
   const crane = project.crane || {};
-  if (!st) return svgDoc(W, H, text(20, 30, 'Étape introuvable'));
+  if (!st) return svgDoc(W, H, text(20, 30, 'Step not found'));
   const R = Number(st.radius_m) || 0;
   const g = boomGeometry(crane, R);
   const rig = res?.rig;
@@ -135,7 +135,7 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   const hookAboveBottom = res?.hookAboveBottom || fp.H + 3;
   const hookZ = elev + hookAboveBottom;
   const rel = rad((Number(st.heading_deg) || 0) - (Number(st.slew_deg) || 0));
-  const wRad = Math.abs(fp.L * Math.cos(rel)) + Math.abs(fp.W * Math.sin(rel)); // emprise radiale
+  const wRad = Math.abs(fp.L * Math.cos(rel)) + Math.abs(fp.W * Math.sin(rel)); // radial footprint
   const tipZ = g.valid ? g.tipHeight : hookZ + 4;
   const zTop = Math.max(tipZ, hookZ) + 2;
   const rLeft = -Math.max(4, (Number(crane.boom?.pivotOffset) || 0) + 4);
@@ -144,21 +144,21 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   const f = fitter([[rLeft, -zTop], [rRight, -zMin + 0.5]], W, H, 30, { top: 36, bottom: 40 });
   const P = (r, z) => f([r, -z]);
   let body = '';
-  // sol
+  // ground
   const g0 = P(rLeft, 0), g1 = P(rRight, 0);
   body += line(g0[0], g0[1], g1[0], g1[1], { stroke: '#4a5562', 'stroke-width': 1.6 });
   for (let r = rLeft; r < rRight; r += 1) {
     const a = P(r, 0), b = P(r - 0.6, -0.6);
     body += line(a[0], a[1], b[0], b[1], { stroke: '#9aa5b1', 'stroke-width': 0.6 });
   }
-  // obstacles coupés par la radiale
+  // obstacles cut by the radial line
   const sb = project.storyboard || {};
   const cr = sb.crane || { x: 0, y: 0 };
   for (const o of sb.obstacles || []) {
     const span = radialSpan(o, cr, Number(st.slew_deg) || 0, rRight);
     if (!span) continue;
     if (Number(o.h) < 0) {
-      // niveau inférieur (ex. pont du supply sous le pont de la plateforme)
+      // lower level (e.g. supply vessel deck below the platform deck)
       const a = P(span[0], o.h), b = P(span[1], o.h);
       body += line(a[0], a[1], b[0], b[1], { stroke: o.color || '#4a5562', 'stroke-width': 3 });
       body += label((a[0] + b[0]) / 2, a[1] + 13, `${o.name} ${fmt(o.h, 1)} m`, { 'text-anchor': 'middle', 'font-size': 9.5 });
@@ -168,7 +168,7 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
     body += rect(a[0], a[1], b[0] - a[0], b[1] - a[1], { fill: o.color || '#9aa5b1', 'fill-opacity': 0.55, stroke: '#4a5562' });
     body += label((a[0] + b[0]) / 2, a[1] - 4, `${o.name} ${fmt(o.h, 1)} m`, { 'text-anchor': 'middle', 'font-size': 9.5 });
   }
-  // grue (schématique)
+  // crane (schematic)
   const hp = Number(crane.boom?.pivotHeight) || 2, a0 = Number(crane.boom?.pivotOffset) || 0;
   const cb0 = P(-3, 0), cb1 = P(3, hp * 0.75);
   body += rect(cb0[0], cb1[1], cb1[0] - cb0[0], cb0[1] - cb1[1], { fill: '#f2c14e', stroke: '#7a5a10', rx: 3 });
@@ -180,20 +180,20 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
     body += line(piv[0], piv[1], tip[0], tip[1], { stroke: '#d4a017', 'stroke-width': 7, 'stroke-linecap': 'round' });
     body += line(piv[0], piv[1], tip[0], tip[1], { stroke: '#7a5a10', 'stroke-width': 1, 'stroke-dasharray': '4 4' });
     body += circle(tip[0], tip[1], 4, { fill: '#7a5a10' });
-    // angle de flèche
+    // boom angle
     const ar = 34;
     const ang = rad(g.angle);
     body += path(`M ${piv[0] + ar} ${piv[1]} A ${ar} ${ar} 0 0 0 ${piv[0] + ar * Math.cos(ang)} ${piv[1] - ar * Math.sin(ang)}`, { fill: 'none', stroke: '#7a5a10' });
     body += label(piv[0] + ar + 4, piv[1] - 10, `${g.angle.toFixed(1)}°`, { 'font-size': 10, fill: '#7a5a10', 'font-weight': 700 });
-    // câble + crochet
+    // hoist rope + hook
     const hk = P(R, hookZ);
     body += line(tip[0], tip[1], hk[0], hk[1] - 10, { stroke: '#333', 'stroke-width': 1.2 });
     body += rect(hk[0] - 6, hk[1] - 22, 12, 12, { fill: '#6b7785' });
   } else {
-    body += label(piv[0] + 10, piv[1] - 20, g.reason || 'Géométrie flèche non renseignée', { fill: '#c0392b', 'font-size': 10 });
+    body += label(piv[0] + 10, piv[1] - 20, g.reason || 'Boom geometry not entered', { fill: '#c0392b', 'font-size': 10 });
   }
   body += circle(piv[0], piv[1], 3.5, { fill: '#333' });
-  // gréement + charge
+  // rigging + load
   const hk = P(R, hookZ);
   const zPad = elev + (rig && !rig.error ? Math.max(...rig.pts.map((p) => p.pos.z)) - (Number(project.load.origin_mm?.z) || 0) / 1000 : fp.H);
   const l0 = P(R - wRad / 2, elev + fp.H), l1 = P(R + wRad / 2, elev);
@@ -208,26 +208,26 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
     body += line(hk[0], hk[1], pa[0], pa[1], { stroke: '#2a5db0', 'stroke-width': 2 }) + line(hk[0], hk[1], pb[0], pb[1], { stroke: '#2a5db0', 'stroke-width': 2 });
   }
   body += rect(l0[0], l0[1], l1[0] - l0[0], l1[1] - l0[1], { fill: '#e8822a', 'fill-opacity': 0.8, stroke: '#9b5a1d', 'stroke-width': 1.2 });
-  body += label((l0[0] + l1[0]) / 2, (l0[1] + l1[1]) / 2 + 4, project.load.name || 'Charge', { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 700 });
-  // cotes
+  body += label((l0[0] + l1[0]) / 2, (l0[1] + l1[1]) / 2 + 4, project.load.name || 'Load', { 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 700 });
+  // dimensions
   const axis0 = P(0, 0);
   body += line(axis0[0], P(0, zTop)[1], axis0[0], axis0[1] + 6, { stroke: '#555', 'stroke-dasharray': '8 3 2 3', 'stroke-width': 0.8 });
   body += dim(P(0, 0), P(R, 0), `R = ${fmt(R, 1)} m`, { offset: 18, side: -1, color: '#2a5db0' });
-  body += dim(P(rRight - 1, 0), P(rRight - 1, hookZ), `crochet ${fmt(hookZ, 1)} m`, { offset: 0, side: 1, color: '#173a5e' });
+  body += dim(P(rRight - 1, 0), P(rRight - 1, hookZ), `hook ${fmt(hookZ, 1)} m`, { offset: 0, side: 1, color: '#173a5e' });
   if (elev > 0) body += dim(P(R + wRad / 2 + 0.6, 0), P(R + wRad / 2 + 0.6, elev), `${fmt(elev, 2)} m`, { offset: 0, color: '#777' });
-  // cartouche
+  // title block
   const sr = res?.steps?.[stepIndex];
-  const cc = sr?.checks?.find((c) => c.cat === 'Grue' && c.util != null);
+  const cc = sr?.checks?.find((c) => c.cat === 'Crane' && c.util != null);
   const avail = maxHookHeight(crane, R);
   const lines = [
-    `${st.name || `Étape ${stepIndex + 1}`}`,
-    `Rayon ${fmt(R, 1)} m · orientation ${fmt(Number(st.slew_deg) || 0, 0)}°`,
-    cc ? `Charge ${fmt(cc.value)} t / capacité ${fmt(cc.limit)} t → ${(cc.util * 100).toFixed(0)} %` : 'Capacité : —',
-    avail != null ? `Crochet requis ${fmt(hookZ, 1)} m / dispo ${fmt(avail, 1)} m` : '',
+    `${st.name || `Step ${stepIndex + 1}`}`,
+    `Radius ${fmt(R, 1)} m · slew ${fmt(Number(st.slew_deg) || 0, 0)}°`,
+    cc ? `Load ${fmt(cc.value)} t / capacity ${fmt(cc.limit)} t → ${(cc.util * 100).toFixed(0)} %` : 'Capacity: —',
+    avail != null ? `Hook height required ${fmt(hookZ, 1)} m / available ${fmt(avail, 1)} m` : '',
   ].filter(Boolean);
   const bx = 12, by = 44;
   body += rect(bx, by - 14, 240, lines.length * 14 + 10, { fill: '#fff', stroke: '#c9d3dd', rx: 4 });
   lines.forEach((t, i) => (body += text(bx + 8, by + i * 14, t, { 'font-size': i === 0 ? 11 : 10, 'font-weight': i === 0 ? 700 : 400, fill: i === 2 && cc?.util > 1 ? '#c0392b' : '#1c2733' })));
-  body += text(12, 20, 'Élévation (coupe radiale)', { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
-  return svgDoc(W, H, body, { title: `Élévation — ${st.name || ''}` });
+  body += text(12, 20, 'Elevation (radial section)', { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
+  return svgDoc(W, H, body, { title: `Elevation — ${st.name || ''}` });
 }

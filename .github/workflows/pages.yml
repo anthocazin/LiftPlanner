@@ -1,8 +1,8 @@
-name: Publication GitHub Pages
+name: Publish to GitHub Pages
 
-# Publie l'application sur GitHub Pages à chaque push sur main.
-# Activer : Settings → Pages → Source = "GitHub Actions".
-# Pages sur un dépôt privé nécessite un plan GitHub payant (Pro / Team / Enterprise).
+# Publishes the application on GitHub Pages on every push to main.
+# Enable: Settings → Pages → Source = "GitHub Actions".
+# Pages on a private repository requires a paid GitHub plan (Pro / Team / Enterprise).
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
           node-version: 22
       - run: npm test
       - run: npm run build
-      - name: Prépare le site
+      - name: Prepare the site
         run: |
           mkdir -p _site
           cp -r index.html css js vendor examples dist _site/

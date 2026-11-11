@@ -1,4 +1,4 @@
-// Petits utilitaires DOM + liaison des champs à l'état de l'application.
+// Small DOM helpers + binding of form fields to the application state.
 import { app } from './app.js';
 
 export function el(tag, attrs = {}, ...children) {
@@ -19,7 +19,7 @@ export function el(tag, attrs = {}, ...children) {
   return e;
 }
 
-export const fmt = (v, d = 2) => (v == null || v === '' || !isFinite(v) ? '—' : Number(v).toLocaleString('fr-FR', { minimumFractionDigits: d, maximumFractionDigits: d }));
+export const fmt = (v, d = 2) => (v == null || v === '' || !isFinite(v) ? '—' : Number(v).toLocaleString('en-GB', { minimumFractionDigits: d, maximumFractionDigits: d }));
 export const fmt0 = (v) => fmt(v, 0);
 export const fmt1 = (v) => fmt(v, 1);
 
@@ -33,9 +33,9 @@ const parse = (type, raw) => {
 };
 
 /**
- * Champ lié à un chemin de l'état. opts : { label, path, type, unit, step, options, hint, cls, live, onchange, placeholder }
+ * Field bound to a state path. opts: { label, path, type, unit, step, options, hint, cls, live, onchange, placeholder }
  * - type 'number' | 'text' | 'date' | 'select' | 'checkbox' | 'textarea' | 'percent'
- * - 'percent' : stocké en fraction (0.85), affiché en %
+ * - 'percent': stored as a fraction (0.85), displayed in %
  */
 export function field(opts) {
   const { label, path, type = 'number', unit, step = 'any', options, hint, cls = '', placeholder } = opts;
@@ -77,7 +77,7 @@ export function field(opts) {
   );
 }
 
-/** Champ de cellule de tableau (valide au changement). */
+/** Table cell input (committed on change). */
 export function cell(path, type = 'number', opts = {}) {
   const cur = app.get(path);
   if (type === 'select') {
@@ -100,7 +100,7 @@ export function cell(path, type = 'number', opts = {}) {
 }
 
 export function badge(status) {
-  const txt = { ok: 'OK', warn: 'Alerte', fail: 'Non conforme', info: 'Info' }[status] || status;
+  const txt = { ok: 'OK', warn: 'Warning', fail: 'Fail', info: 'Info' }[status] || status;
   return el('span', { class: `badge ${status}` }, txt);
 }
 

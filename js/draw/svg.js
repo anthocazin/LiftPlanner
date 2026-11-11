@@ -1,4 +1,4 @@
-// Génération SVG (chaînes) : utilisable à l'écran, dans le rapport et à l'export.
+// SVG generation (strings): used on screen, in the report and for export.
 
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -21,7 +21,7 @@ export const path = (d, a = {}) => `<path ${attrs({ d, ...a })}/>`;
 export const text = (x, y, s, a = {}) => `<text ${attrs({ x, y, 'font-size': 11, fill: '#1c2733', ...a })}>${esc(s)}</text>`;
 export const group = (body, a = {}) => `<g ${attrs(a)}>${body}</g>`;
 
-/** Texte avec halo blanc pour rester lisible sur les traits. */
+/** Text with a white halo so it stays readable over lines. */
 export const label = (x, y, s, a = {}) =>
   text(x, y, s, { stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round', ...a });
 
@@ -31,7 +31,7 @@ export function svgDoc(w, h, body, { bg = '#ffffff', title = '' } = {}) {
   }<rect width="100%" height="100%" fill="${bg}"/>${body}</svg>`;
 }
 
-/** Ajuste un ensemble de points 2D (unités modèle, y vers le bas) dans un cadre w×h. */
+/** Fits a set of 2D points (model units, y down) into a w×h frame. */
 export function fitter(points, w, h, margin = 30, extra = {}) {
   const xs = points.map((p) => p[0]);
   const ys = points.map((p) => p[1]);
@@ -48,7 +48,7 @@ export function fitter(points, w, h, margin = 30, extra = {}) {
   return f;
 }
 
-/** Ligne de cote avec flèches et texte. */
+/** Dimension line with arrows and text. */
 export function dim(p1, p2, txt, { offset = 14, color = '#3b6ea5', side = 1 } = {}) {
   const dx = p2[0] - p1[0], dy = p2[1] - p1[1];
   const L = Math.hypot(dx, dy) || 1;
@@ -71,7 +71,7 @@ export function dim(p1, p2, txt, { offset = 14, color = '#3b6ea5', side = 1 } = 
   );
 }
 
-/** Convertit une chaîne SVG en PNG (Blob) via un canvas. */
+/** Converts an SVG string to PNG (Blob) through a canvas. */
 export function svgToPng(svgString, scale = 2) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -85,9 +85,9 @@ export function svgToPng(svgString, scale = 2) {
       ctx.fillRect(0, 0, c.width, c.height);
       ctx.drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      c.toBlob((b) => (b ? resolve(b) : reject(new Error('Conversion PNG impossible'))), 'image/png');
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG conversion failed'))), 'image/png');
     };
-    img.onerror = () => reject(new Error('SVG invalide'));
+    img.onerror = () => reject(new Error('Invalid SVG'));
     img.src = url;
   });
 }

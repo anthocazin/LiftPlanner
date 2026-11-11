@@ -1,6 +1,6 @@
-// Résolution du gréement : géométrie des jambes, sélection du matériel, efforts.
-// Conventions : coordonnées en m dans le repère de la pièce (X longueur, Y largeur, Z vers le haut),
-// efforts en t (tonnes-force). Le crochet est supposé à la verticale du COG (charge libre).
+// Rigging solver: leg geometry, equipment selection, forces.
+// Conventions: coordinates in m in the load frame (X length, Y width, Z up), forces in t
+// (tonnes-force). The hook is assumed vertically above the COG (freely suspended load).
 import { v3, vsub, vlen, vnorm, hdist, deg, rad } from './vec.js';
 import { legTensions, distributeVertical } from './statics.js';
 import { estimateTilt } from './equilibrium.js';
@@ -8,13 +8,15 @@ import { resolveFactors } from './factors.js';
 import {
   getItem,
   selectShackle,
-  selectRoundsling,
+  selectSling,
   selectMasterlink,
   selectGlink,
   connectorLength,
   itemWeight_t,
   standardLength,
   shackleSideLoadFactor,
+  ROUNDSLING_STD_LENGTHS,
+  WIRE_STD_LENGTHS,
 } from '../catalog/index.js';
 
 const mm = (v) => (Number(v) || 0) / 1000;
@@ -22,6 +24,7 @@ const isAuto = (id) => !id || id === 'auto';
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 
 export const DEFAULT_LEG = {
+  slingFamily: null, // null → rigging default (rigging.slingFamily)
   slingId: 'auto',
   length_m: null,
   lockLength: false,
@@ -30,6 +33,13 @@ export const DEFAULT_LEG = {
   topConnector: 'direct',
   topConnectorId: 'auto',
 };
+
+/** Effective configuration of a leg (defaults + rigging-level sling family + leg overrides). */
+export function legConfig(rig, key, extra = {}) {
+  const cfg = { ...DEFAULT_LEG, ...extra, ...(rig.legs?.[key] || {}) };
+  if (!cfg.slingFamily) cfg.slingFamily = rig.slingFamily || 'RS-PES';
+  return cfg;
+}
 
 export function usedLiftPoints(load) {
   return (load?.liftPoints || [])
@@ -48,16 +58,16 @@ export function cogM(load) {
   return v3(mm(c.x), mm(c.y), mm(c.z));
 }
 
-/** Angle (°) entre la direction de l'élingue et le plan du padeye (azimut du plan en ° / axe X). */
+/** Angle (°) between the sling direction and the padeye plane (plane azimuth in ° from the X axis). */
 export function outOfPlaneAngle(u, azimuthDeg) {
   if (azimuthDeg == null || azimuthDeg === '' || !isFinite(Number(azimuthDeg))) return null;
   const a = rad(Number(azimuthDeg));
-  const n = { x: -Math.sin(a), y: Math.cos(a) }; // normale horizontale au plan du padeye
+  const n = { x: -Math.sin(a), y: Math.cos(a) }; // horizontal normal to the padeye plane
   const s = Math.abs(u.x * n.x + u.y * n.y);
   return deg(Math.asin(Math.min(1, s)));
 }
 
-/** Variantes de COG pour l'enveloppe ± dx, ± dy (m). */
+/** COG variants for the ± dx, ± dy envelope (m). */
 function cogVariants(cog, env) {
   const dx = mm(env?.dx), dy = mm(env?.dy);
   const list = [cog];
@@ -67,7 +77,7 @@ function cogVariants(cog, env) {
   return list;
 }
 
-/** Tensions statiques maximales sur l'enveloppe de COG (crochet toujours à la verticale du COG). */
+/** Maximum static tensions over the COG envelope (hook always above the COG). */
 function envelopeTensions(zTop, pts, W, cog, env) {
   const nominal = legTensions(v3(cog.x, cog.y, zTop), pts, W, cog);
   const T = [...nominal.T];
@@ -80,7 +90,7 @@ function envelopeTensions(zTop, pts, W, cog, env) {
   return { ...nominal, Tnom: nominal.T, T, Rmin };
 }
 
-/** Réactions verticales nominales / max / min sur l'enveloppe de COG. */
+/** Nominal / max / min vertical reactions over the COG envelope. */
 function envelopeReactions(ptsPos, W, cog, env) {
   const R = distributeVertical(ptsPos, cog, W).R;
   const Rmax = [...R];
@@ -94,14 +104,16 @@ function envelopeReactions(ptsPos, W, cog, env) {
   return { R, Rmax, Rmin };
 }
 
-function roundSlingLength(req, mode) {
+const stdLengths = (item) => item?.lengths || (item && ['wiresling', 'grommet'].includes(item.type) ? WIRE_STD_LENGTHS : ROUNDSLING_STD_LENGTHS);
+
+function roundSlingLength(req, mode, lengths) {
   if (mode === 'exact') return Math.max(0.1, Math.round(req * 100) / 100);
-  return standardLength(req, undefined, mode === 'up' || mode === 'set');
+  return standardLength(req, lengths, mode === 'up' || mode === 'set');
 }
 
-/** Choisit (ou reprend) les composants d'une jambe. */
+/** Picks (or keeps) the components of a leg. */
 function pickComponents(cfg, F, beta, ctxBottom, ctxTop, rules) {
-  const sling = isAuto(cfg.slingId) ? selectRoundsling(F, cfg.mode) : getItem(cfg.slingId);
+  const sling = isAuto(cfg.slingId) ? selectSling(F, cfg.mode, cfg.slingFamily) : getItem(cfg.slingId);
   const slingWidth = sling?.dims?.width || 0;
   const sf = shackleSideLoadFactor(beta || 0);
   const bottomShackle = isAuto(cfg.bottomShackleId)
@@ -117,17 +129,17 @@ function pickComponents(cfg, F, beta, ctxBottom, ctxTop, rules) {
 
 function slingLengthFor(cfg, comps, Lreq, roundMode) {
   if (cfg.lockLength && Number(cfg.length_m) > 0) return Number(cfg.length_m);
-  if (comps.sling?.length_m) return Number(comps.sling.length_m); // élingue d'inventaire à longueur fixe
-  return roundSlingLength(Lreq, roundMode);
+  if (comps.sling?.length_m) return Number(comps.sling.length_m); // inventory sling with a fixed length
+  return roundSlingLength(Lreq, roundMode, stdLengths(comps.sling));
 }
 
-/** Mode "jeu" : une même longueur standard (arrondie au-dessus de la plus grande requise) pour un groupe de jambes. */
+/** "Matched set" mode: one standard length (rounded up from the longest requirement) for a group of legs. */
 function applyLengthSet(legs, roundMode) {
   if (roundMode !== 'set') return;
   const free = legs.filter((l) => !(l.cfg.lockLength && Number(l.cfg.length_m) > 0) && !l.comps.sling?.length_m);
   if (!free.length) return;
   const maxReq = Math.max(...free.map((l) => l.slingLengthReq));
-  const L = standardLength(maxReq, undefined, true);
+  const L = standardLength(maxReq, stdLengths(free[0].comps.sling), true);
   free.forEach((l) => {
     l.slingLength = L;
     l.Leff = L + l.hwLength;
@@ -146,7 +158,7 @@ function legWeight(leg) {
   );
 }
 
-/** Masterlink (+ sous-anneaux éventuels) et manille de tête. */
+/** Master link (+ optional sub-links) and top shackle. */
 function pickHead(rig, legs, Fvert, rules) {
   const ml = rig.masterlink || {};
   const nLegs = legs.length;
@@ -154,7 +166,8 @@ function pickHead(rig, legs, Fvert, rules) {
   let pairs = null;
   let subLink = null;
   let fitWidth = 0;
-  // encombrement le long de la barre du masterlink / du crochet
+  let masterlink = null;
+  // space taken along the master link / hook bearing bar
   const widthOf = (leg) => {
     const t = leg.comps.topConn;
     if (!t) return leg.comps.sling?.dims?.width || 0;
@@ -162,7 +175,7 @@ function pickHead(rig, legs, Fvert, rules) {
     return t.dims?.barThk || t.dims?.maxSlingWidth || 0;
   };
   if (rig.headType === 'hook') {
-    // élingues / connecteurs directement dans le crochet (pas de masterlink)
+    // slings / connectors placed directly on the crane hook (no master link)
     let topShackle = null;
     if (rig.topShackle?.enabled)
       topShackle = isAuto(rig.topShackle.itemId) ? selectShackle(Fvert, {}, rules) : getItem(rig.topShackle.itemId);
@@ -172,31 +185,51 @@ function pickHead(rig, legs, Fvert, rules) {
       fitWidth: legs.reduce((s, l) => s + widthOf(l), 0), weight: itemWeight_t(topShackle),
     };
   }
+  let integrated = false;
   if (useSub) {
-    // regroupe les jambes deux à deux par azimut autour du crochet
+    // group legs in pairs by azimuth around the hook
     const sorted = [...legs].sort((a, b) => a.azimuth - b.azimuth);
     pairs = [];
     for (let i = 0; i < sorted.length; i += 2) pairs.push(sorted.slice(i, i + 2));
     const pairLoad = Math.max(...pairs.map((p) => p.reduce((s, l) => s + l.Fdesign * Math.cos(rad(l.angleV)), 0)));
     const pairWidth = Math.max(...pairs.map((p) => p.reduce((s, l) => s + widthOf(l), 0)));
-    subLink = isAuto(ml.subLinkItemId) ? selectMasterlink(pairLoad, pairWidth) : getItem(ml.subLinkItemId);
-    fitWidth = pairs.length * (subLink?.dims?.stockDia || 0);
+    // 1) master link assembly with integrated sub-links (e.g. G80 quad assembly)
+    const chosen = isAuto(ml.itemId) ? null : getItem(ml.itemId);
+    const asm = chosen?.sub ? chosen : isAuto(ml.itemId) ? selectMasterlink(Fvert, 0, 2, { assembly: true, subWidth: pairWidth }) : null;
+    if (asm?.sub) {
+      masterlink = asm;
+      integrated = true;
+      subLink = {
+        id: `${asm.id}#sub`,
+        type: 'masterlink',
+        name: `${asm.short || asm.name} — sub-link`,
+        short: `${asm.short || asm.name} sub-link`,
+        wll_t: asm.wll_t,
+        weight_kg: 0,
+        integrated: true,
+        dims: { stockDia: asm.sub.stockDia, insideLength: asm.sub.insideLength, insideWidth: asm.sub.insideWidth },
+      };
+    } else {
+      // 2) separate sub-links + master link
+      subLink = isAuto(ml.subLinkItemId) ? selectMasterlink(pairLoad, pairWidth, 2, { assembly: false }) : getItem(ml.subLinkItemId);
+      fitWidth = pairs.length * (subLink?.dims?.stockDia || 0);
+    }
   } else {
     fitWidth = legs.reduce((s, l) => s + widthOf(l), 0);
   }
-  const masterlink = isAuto(ml.itemId) ? selectMasterlink(Fvert, fitWidth) : getItem(ml.itemId);
+  if (!masterlink) masterlink = isAuto(ml.itemId) ? selectMasterlink(Fvert, fitWidth, 2, { assembly: false }) : getItem(ml.itemId);
   let topShackle = null;
   if (rig.topShackle?.enabled)
     topShackle = isAuto(rig.topShackle.itemId) ? selectShackle(Fvert, {}, rules) : getItem(rig.topShackle.itemId);
   const headLen = connectorLength(masterlink) + connectorLength(topShackle, 'link');
   const subLen = useSub ? connectorLength(subLink) : 0;
   const weight =
-    itemWeight_t(masterlink) + itemWeight_t(topShackle) + (useSub ? (pairs?.length || 0) * itemWeight_t(subLink) : 0);
+    itemWeight_t(masterlink) + itemWeight_t(topShackle) + (useSub && !integrated ? (pairs?.length || 0) * itemWeight_t(subLink) : 0);
   const pairWidth = useSub ? Math.max(...pairs.map((p) => p.reduce((s, l) => s + widthOf(l), 0))) : 0;
-  return { masterlink, subLink, pairs, useSub, topShackle, headLen, subLen, fitWidth, pairWidth, weight };
+  return { masterlink, subLink, pairs, useSub, integrated, topShackle, headLen, subLen, fitWidth, pairWidth, weight };
 }
 
-/** Résultat d'une jambe convergente (géométrie finale + efforts). */
+/** Result of a converging leg (final geometry + forces). */
 function finalizeLeg(leg, top, tens, i, fac, zLegTop) {
   const p = leg.bottom;
   const d = hdist(top, p);
@@ -222,7 +255,7 @@ function finalizeLeg(leg, top, tens, i, fac, zLegTop) {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration 1 : crochet direct (élingues 1 à n jambes sur masterlink)
+// Configuration 1: direct hook (1 to n converging legs on a master link)
 function solveHook(project, ctx) {
   const { pts, W, cog, fac, rules } = ctx;
   const rig = project.rigging;
@@ -231,7 +264,7 @@ function solveHook(project, ctx) {
   const n = pts.length;
   const zPadMax = Math.max(...pts.map((p) => p.pos.z));
 
-  // 1) Géométrie de conception : angle cible ou hauteur de crochet imposée
+  // 1) Design geometry: target sling angle or imposed hook height
   let zDesign;
   if (design.mode === 'height' && Number(design.hookHeight_m) > 0) zDesign = zPadMax + Number(design.hookHeight_m);
   else {
@@ -242,9 +275,9 @@ function solveHook(project, ctx) {
   const tD = envelopeTensions(zDesign, pts.map((p) => p.pos), W, cog, env);
   const topD = v3(cog.x, cog.y, zDesign);
 
-  // 2) Sélection du matériel par jambe
+  // 2) Equipment selection per leg
   let legs = pts.map((p, i) => {
-    const cfg = { ...DEFAULT_LEG, ...(rig.legs?.[p.id] || {}) };
+    const cfg = legConfig(rig, p.id);
     const u = vnorm(vsub(topD, p.pos));
     const beta = outOfPlaneAngle(u, p.azimuth_deg);
     const F = tD.T[i] * fac;
@@ -258,7 +291,7 @@ function solveHook(project, ctx) {
     );
     return {
       key: p.id,
-      label: `Jambe ${p.id}`,
+      label: `Leg ${p.id}`,
       level: 'main',
       pointId: p.id,
       point: p,
@@ -273,7 +306,7 @@ function solveHook(project, ctx) {
   });
   const head = pickHead(rig, legs, W * ctx.facHead, rules);
 
-  // 3) Longueurs d'élingues
+  // 3) Sling lengths
   legs.forEach((leg) => {
     const inSub = head.useSub ? head.subLen : 0;
     leg.hwLength = legHardwareLength(leg.comps, head.headLen + inSub);
@@ -283,7 +316,7 @@ function solveHook(project, ctx) {
   });
   applyLengthSet(legs, design.roundLengths || 'set');
 
-  // 4) Géométrie réelle : hauteur de crochet donnée par chaque jambe
+  // 4) Actual geometry: hook height given by each leg
   const zLeg = legs.map((leg) => {
     const d = hdist(cog, leg.bottom);
     return leg.Leff > d ? leg.bottom.z + Math.sqrt(leg.Leff ** 2 - d ** 2) : null;
@@ -294,11 +327,11 @@ function solveHook(project, ctx) {
   const hook = v3(cog.x, cog.y, zHook);
   const tA = envelopeTensions(zHook, pts.map((p) => p.pos), W, cog, env);
   legs = legs.map((leg, i) => finalizeLeg(leg, hook, tA, i, fac, zLeg[i]));
-  // re-vérifie la sélection auto avec les efforts finaux (sécurité si la géométrie a changé)
+  // re-check the auto selection with the final forces (in case the geometry changed)
   legs.forEach((leg) => {
     const F = leg.Fdesign;
     const sf = shackleSideLoadFactor(leg.beta || 0);
-    if (isAuto(leg.cfg.slingId) && leg.comps.sling && leg.comps.sling.wll_t < F) leg.comps.sling = selectRoundsling(F, leg.cfg.mode) || leg.comps.sling;
+    if (isAuto(leg.cfg.slingId) && leg.comps.sling && leg.comps.sling.wll_t < F) leg.comps.sling = selectSling(F, leg.cfg.mode, leg.cfg.slingFamily) || leg.comps.sling;
     if (isAuto(leg.cfg.bottomShackleId) && leg.comps.bottomShackle && leg.comps.bottomShackle.wll_t * sf < F)
       leg.comps.bottomShackle =
         selectShackle(F / sf, { holeDia: Number(leg.point.holeDia_mm) || 0, padeyeThk: Number(leg.point.thk_mm) || 0, slingWidth: leg.comps.sling?.dims?.width }, rules) ||
@@ -323,7 +356,7 @@ function solveHook(project, ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// Configuration 2 : palonnier (spreader bar) — 2 élingues hautes, 1 ou 2 élingues basses par extrémité
+// Configuration 2: spreader bar — 2 top slings, 1 or 2 bottom slings per bar end
 function solveSpreader(project, ctx) {
   const { pts, W, cog, fac, rules } = ctx;
   const rig = project.rigging;
@@ -339,8 +372,8 @@ function solveSpreader(project, ctx) {
   const groupA = pts.filter((p) => p.pos[axis] < cog[axis]);
   const groupB = pts.filter((p) => p.pos[axis] >= cog[axis]);
   const errors = [];
-  if (!groupA.length || !groupB.length) errors.push('Points de levage tous du même côté du COG selon l\'axe du palonnier');
-  if (!(Lbar > 0)) errors.push('Longueur entre lugs du palonnier non renseignée');
+  if (!groupA.length || !groupB.length) errors.push('All lift points are on the same side of the COG along the spreader axis');
+  if (!(Lbar > 0)) errors.push('Spreader bar lug spacing not entered');
 
   const cA = groupA.length ? mean(groupA.map((p) => p.pos[axis])) : cog[axis] - Lbar / 2;
   const cB = groupB.length ? mean(groupB.map((p) => p.pos[axis])) : cog[axis] + Lbar / 2;
@@ -351,7 +384,7 @@ function solveSpreader(project, ctx) {
   const lugB = mk(center + L / 2);
   const groupOf = (p) => (p.pos[axis] < cog[axis] ? 'A' : 'B');
 
-  // ---- élingues basses : conception
+  // ---- bottom slings: design
   const aBot = rad(Number(sp.bottomTargetAngle_deg) || 60);
   const hMin = Number(sp.minBottomHeight_m) || 1.0;
   const zPadMax = Math.max(...pts.map((p) => p.pos.z));
@@ -363,7 +396,7 @@ function solveSpreader(project, ctx) {
     }),
   );
   const ptsPos = pts.map((p) => p.pos);
-  // réactions verticales (nominales et enveloppe COG) — chaque élingue basse va à son propre lug
+  // vertical reactions (nominal and COG envelope) — each bottom sling goes to its own lug
   const tBotD = envelopeReactions(ptsPos, W, cog, env);
   const Rd = tBotD.Rmax;
 
@@ -377,7 +410,7 @@ function solveSpreader(project, ctx) {
     const u = vnorm(vsub(topPt, p.pos));
     const T = u.z > 1e-6 ? Rd[i] / u.z : Infinity;
     const F = T * fac;
-    const cfg = { ...DEFAULT_LEG, topConnector: 'shackle', ...(rig.legs?.[p.id] || {}) };
+    const cfg = legConfig(rig, p.id, { topConnector: 'shackle' });
     const beta = outOfPlaneAngle(u, p.azimuth_deg);
     const comps = pickComponents(
       cfg,
@@ -387,12 +420,12 @@ function solveSpreader(project, ctx) {
       botLugCtx,
       rules,
     );
-    const hw = legHardwareLength(comps, 0, 'hole'); // manille haute dans le lug bas du palonnier
+    const hw = legHardwareLength(comps, 0, 'hole'); // top shackle pinned in the bar bottom lug
     const Lreq = vlen(vsub(topPt, p.pos)) - hw;
     const slingLength = slingLengthFor(cfg, comps, Lreq, design.roundLengths || 'set');
     return {
       key: p.id,
-      label: `Basse ${p.id}`,
+      label: `Bottom ${p.id}`,
       level: 'bottom',
       group: g,
       pointId: p.id,
@@ -411,14 +444,14 @@ function solveSpreader(project, ctx) {
 
   applyLengthSet(bottomLegs, design.roundLengths || 'set');
 
-  // ---- géométrie réelle des élingues basses → élévation du palonnier
+  // ---- actual bottom sling geometry → spreader elevation
   const zBotLeg = bottomLegs.map((leg) => {
     const d = hdist(leg.lug, leg.bottom);
     return leg.Leff > d ? leg.bottom.z + Math.sqrt(leg.Leff ** 2 - d ** 2) : null;
   });
   const tooShort = bottomLegs.filter((_, i) => zBotLeg[i] == null).map((l) => l.key);
   const zBot = mean(zBotLeg.filter((z) => z != null)) || zBotDesign;
-  const R = tBotD.R; // réactions verticales nominales
+  const R = tBotD.R; // nominal vertical reactions
   const RminAll = tBotD.Rmin;
   const Rmax = Rd;
   bottomLegs = bottomLegs.map((leg, i) => {
@@ -431,7 +464,7 @@ function solveSpreader(project, ctx) {
     return finalizeLeg(leg, top, tens, i, fac, zBotLeg[i]);
   });
 
-  // ---- charges aux extrémités du palonnier
+  // ---- loads at the spreader ends
   const botRigW = bottomLegs.reduce((s, l) => s + legWeight(l), 0);
   const end = { A: { V: 0, Vmax: 0, Hx: 0, Hy: 0 }, B: { V: 0, Vmax: 0, Hx: 0, Hy: 0 } };
   bottomLegs.forEach((l, i) => {
@@ -448,7 +481,7 @@ function solveSpreader(project, ctx) {
   const hookPlanA = (VA * lugA[axis] + VB * lugB[axis]) / Math.max(VA + VB, 1e-9);
   const hookPlan = axis === 'x' ? v3(hookPlanA, cog.y, 0) : v3(cog.x, hookPlanA, 0);
 
-  // ---- élingues hautes : conception
+  // ---- top slings: design
   const aTop = rad(Number(design.targetAngle_deg) || Number(sp.minTopAngle_deg) || 60);
   const dA = Math.abs(hookPlan[axis] - lugA[axis]);
   const dB = Math.abs(lugB[axis] - hookPlan[axis]);
@@ -462,11 +495,11 @@ function solveSpreader(project, ctx) {
     const topPt = v3(hookPlan.x, hookPlan.y, zHookDesign);
     const u = vnorm(vsub(topPt, bottomPt));
     const F = (t.Vm / Math.max(u.z, 1e-6)) * fac;
-    const cfg = { ...DEFAULT_LEG, ...(rig.legs?.[t.key] || {}) };
+    const cfg = legConfig(rig, t.key);
     const comps = pickComponents(cfg, F, 0, topLugCtx, null, rules);
     return {
       key: t.key,
-      label: `Haute ${t.key === 'TA' ? 'A' : 'B'}`,
+      label: `Top ${t.key === 'TA' ? 'A' : 'B'}`,
       level: 'top',
       group: t.key === 'TA' ? 'A' : 'B',
       bottom: bottomPt,
@@ -507,7 +540,7 @@ function solveSpreader(project, ctx) {
     tens.Rmin[i] = leg.V;
     return finalizeLeg(leg, hook, tens, i, fac, zTopLeg[i]);
   });
-  // effort axial dans le palonnier (compression) = composante horizontale des élingues hautes
+  // spreader axial force (compression) = horizontal component of the top slings
   const compression = Math.max(...topLegs.map((l) => l.Tstatic * Math.cos(rad(l.angleH))));
   const bottomAxial = Math.max(Math.abs(end.A[`H${axis}`]), Math.abs(end.B[`H${axis}`]));
   const bottomLateral = Math.max(Math.abs(end.A[`H${other}`]), Math.abs(end.B[`H${other}`]));
@@ -547,13 +580,13 @@ function solveSpreader(project, ctx) {
   };
 }
 
-/** Point d'entrée : résout le gréement avec itération sur le poids de gréement (SHL → DAF). */
+/** Entry point: solves the rigging, iterating on rigging weight (SHL → DAF). */
 export function solveRigging(project, rules = {}) {
   const load = project.load || {};
   const pts = usedLiftPoints(load);
-  if (!pts.length) return { error: 'Aucun point de levage actif' };
+  if (!pts.length) return { error: 'No active lift point' };
   const W = loadWeightWithContingency(load);
-  if (!(W > 0)) return { error: 'Poids de la charge non renseigné' };
+  if (!(W > 0)) return { error: 'Load weight not entered' };
   const cog = cogM(load);
   let rigW = 0.03 * W;
   let res = null;
@@ -562,7 +595,7 @@ export function solveRigging(project, rules = {}) {
     const shl = W + rigW;
     f = resolveFactors(project.factors, project.environment, shl, pts.length);
     const fac = f.daf * f.skl * f.cog * f.extra;
-    const facHead = f.daf * f.extra; // charge verticale totale : pas de SKL
+    const facHead = f.daf * f.extra; // total vertical load: no SKL
     const ctx = { pts, W, cog, fac, facHead, rules };
     res = project.rigging?.type === 'spreader' ? solveSpreader(project, ctx) : solveHook(project, ctx);
     const conv = Math.abs(res.rigWeight - rigW) < 1e-4;

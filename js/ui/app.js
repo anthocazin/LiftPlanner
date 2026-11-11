@@ -1,4 +1,4 @@
-// État de l'application : projet courant, résultat de calcul, persistance locale.
+// Application state: current project, calculation result, local persistence.
 import { defaultProject, migrate, getPath, setPath } from '../state.js';
 import { computeProject } from '../engine/compute.js';
 
@@ -25,7 +25,7 @@ function safeSave(key, value) {
 export const app = {
   project: null,
   result: null,
-  drawingFile: null, // { kind, name, bytes | image } — non sérialisé par défaut
+  drawingFile: null, // { kind, name, bytes | image } — not serialised by default
   listeners: new Set(),
   _timer: null,
 
@@ -43,7 +43,7 @@ export const app = {
     setPath(this.project, path, value);
     if (!silent) this.schedule();
   },
-  /** Modifie l'état via une fonction puis recalcule immédiatement. */
+  /** Mutates the state through a function then recomputes immediately. */
   mutate(fn) {
     fn(this.project);
     this.recompute();

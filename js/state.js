@@ -1,34 +1,34 @@
-// Modèle de données d'un lift plan + projet exemple + migrations.
+// Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const DEFAULT_CHECKLIST = [
-  'Matériel de levage inspecté, certificats valides et identifiés (n° de série)',
-  'Grue : certificat en cours de validité, inspection journalière faite, limiteur de charge opérationnel',
-  'Poids et COG confirmés (certificat de pesée ou note de calcul)',
-  'Points de levage inspectés (contrôle visuel / CND si requis)',
-  'Sol / pont : capacité portante vérifiée (calage, plaques de répartition)',
-  'Conditions météo dans les limites (vent, houle, visibilité) — prévisions consultées',
-  'Zone de levage balisée, personne sous la charge',
-  'Communication définie (radio / signaux), signaleur désigné',
-  'Lignes de guidage (tag lines) en place',
-  'Analyse de risques (JSA / TRA) et toolbox talk réalisés',
-  'Permis de travail émis',
-  'Procédure d\'arrêt / plan de secours défini',
+  'Lifting equipment inspected, certificates valid and identified (serial numbers)',
+  'Crane: certificate in date, daily inspection done, rated capacity limiter operational',
+  'Weight and COG confirmed (weighing certificate or calculation note)',
+  'Lift points inspected (visual / NDT if required)',
+  'Ground / deck: bearing capacity checked (cribbing, load spreading mats)',
+  'Weather within limits (wind, sea state, visibility) — forecast reviewed',
+  'Lifting zone barriered off, nobody under the load',
+  'Communication agreed (radio / hand signals), banksman / signaller appointed',
+  'Tag lines in place',
+  'Risk assessment (JSA / TRA) and toolbox talk completed',
+  'Permit to work issued',
+  'Stop / emergency and rescue plan defined',
 ];
 
 export function defaultProject() {
   return {
     schema: SCHEMA_VERSION,
     project: {
-      name: 'Exemple — levage skid pompe',
+      name: 'Example — pump skid lift',
       liftId: 'LP-001',
       revision: 'A',
       date: new Date().toISOString().slice(0, 10),
       client: '',
-      site: 'Quai / site de montage',
+      site: 'Quay / assembly yard',
       vessel: '',
-      description: 'Levage du skid depuis la remorque et pose sur sa fondation.',
+      description: 'Lift the skid from the trailer and set it down on its foundation.',
       preparedBy: '',
       checkedBy: '',
       approvedBy: '',
@@ -38,7 +38,7 @@ export function defaultProject() {
     factors: { dafMode: 'dnv', dafManual: 1.1, sklMode: 'auto', sklManual: 1.25, cogFactor: 1.0, extraFactor: 1.0 },
     rules: {},
     load: {
-      name: 'Skid pompe P-101',
+      name: 'Pump skid P-101',
       weight_t: 12.5,
       wcfPreset: 'calculated',
       wcf: 1.05,
@@ -55,7 +55,7 @@ export function defaultProject() {
       ],
     },
     crane: {
-      name: 'EXEMPLE — grue mobile 100 t (tableau fictif, NE PAS UTILISER)',
+      name: 'EXAMPLE — 100 t mobile crane (fictitious chart, DO NOT USE)',
       type: 'mobile',
       boom: { length: 30, pivotHeight: 2.2, pivotOffset: 1.2, minAngle_deg: 10, maxAngle_deg: 82 },
       hookBlock_t: 1.2,
@@ -67,7 +67,7 @@ export function defaultProject() {
       interpolation: 'step',
       activeColumn: 0,
       chart: {
-        columns: ['Flèche 30 m — contrepoids complet'],
+        columns: ['30 m boom — full counterweight'],
         rows: [
           [6, 60.0], [8, 45.0], [10, 35.5], [12, 28.6], [14, 23.7], [16, 20.0],
           [18, 17.1], [20, 14.8], [22, 12.9], [24, 11.3], [26, 9.9],
@@ -76,6 +76,7 @@ export function defaultProject() {
     },
     rigging: {
       type: 'hook',
+      slingFamily: 'RS-PES',
       design: { mode: 'angle', targetAngle_deg: 60, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'set' },
       headType: 'masterlink',
       masterlink: { itemId: 'auto', subLinks: true, subLinkItemId: 'auto' },
@@ -87,7 +88,7 @@ export function defaultProject() {
         D: { topConnector: 'shackle' },
       },
       spreader: {
-        name: 'Palonnier PB-01',
+        name: 'Spreader bar SB-01',
         certNo: '',
         length_m: 5.4,
         depth_m: 0.35,
@@ -107,17 +108,17 @@ export function defaultProject() {
     storyboard: {
       crane: { x: 0, y: 0, heading_deg: 0, footprint: { L: 12, W: 3 } },
       obstacles: [
-        { name: 'Remorque', x: 10, y: 0, sx: 12, sy: 2.6, h: 1.5, rot_deg: 0, color: '#9aa5b1' },
-        { name: 'Mur / clôture', x: 9, y: 10, sx: 0.4, sy: 8, h: 3.5, rot_deg: 30, color: '#c0794f' },
-        { name: 'Fondation', x: -5.5, y: 15, sx: 6.5, sy: 3, h: 0.3, rot_deg: 20, color: '#7f8c8d' },
+        { name: 'Trailer', x: 10, y: 0, sx: 12, sy: 2.6, h: 1.5, rot_deg: 0, color: '#9aa5b1' },
+        { name: 'Wall / fence', x: 9, y: 10, sx: 0.4, sy: 8, h: 3.5, rot_deg: 30, color: '#c0794f' },
+        { name: 'Foundation', x: -5.5, y: 15, sx: 6.5, sy: 3, h: 0.3, rot_deg: 20, color: '#7f8c8d' },
       ],
       steps: [
-        { name: '1. Prise sur remorque', radius_m: 10, slew_deg: 0, loadElevation_m: 1.5, heading_deg: 0, note: 'Mise en tension progressive, vérifier l\'horizontalité.' },
-        { name: '2. Rotation au-dessus du mur', radius_m: 14, slew_deg: 60, loadElevation_m: 4.0, heading_deg: 30, note: 'Garde ≥ 0,5 m au-dessus du mur. Tag lines tenues.' },
-        { name: '3. Pose sur fondation', radius_m: 16, slew_deg: 110, loadElevation_m: 0.3, heading_deg: 20, note: 'Dépose lente, guidage sur goujons.' },
+        { name: '1. Pick from trailer', radius_m: 10, slew_deg: 0, loadElevation_m: 1.5, heading_deg: 0, note: 'Take the weight progressively, check the load is level.' },
+        { name: '2. Slew over the wall', radius_m: 14, slew_deg: 60, loadElevation_m: 4.0, heading_deg: 30, note: 'Keep ≥ 0.5 m clearance above the wall. Tag lines held.' },
+        { name: '3. Set down on foundation', radius_m: 16, slew_deg: 110, loadElevation_m: 0.3, heading_deg: 20, note: 'Slow set-down, guide onto the dowels.' },
       ],
     },
-    weather: { hsMax_m: null, windMax_ms: 9.8, windGust_ms: 12, visibility: 'Bonne', notes: '' },
+    weather: { hsMax_m: null, windMax_ms: 9.8, windGust_ms: 12, visibility: 'Good', notes: '' },
     checklist: DEFAULT_CHECKLIST.map((label) => ({ label, checked: false })),
     inventory: [],
     drawing: null,
@@ -127,14 +128,15 @@ export function defaultProject() {
 
 export function emptyProject() {
   const p = defaultProject();
-  p.project = { ...p.project, name: 'Nouveau lift plan', liftId: '', description: '', site: '' };
+  p.project = { ...p.project, name: 'New lift plan', liftId: '', description: '', site: '' };
   p.load = { ...p.load, name: '', weight_t: 0, liftPoints: [] };
+  p.rigging.legs = {};
   p.storyboard.steps = [];
   p.storyboard.obstacles = [];
   return p;
 }
 
-/** Complète un projet chargé (ancienne version, champs manquants) avec les valeurs par défaut. */
+/** Completes a loaded project (older version, missing fields) with the defaults. */
 export function migrate(data) {
   const base = defaultProject();
   const merge = (a, b) => {
@@ -147,11 +149,13 @@ export function migrate(data) {
     return b !== undefined ? b : a;
   };
   const out = merge(base, data || {});
+  // v1 → v2: roundslings were the only sling family
+  if (!data?.rigging?.slingFamily) out.rigging.slingFamily = 'RS-PES';
   out.schema = SCHEMA_VERSION;
   return out;
 }
 
-/** Accès par chemin "a.b.0.c". */
+/** Path access "a.b.0.c". */
 export function getPath(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
 }

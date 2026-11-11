@@ -1,111 +1,125 @@
 # LiftPlanner
 
-Outil de préparation de **lift plans offshore / onshore** : saisie de la charge et de la grue, calcul et vérification du gréement à partir de **matériel réel** (manilles Green Pin, masterlinks Crosby, élingues rondes EN 1492-2, G-Link…), schémas de l'arrangement, storyboard des étapes de levage et rapport PDF.
+Lift planning tool for **offshore and onshore lifts**: load and crane input, rigging calculation and checks based on **real rigging hardware** (Green Pin shackles, master links, polyester and UHMWPE roundslings, wire rope slings, cable-laid grommets, webbing slings, G-Links), rigging arrangement drawings, lift step storyboard and PDF report.
 
-Application web **sans installation** : un seul fichier HTML qui fonctionne aussi **hors-ligne** (à bord, sur chantier).
+**No installation**: a single HTML file that also works **offline** (on board, on site).
 
-> ⚠️ Outil d'aide à la préparation. Les données catalogue sont indicatives et doivent être vérifiées contre les certificats du matériel utilisé. Tout lift plan doit être revu et approuvé par une personne compétente selon les procédures applicables.
+> ⚠️ Planning aid only. Catalogue data are indicative and must be checked against the certificates of the equipment actually used. Every lift plan must be reviewed and approved by a competent person according to the applicable procedures.
 
 ---
 
-## Démarrer
+## Getting started
 
-| Usage | Comment |
+| Use | How |
 |---|---|
-| **Hors-ligne (recommandé)** | Télécharger [`dist/LiftPlanner.html`](dist/LiftPlanner.html) et l'ouvrir dans Chrome / Edge (double-clic). Tout est inclus, y compris le lecteur PDF. |
-| En local (développement) | `python3 -m http.server 8080` à la racine puis ouvrir <http://localhost:8080> |
-| En ligne | Workflow GitHub Pages fourni (`.github/workflows/pages.yml`) — nécessite un dépôt public ou un plan GitHub payant. |
+| **Offline (recommended)** | Download [`dist/LiftPlanner.html`](dist/LiftPlanner.html) and open it in Chrome or Edge (double-click). Everything is included, PDF reader too. |
+| Local (development) | `python3 -m http.server 8080` in the repository root, then open <http://localhost:8080> |
+| Online | GitHub Pages workflow provided (`.github/workflows/pages.yml`): enable *Settings → Pages → Source = GitHub Actions*. |
 
-Le projet en cours et l'inventaire sont sauvegardés automatiquement dans le navigateur. **Enregistrer** produit un fichier `.liftplan.json` à archiver avec le lift plan (option : y inclure le plan PDF importé). Trois exemples sont dans [`examples/`](examples/).
+The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (optionally with the imported PDF drawing embedded). Three examples are in [`examples/`](examples/).
 
-## Fonctionnalités (v0.1)
+## Features (v0.2)
 
-**Charge**
-- Poids, contingence (WCF : pesé 1,03 / calculé 1,05 / estimé 1,10 / libre), dimensions, COG, **enveloppe de COG** (± dx, ± dy : efforts maxi sur l'enveloppe).
-- Points de levage : coordonnées, SWL padeye, Ø trou, épaisseur (tôle + flasques), rayon, orientation du padeye.
-- **Import du plan de la pièce (PDF ou image)** : calibration de l'échelle sur une cote connue, origine, pointage des padeyes et du COG directement sur le plan (vue de dessus / face / côté), outil de mesure, **détection du poids et du COG dans le texte du PDF**.
+**Load**
+- Weight, weight contingency (WCF: weighed 1.03 / calculated 1.05 / estimated 1.10 / free), dimensions, COG, **COG envelope** (± dx, ± dy: maximum leg forces over the envelope).
+- Lift points: coordinates, padeye SWL, hole Ø, thickness (main plate + cheeks), radius, padeye orientation.
+- **Load drawing import (PDF or image)**: scale calibration on a known dimension, origin, picking of padeyes and COG directly on the drawing (top / front / side view), measuring tool, **detection of weight and COG in the PDF text**.
 
-**Grue**
-- Tableau de charge multi-colonnes (configurations, colonnes Hs offshore), **collage direct depuis Excel**, lecture conservative (rayon tabulé supérieur) ou interpolée.
-- Moufle, SWL crochet, seuil de levage critique, géométrie de flèche (angle de flèche, hauteur sous crochet).
+**Crane**
+- Multi-column load chart (configurations, offshore Hs columns), **paste straight from Excel**, conservative reading (next tabulated radius) or interpolation.
+- Hook block, hook SWL, critical lift threshold, boom geometry (boom angle, height under hook).
 
-**Gréement**
-- Crochet direct 1 à n jambes (masterlink, sous-anneaux, élingues directement au crochet, manille de tête) ou **palonnier** (élingues hautes + 1 ou 2 élingues basses par extrémité).
-- **Sélection automatique** dans le catalogue + votre inventaire : élingue, manille basse (compatibilité trou/axe, épaisseur/ouverture), connexion haute (direct / manille / G-Link), masterlink (encombrement des élingues).
-- Longueurs : jeu de même longueur standard, standard la plus proche, arrondie au-dessus, ou sur mesure ; longueur imposable jambe par jambe.
-- Facteurs : **DAF DNV-ST-N001 automatique** (onshore / inshore / offshore) ou imposé, **SKL** auto (1,25 à partir de 4 jambes) ou imposé, facteur COG, facteur libre.
+**Rigging**
+- Direct to hook with 1 to n legs (master link, sub-links or quad assembly, slings directly on the hook, top shackle) or **spreader bar** (top slings + 1 or 2 bottom slings per end).
+- **Sling type** per project or per leg: polyester roundsling, UHMWPE roundsling, wire rope sling (eye–eye or endless), cable-laid grommet, webbing sling.
+- **Automatic selection** from the catalogue + your inventory: sling, bottom shackle (hole/pin and thickness/jaw compatibility), top connection (direct / shackle / G-Link), master link (sling congestion). Shackle ranges to use are selectable (Green Pin G-4163, G-5263 Super, P-6036, Wide Body, G-4161 screw pin).
+- Lengths: matched set of one standard length, nearest standard, next standard up, or custom; length can be fixed leg by leg.
+- Factors: **automatic DNV-ST-N001 DAF** (onshore / inshore / offshore) or user value, **SKL** auto (1.25 from 4 legs) or user value, COG factor, free factor.
 
-**Vérifications** (statut OK / Alerte / Non conforme)
-- Grue : capacité à chaque rayon, seuil critique, angle de flèche, hauteur sous crochet, SWL crochet.
-- Élingues, manilles (réduction en charge latérale 0° 100 % / 45° 70 % / 90° 50 %), G-Link, masterlink et sous-anneaux, padeyes (SWL, effort hors plan).
-- Angles d'élingues, compatibilité des composants, **assiette estimée de la charge** avec les longueurs retenues (élingue détendue), stabilité (COG au-dessus des points sur 2 points / palonnier, COG hors polygone), palonnier (WLL, angle mini du certificat, compression).
-- Catégorie de levage indicative (routine / complexe / critique).
+**Checks** (status OK / Warning / Fail)
+- Crane: capacity at each radius, critical lift threshold, boom angle, height under hook, hook SWL.
+- Slings (incl. choked hitch), shackles (Green Pin side-load reduction curve), G-Links, master link and sub-links, padeyes (SWL, out-of-plane load).
+- Sling angles, component compatibility, **D/d bending ratio** of wire rope slings and grommets over the shackle bow, **estimated load tilt** with the selected lengths (slack sling), stability (COG above the lift points for 2 points / spreader, COG outside the lift point polygon), spreader bar (WLL, minimum angle from certificate, compression).
+- Indicative lift category (routine / complex / critical).
 
-**Schémas et storyboard**
-- Vues isométrique, dessus, face, côté, cotées, avec efforts et angles.
-- **Détail d'élingage à l'échelle** dessiné à partir des dimensions catalogue (manille lyre, axe, œils, masterlink, sous-anneaux, élingue, padeye vu sur la tranche).
-- Storyboard : implantation de la grue, obstacles / zones, étapes (rayon, orientation, élévation) → **vue en plan + coupe radiale par étape** avec contrôle de capacité.
-- Export **SVG** (vectoriel, modifiable) et **PNG** de chaque schéma.
+**Drawings and storyboard**
+- Isometric, plan, front and side views, dimensioned, with forces and angles.
+- **Rigging detail to scale** drawn from the catalogue dimensions (shackle bow, pin, eyes, master link, sub-links, sling, padeye seen edge-on).
+- Storyboard: crane position, obstacles / areas, steps (radius, slew, elevation) → **plan view + radial section per step** with capacity check.
+- **SVG** (vector, editable) and **PNG** export of every drawing.
 
-**Rapport** : rapport A4 complet (opération, charge, grue + courbe de capacité, gréement, liste du matériel, schémas, vérifications, storyboard, limites météo, check-list, signatures) → *Imprimer / Enregistrer en PDF*. Liste du matériel exportable en CSV.
+**Report**: full A4 report (operation, load, crane + capacity curve, rigging, equipment list, drawings, checks, storyboard, weather limits, checklist, signatures) → *Print / Save as PDF*. Equipment list exportable to CSV.
 
-**Inventaire** : votre parc de matériel certifié (n° de certificat, n° de série, longueurs réelles) — copie possible depuis le catalogue intégré, import / export JSON.
+**Inventory**: your fleet of certified equipment (certificate no., serial no., actual lengths) — copy from the built-in catalogue, JSON import / export.
 
-## Méthode de calcul
+## Calculation method
 
-Résumé ci-dessous, détail dans [`docs/METHODE.md`](docs/METHODE.md).
+Summary below, details in [`docs/METHOD.md`](docs/METHOD.md).
 
-- Charge libre : crochet à la verticale du COG ; repère pièce X/Y/Z en mm, Z vers le haut.
-- Réactions verticales : levier (2 points), équilibre exact (3 points), plaque rigide sur appuis de même raideur (≥ 4 points).
-- Tension d'élingue `T = R · L / h` ; effort de calcul `F = T × DAF × SKL × f_COG × f_autre`, comparé à la WLL (× facteur de mode / de charge latérale).
-- Grue : charge statique `W × WCF + gréement (+ moufle)` comparée au tableau de charge (sans DAF, le tableau étant certifié pour son usage).
+- Freely suspended load: the hook is vertically above the COG; load frame X/Y/Z in mm, Z up.
+- Vertical reactions: lever rule (2 points), exact equilibrium (3 points), rigid plate on equal-stiffness supports (≥ 4 points).
+- Sling tension `T = R · L / h`; design force `F = T × DAF × SKL × f_COG × f_other`, compared with the WLL (× hitch factor / side-load factor).
+- Crane: static load `W × WCF + rigging (+ hook block)` against the load chart (no DAF, the chart being certified for its use).
 
-## Catalogue intégré
+## Built-in catalogue
 
-| Famille | Source | Gamme |
+Main source: **DS Levage general catalogue 2025** (supplied by the user), cross-checked with manufacturer data sheets.
+
+| Family | Source | Range |
 |---|---|---|
-| Manilles lyre à boulon Green Pin® G-4163 (grade 6, 6:1) | fiche catalogue Green Pin | 0,5 → 85 t |
-| Manilles lyre HD Green Pin® P-6036 (grade 8, 5:1) | fiche distributeur | 120 → 1500 t |
-| Masterlinks Crosby® A-342 | table Unirope / Crosby (converti) | 1/2" → 4" |
-| Élingues rondes PES EN 1492-2 (7:1) | code couleur normalisé ; largeur et poids **typiques** | 1 → 100 t |
-| G-Link Slingmax® | table Unirope ; longueur utile **estimée** | 2" → 6" |
+| Green Pin® G-4163 bow shackle, safety bolt (grade 6, 6:1) | DS Levage p.93 / Green Pin sheet | 0.5 → 85 t |
+| Green Pin® G-5263 Super bow shackle, safety bolt (grade 8, 5:1) | DS Levage p.95 | 3.3 → 175 t |
+| Green Pin® P-6036 heavy duty bow shackle (grade 8, 5:1) | DS Levage p.94 / distributor sheet | 120 → 1500 t |
+| Green Pin® Wide Body shackle, safety bolt | DS Levage p.95 | 7 → 1550 t |
+| Green Pin® G-4161 bow shackle, screw pin (not auto-selected) | DS Levage p.92 | 0.33 → 55 t |
+| Master links 1–2 legs, quad assemblies (3–4 legs), large links for DIN 15401 hooks no. 25 / 50 / 100 | DS Levage p.38–39 / 46–47 | 2.4 → 67 t |
+| Crosby® A-342 master links | Unirope / Crosby table | 1/2" → 4" |
+| Polyester roundslings EN 1492-2 (7:1) | DS Levage p.64 (WLL, width); weight per metre typical | 1 → 150 t |
+| UHMWPE roundslings | DS Levage p.66 | 15 → 170 t |
+| Wire rope slings 6x36 IWRC, eye–eye | DS Levage p.18 (WLL) / p.13 (weight) | Ø8 → Ø90 mm |
+| Endless sleeved wire rope slings | DS Levage p.20 | Ø8 → Ø36 mm |
+| Cable-laid grommets | DS Levage p.20 | 12.7 → 1000 t |
+| Polyester webbing slings EN 1492-1 | DS Levage p.64 (weight not stated) | 1 → 40 t |
+| Slingmax® G-Link | Unirope table; effective length **estimated** | 2" → 6" |
 
-## Structure du code
+The *Source* column of the catalogue browser (Inventory tab) states for each item whether values are published, typical or estimated.
+
+## Code structure
 
 ```
-index.html            interface (modules ES, sans build)
-css/app.css           styles écran + impression
-js/state.js           modèle de projet, exemple, migrations
-js/engine/            calcul pur (testable sous Node)
-  rigging.js          géométrie, sélection du matériel, efforts (crochet / palonnier)
-  statics.js          répartition des efforts
-  equilibrium.js      assiette de la charge avec longueurs données
+index.html            user interface (ES modules, no build step)
+css/app.css           screen + print styles
+js/state.js           project model, example, migrations
+js/engine/            pure calculation code (testable under Node)
+  rigging.js          geometry, equipment selection, forces (direct hook / spreader bar)
+  statics.js          force distribution
+  equilibrium.js      load tilt with given lengths
   factors.js          DAF, WCF, SKL
-  crane.js            tableau de charge, géométrie de flèche
-  checks.js           vérifications
-  compute.js          orchestration, liste du matériel, catégorie
-js/catalog/           données matériel + règles de sélection
-js/draw/              générateurs SVG (vues, détail, storyboard, courbe)
-js/ui/                interface (onglets, import PDF, figures)
+  crane.js            load chart, boom geometry
+  checks.js           checks
+  compute.js          orchestration, equipment list, lift category
+js/catalog/           equipment data + selection rules
+js/draw/              SVG generators (views, detail, storyboard, capacity curve)
+js/ui/                user interface (tabs, PDF import, figures)
 vendor/pdfjs/         pdf.js (Apache-2.0)
-tools/                build de la version autonome, génération des exemples
-test/                 tests du moteur (node --test)
+tools/                standalone build, example generator
+test/                 engine tests (node --test)
 ```
 
 ```bash
-npm test          # tests du moteur de calcul
-npm run build     # régénère dist/LiftPlanner.html (version autonome)
+npm test          # calculation engine tests
+npm run build     # rebuilds dist/LiftPlanner.html (standalone version)
 ```
 
-## Feuille de route (pistes)
+## Roadmap (ideas)
 
-- Levage en tandem (2 grues), palonnier-cadre 4 lugs, lifting beam.
-- Élingues câble (EN 13414) et chaîne (EN 818) avec coefficients de mode / angle.
-- Mode DNV-ST-N001 complet : coefficients de sécurité sur MBL, facteurs de conséquence, calcul de padeye.
-- Charges de vent, transfert navire ↔ navire, passage zone de déferlement (DNV-RP-N103).
-- Bibliothèque de grues (tableaux de charge réutilisables), import de tableaux PDF.
-- Déplacement des points à la souris sur le plan, export DXF, version anglaise du rapport.
+- Tandem lifts (2 cranes), 4-lug spreader frames, lifting beams, Modulift spreader bar load tables.
+- Chain slings (EN 818) with hitch / angle factors.
+- Full DNV-ST-N001 mode: safety factors on MBL, consequence factors, padeye calculation.
+- Wind loads, vessel-to-vessel transfer, splash zone crossing (DNV-RP-N103).
+- Crane library (reusable load charts), import of PDF load charts.
+- Drag lift points with the mouse on the drawing, DXF export.
 
 ## Licence
 
-Code : tous droits réservés (dépôt privé). pdf.js : Apache-2.0 (`vendor/pdfjs/LICENSE`). Green Pin®, Crosby®, Slingmax® sont des marques de leurs propriétaires respectifs ; les données reprises proviennent de leurs documentations publiques.
+Code: all rights reserved. pdf.js: Apache-2.0 (`vendor/pdfjs/LICENSE`). Green Pin®, Crosby®, Slingmax® are trademarks of their respective owners; the data used come from their public documentation and from the DS Levage catalogue.

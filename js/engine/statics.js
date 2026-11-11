@@ -1,14 +1,14 @@
-// Répartition des efforts entre points de levage.
+// Load sharing between lift points.
 import { vsub, vlen, vnorm, solveLinear, leastSquares } from './vec.js';
 
 /**
- * Réactions verticales aux points de levage pour une charge rigide de poids W dont le COG est
- * à la verticale du crochet.
- *  - 1 point : tout le poids
- *  - 2 points : règle du levier sur la droite P1-P2 (projection du COG)
- *  - ≥ 3 points : hypothèse "plaque rigide sur appuis de même raideur" R_i = a + b·x_i + c·y_i
- *    (exacte pour 3 points, hypothèse classique pour 4 points et plus → à couvrir par le SKL)
- * Les points sont en plan (x, y). Retourne { R: [...], collinear }.
+ * Vertical reactions at the lift points for a rigid load of weight W with its COG vertically
+ * below the hook.
+ *  - 1 point: the whole weight
+ *  - 2 points: lever rule along line P1-P2 (projection of the COG)
+ *  - ≥ 3 points: "rigid plate on equally stiff supports" R_i = a + b·x_i + c·y_i
+ *    (exact for 3 points, classic assumption for 4 points and more → covered by the SKL)
+ * Points are in plan (x, y). Returns { R: [...], collinear }.
  */
 export function distributeVertical(points, cog, W) {
   const n = points.length;
@@ -27,7 +27,7 @@ export function distributeVertical(points, cog, W) {
   ];
   const sol = solveLinear(M, [W, W * cog.x, W * cog.y]);
   if (!sol || !sol.every(isFinite)) {
-    // points alignés : on se ramène aux deux points extrêmes
+    // collinear points: fall back to the two extreme points
     const [i, j] = farthestPair(points);
     const R = new Array(n).fill(0);
     const r2 = lever2(points[i], points[j], cog, W);
@@ -43,7 +43,7 @@ function lever2(p1, p2, cog, W) {
   const dx = p2.x - p1.x, dy = p2.y - p1.y;
   const L2 = dx * dx + dy * dy;
   if (L2 < 1e-12) return [W / 2, W / 2];
-  const t = ((cog.x - p1.x) * dx + (cog.y - p1.y) * dy) / L2; // position du COG projeté sur P1→P2
+  const t = ((cog.x - p1.x) * dx + (cog.y - p1.y) * dy) / L2; // projected COG position along P1→P2
   return [W * (1 - t), W * t];
 }
 
@@ -57,7 +57,7 @@ function farthestPair(points) {
   return best;
 }
 
-/** Distance horizontale (en plan) du COG à la droite P1-P2. */
+/** Horizontal (plan) distance from the COG to line P1-P2. */
 export function offsetFromLine(p1, p2, c) {
   const dx = p2.x - p1.x, dy = p2.y - p1.y;
   const L = Math.hypot(dx, dy);
@@ -66,16 +66,15 @@ export function offsetFromLine(p1, p2, c) {
 }
 
 /**
- * Tensions dans des jambes convergeant en un point (crochet / œil de palonnier) qui supportent
- * une charge verticale W.
- *  - 2 jambes : moindres carrés sur Σ T_i·u_i = (0,0,W) (exact si COG dans le plan des élingues)
- *  - 3 jambes : résolution exacte 3×3
- *  - 4 jambes et + : T_i = R_i · L_i / h_i avec R_i issus de distributeVertical
- * top : point de convergence ; pts : points bas (3D) ; R : réactions verticales (si déjà calculées).
+ * Tensions in legs converging to one point (hook / spreader lug) carrying a vertical load W.
+ *  - 2 legs: least squares on Σ T_i·u_i = (0,0,W) (exact if the COG is in the sling plane)
+ *  - 3 legs: exact 3×3 solution
+ *  - 4 legs and more: T_i = R_i · L_i / h_i with R_i from distributeVertical
+ * top: convergence point; pts: bottom points (3D); R: vertical reactions (if already known).
  */
 export function legTensions(top, pts, W, cog, R = null) {
   const n = pts.length;
-  const u = pts.map((p) => vnorm(vsub(top, p))); // vecteur unitaire du point bas vers le haut
+  const u = pts.map((p) => vnorm(vsub(top, p))); // unit vector from bottom point upwards
   const L = pts.map((p) => vlen(vsub(top, p)));
   const h = pts.map((p) => top.z - p.z);
   let T;

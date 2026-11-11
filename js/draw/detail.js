@@ -1,6 +1,6 @@
-// Détail d'élingage à l'échelle : chaque jambe dessinée de bout en bout avec la géométrie réelle
-// des composants du catalogue (manilles Green Pin, masterlinks, élingues rondes…).
-// Convention : les axes porteurs alternent de 90° d'un composant à l'autre (vue de face / de profil).
+// Rigging detail to scale: each leg drawn end to end with the real geometry of the catalogue
+// components (Green Pin shackles, master links, roundslings…).
+// Convention: bearing axes alternate by 90° from one component to the next (front / side view).
 import { svgDoc, path, rect, circle, line, text, label, group, esc } from './svg.js';
 import { fmt } from './fmt.js';
 import { slingModeFactor, shackleSideLoadFactor } from '../catalog/index.js';
@@ -10,7 +10,7 @@ const STEEL_EDGE = '#3c4652';
 const sw = { 'vector-effect': 'non-scaling-stroke' };
 
 function ringFace(y0, IL, IW, D) {
-  // anneau oblong vu de face ; y0 = appui intérieur haut
+  // oblong link seen face-on; y0 = top inside bearing
   const ri = IW / 2, ro = ri + D;
   const straight = Math.max(IL - IW, 0);
   const cyT = y0 + ri, cyB = y0 + ri + straight;
@@ -25,7 +25,7 @@ function ringEdge(y0, IL, D, dx = 0) {
     line(dx - D / 2, y0 + IL, dx + D / 2, y0 + IL, { stroke: STEEL_EDGE, 'stroke-width': 0.6, 'stroke-dasharray': '2 2', ...sw });
 }
 
-/** Manille vue de face (lyre). yPin = centre de l'axe ; dir = +1 arc vers le bas, −1 arc vers le haut. */
+/** Shackle, front view (bow). yPin = pin centre; dir = +1 bow downwards, −1 bow upwards. */
 function shackleFront(s, yPin, dir) {
   const d = s.dims;
   const a = d.bowDia, b = d.pinDia, e = d.jawWidth, f = d.insideLength, g = d.bowWidth, c = d.eyeDia, ew = d.eyeWidth || a;
@@ -35,10 +35,10 @@ function shackleFront(s, yPin, dir) {
   const go = g / 2 + a, eo = e / 2 + ew;
   const outer = `M ${-eo} ${Y(0)} C ${-eo} ${Y(y0 + 0.3 * f)} ${-go} ${Y(y0 + 0.25 * f)} ${-go} ${Y(y0 + 0.62 * f)} C ${-go} ${Y(y0 + f + a * 0.6)} ${-g / 4} ${Y(yc + a)} 0 ${Y(yc + a)} C ${g / 4} ${Y(yc + a)} ${go} ${Y(y0 + f + a * 0.6)} ${go} ${Y(y0 + 0.62 * f)} C ${go} ${Y(y0 + 0.25 * f)} ${eo} ${Y(y0 + 0.3 * f)} ${eo} ${Y(0)}`;
   let out = path(`${outer} L ${e / 2} ${Y(0)} ${inner.replace(/^M/, 'L')} Z`, { fill: STEEL, stroke: STEEL_EDGE, 'stroke-width': 1, 'fill-rule': 'evenodd', ...sw });
-  // œils
+  // eyes
   out += rect(-e / 2 - ew, yPin - c / 2, ew, c, { rx: ew * 0.3, fill: '#9aa5b1', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
   out += rect(e / 2, yPin - c / 2, ew, c, { rx: ew * 0.3, fill: '#9aa5b1', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
-  // axe + écrou (côté droit) + tête (gauche)
+  // pin + nut (right side) + head (left)
   const pinL = e + 2 * ew;
   out += rect(-pinL / 2 - b * 0.5, yPin - b / 2, pinL + b * 1.4, b, { fill: '#2e8b3a', stroke: '#1d5c25', 'stroke-width': 1, ...sw });
   out += rect(pinL / 2 + b * 0.25, yPin - b * 0.6, b * 0.5, b * 1.2, { fill: '#6b7785', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
@@ -46,11 +46,11 @@ function shackleFront(s, yPin, dir) {
   return { svg: out, crownY: Y(yc), crownBarY: Y(yc + a / 2), halfWidth: go, crownDir: 'lr', a };
 }
 
-/** Manille vue de profil (axe vu en bout). */
+/** Shackle, side view (pin seen end-on). */
 function shackleSide(s, yPin, dir) {
   const d = s.dims;
   const a = d.bowDia, b = d.pinDia, f = d.insideLength, c = d.eyeDia;
-  const yc = yPin + dir * (b / 2 + f); // appui intérieur de l'arc
+  const yc = yPin + dir * (b / 2 + f); // inside bearing of the bow
   const yEnd = yPin + dir * (b / 2 + f + a);
   const y1 = Math.min(yPin, yEnd), y2 = Math.max(yPin, yEnd);
   let out = rect(-a / 2, y1, a, y2 - y1, { rx: a / 2, fill: STEEL, stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
@@ -60,7 +60,7 @@ function shackleSide(s, yPin, dir) {
   return { svg: out, crownY: yc, crownBarY: yc + dir * (a / 2), halfWidth: c / 2, crownDir: 'depth', a };
 }
 
-/** Élingue ronde : bande (appui sur axe gauche-droite) ou boucle de profil (axe en profondeur). */
+/** Sling: band (bearing axis left-right) or side-view loop (bearing axis in depth). */
 function sling(item, yTop, yBot, topStyle, topBar, len_m, botBarA = 0) {
   const w = item?.dims?.width || 60;
   const col = item?.colorHex || '#2a5db0';
@@ -70,7 +70,7 @@ function sling(item, yTop, yBot, topStyle, topBar, len_m, botBarA = 0) {
   let bandTop = yTop - (topBar.a || 0);
   if (topStyle === 'depth') {
     const r = (topBar.a || 30) / 2;
-    const cy = yTop - r; // centre de la barre d'appui
+    const cy = yTop - r; // centre of the bearing bar
     bandTop = yTop + w * 0.9;
     out += path(
       `M ${-r - tk} ${cy} A ${r + tk} ${r + tk} 0 0 1 ${r + tk} ${cy} L ${r + tk} ${cy + r + w * 0.3} L ${w / 2} ${bandTop} L ${-w / 2} ${bandTop} L ${-r - tk} ${cy + r + w * 0.3} Z ` +
@@ -93,7 +93,7 @@ function sling(item, yTop, yBot, topStyle, topBar, len_m, botBarA = 0) {
 }
 
 function padeyeEdge(yPin, t, R, hole, dir = 1) {
-  // padeye / lug vu sur la tranche ; dir = +1 : la tôle part vers le bas
+  // padeye / lug seen edge-on; dir = +1: the plate extends downwards
   const th = Math.max(t || 25, 10);
   const r = Math.max(R || th * 2, (hole || 30) * 0.8);
   const y1 = yPin - dir * r, y2 = yPin + dir * (r + 90);
@@ -123,7 +123,7 @@ function hookShape(y0, size) {
   ) + rect(-r * 0.5, y0 - r * 4.2, r, r * 1.0, { fill: '#6b7785', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
 }
 
-/** Construit la colonne d'une jambe (coordonnées en mm, y vers le bas). */
+/** Builds the column of one leg (coordinates in mm, y down). */
 function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
   const head = rig.head || {};
   const parts = [];
@@ -141,7 +141,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
   if (fromHook) {
     const hs = Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35);
     parts.push(hookShape(0, hs));
-    labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crochet de grue`, `charge statique ${fmt(rig.shl)} t`] });
+    labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crane hook`, `static load ${fmt(rig.shl)} t`] });
     ext(hs * 1.6);
     y = 0;
     if (head.topShackle) {
@@ -165,7 +165,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       if (head.useSub && head.subLink && leg.level === 'main') {
         const sd = head.subLink.dims;
         parts.push(ringEdge(y, sd.insideLength, sd.stockDia));
-        labels.push({ y: y + sd.insideLength / 2, x: sd.stockDia, t: [`Sous-anneau ${head.subLink.name.replace('Masterlink ', '')}`, `WLL ${fmt(head.subLink.wll_t)} t`] });
+        labels.push({ y: y + sd.insideLength / 2, x: sd.stockDia, t: [/sub-link/i.test(head.subLink.short || head.subLink.name) ? head.subLink.short || head.subLink.name : `Sub-link ${head.subLink.short || head.subLink.name}`, `WLL ${fmt(head.subLink.wll_t)} t`] });
         y += sd.insideLength;
         bar = 'depth';
         barA = sd.stockDia;
@@ -175,18 +175,18 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       barA = 40;
     }
   } else {
-    // élingue basse de palonnier : départ du lug bas
+    // spreader bottom sling: starts at the bottom lug
     const sp = project.rigging.spreader || {};
     const tc = leg.comps.topConn;
     const pinY = 0;
     const pe = padeyeEdge(pinY, Number(sp.bottomLugThk_mm) || (tc ? tc.dims.jawWidth * 0.8 : 30), (tc?.dims.pinDia || 30) * 1.6, Number(sp.bottomLugHoleDia_mm) || (tc?.dims.pinDia || 0) + 2, -1);
     parts.push(pe.svg);
-    labels.push({ y: pe.top + 30, x: 40, t: ['Lug bas du palonnier'] });
+    labels.push({ y: pe.top + 30, x: 40, t: ['Spreader bar bottom lug'] });
     y = pinY;
     bar = 'lug';
   }
 
-  // connecteur haut
+  // top connector
   const tc = leg.comps.topConn;
   if (tc && tc.type === 'shackle') {
     const pinCenter = bar === 'lug' ? y : y + tc.dims.pinDia / 2;
@@ -206,7 +206,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     barA = t;
   }
 
-  // élingue
+  // sling
   const s = leg.comps.sling;
   const bottomSh = leg.comps.bottomShackle;
   const slingTop = y;
@@ -217,11 +217,11 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
   labels.push({
     y: sr.mid,
     x: sr.w / 2,
-    t: [s ? s.name : 'Élingue ?', `EWL ${fmt(leg.slingLength)} m · WLL ${fmt(wllS)} t · ${util(F, wllS)}`, `T calc. ${fmt(F)} t · ${leg.angleH.toFixed(1)}° / horiz.`],
+    t: [s ? s.name : 'Sling ?', `EWL ${fmt(leg.slingLength)} m · WLL ${fmt(wllS)} t · ${util(F, wllS)}`, `Design T ${fmt(F)} t · ${leg.angleH.toFixed(1)}° to horiz.`],
     strong: true,
   });
 
-  // manille basse (arc vers le haut) puis élingue par-dessus
+  // bottom shackle (bow up), sling drawn on top
   y = slingBot;
   if (bottomSh) {
     const d = bottomSh.dims;
@@ -236,14 +236,14 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     const pe = padeyeEdge(pinCenter, thk || d.jawWidth * 0.8, rad || d.pinDia * 1.8, hole || d.pinDia + 2, 1);
     parts.push(pe.svg, r.svg);
     const sf = shackleSideLoadFactor(leg.beta || 0);
-    labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [bottomSh.name, `WLL ${fmt(bottomSh.wll_t * sf)} t · ${util(F, bottomSh.wll_t * sf)} · Ø axe ${d.pinDia} mm`] });
+    labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [bottomSh.name, `WLL ${fmt(bottomSh.wll_t * sf)} t · ${util(F, bottomSh.wll_t * sf)} · pin Ø${d.pinDia} mm`] });
     ext(r.halfWidth + d.pinDia);
     labels.push({
       y: pinCenter + 40,
       x: (thk || 30) * 3,
       t: pt
-        ? [`Padeye ${pt.id} · SWL ${pt.swl_t ? fmt(pt.swl_t) + ' t' : '—'}`, `ép. ${thk || '?'} mm · trou Ø${hole || '?'} mm`]
-        : ['Lug haut du palonnier'],
+        ? [`Padeye ${pt.id} · SWL ${pt.swl_t ? fmt(pt.swl_t) + ' t' : '—'}`, `thk. ${thk || '?'} mm · hole Ø${hole || '?'} mm`]
+        : ['Spreader bar top lug'],
     });
     y = pe.bottom;
   }
@@ -256,11 +256,11 @@ function legSignature(l) {
   return [l.level, l.comps.sling?.id, l.slingLength?.toFixed(2), l.comps.bottomShackle?.id, l.comps.topConn?.id, l.cfg.mode].join('|');
 }
 
-/** Dessin complet : une colonne par configuration de jambe distincte. */
+/** Full drawing: one column per distinct leg configuration. */
 export function drawRiggingDetail(project, res, opts = {}) {
   const rig = res?.rig;
   const Hpx = opts.height || 640;
-  if (!rig || rig.error) return svgDoc(600, 200, text(20, 30, rig?.error || 'Pas de résultat', { fill: '#c0392b' }));
+  if (!rig || rig.error) return svgDoc(600, 200, text(20, 30, rig?.error || 'No result', { fill: '#c0392b' }));
   const groups = [];
   for (const leg of rig.legs) {
     const sig = legSignature(leg);
@@ -270,7 +270,7 @@ export function drawRiggingDetail(project, res, opts = {}) {
   }
   const cols = groups.map((g) => ({ ...g, col: buildColumn(g.legs[0], rig, project) }));
   const spanMm = Math.max(...cols.map((c) => c.col.height - c.col.top));
-  const s = (Hpx - 70) / spanMm; // px par mm
+  const s = (Hpx - 70) / spanMm; // px per mm
   const labelW = 230;
   let x = 20;
   let body = '';
@@ -281,11 +281,11 @@ export function drawRiggingDetail(project, res, opts = {}) {
     body += group(c.col.parts.join(''), { transform: `translate(${cx.toFixed(1)} ${oy.toFixed(1)}) scale(${s.toFixed(5)})` });
     for (const il of c.col.inline)
       body += label(cx + il.x * s - 6, oy + il.y * s + 4, il.t, { 'text-anchor': 'end', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
-    // titre de colonne
+    // column title
     const names = c.legs.map((l) => l.key).join(', ');
-    const lvl = c.legs[0].level === 'top' ? 'Élingues hautes' : c.legs[0].level === 'bottom' ? 'Élingues basses' : 'Jambes';
+    const lvl = c.legs[0].level === 'top' ? 'Top slings' : c.legs[0].level === 'bottom' ? 'Bottom slings' : 'Legs';
     body += text(x, 22, `${lvl} ${names} (×${c.legs.length})`, { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
-    // repères
+    // callouts
     let lastY = -1e9;
     const ordered = [...c.col.labels].sort((a, b) => a.y - b.y);
     for (const lb of ordered) {
@@ -300,8 +300,8 @@ export function drawRiggingDetail(project, res, opts = {}) {
     }
     x += colW + labelW + 24;
   }
-  body += text(20, Hpx - 10, 'Composants à l\'échelle (corps d\'élingue raccourci). Données catalogue à confirmer avec les certificats du matériel utilisé.', { 'font-size': 9.5, fill: '#5d6b7a' });
-  return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Détail d\'élingage' });
+  body += text(20, Hpx - 10, 'Components to scale (sling body shortened). Catalogue data to be confirmed against the certificates of the equipment used.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Rigging detail' });
 }
 
 export { esc };

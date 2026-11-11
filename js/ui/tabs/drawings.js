@@ -11,8 +11,8 @@ export function render(root) {
   root.append(
     panel(
       null,
-      el('div', { class: 'panel-head' }, el('h2', {}, 'Schémas du gréement'), el('div', { class: 'row', style: { gap: '14px' } }, tog('labels', 'Repères'), tog('forces', 'Efforts / angles'), tog('dims', 'Cotes'))),
-      el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Chaque schéma s\'exporte en SVG (vectoriel, modifiable dans Inkscape / Illustrator / PowerPoint) ou en PNG pour vos storyboards.'),
+      el('div', { class: 'panel-head' }, el('h2', {}, 'Rigging drawings'), el('div', { class: 'row', style: { gap: '14px' } }, tog('labels', 'Labels'), tog('forces', 'Forces / angles'), tog('dims', 'Dimensions'))),
+      el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Every drawing exports as SVG (vector, editable in Inkscape / Illustrator / PowerPoint) or PNG for your storyboards.'),
     ),
     el('div', { id: 'draw-root', class: 'grid' }),
   );
@@ -29,10 +29,10 @@ function update(res) {
     el(
       'div',
       { class: 'grid g2' },
-      figure(drawRiggingView(p, res, 'iso', { width: 700, height: 520, ...opts }), 'greement-iso'),
-      el('div', { class: 'grid' }, figure(drawRiggingView(p, res, 'plan', { width: 640, height: 250, ...opts }), 'greement-plan'), figure(drawRiggingView(p, res, 'front', { width: 640, height: 260, ...opts }), 'greement-face')),
+      figure(drawRiggingView(p, res, 'iso', { width: 700, height: 520, ...opts }), 'rigging-iso'),
+      el('div', { class: 'grid' }, figure(drawRiggingView(p, res, 'plan', { width: 640, height: 250, ...opts }), 'rigging-plan'), figure(drawRiggingView(p, res, 'front', { width: 640, height: 260, ...opts }), 'rigging-front')),
     ),
-    el('div', { class: 'grid g2' }, figure(drawRiggingView(p, res, 'side', { width: 640, height: 300, ...opts }), 'greement-cote'), el('div')),
-    panel('Détail d\'élingage (composants à l\'échelle)', figure(drawRiggingDetail(p, res, { height: 680 }), 'detail-elingage')),
+    el('div', { class: 'grid g2' }, figure(drawRiggingView(p, res, 'side', { width: 640, height: 300, ...opts }), 'rigging-side'), el('div')),
+    panel('Rigging detail (components to scale)', figure(drawRiggingDetail(p, res, { height: 680 }), 'rigging-detail')),
   );
 }

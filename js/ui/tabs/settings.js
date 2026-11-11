@@ -4,57 +4,58 @@ import { DEFAULT_RULES } from '../../engine/checks.js';
 import { DAF_REFERENCE, SKL_REFERENCE } from '../../engine/factors.js';
 
 const RULES = [
-  ['minSlingAngleFail_deg', 'Angle mini élingue / horizontale (rejet)', '°'],
-  ['minSlingAngleWarn_deg', 'Angle élingue sous lequel alerter', '°'],
-  ['maxHoleClearance_mm', 'Jeu trou / axe admissible (absolu)', 'mm'],
-  ['maxHoleClearance_pct', 'Jeu trou / axe admissible (% Ø axe)', '%'],
-  ['minThicknessRatio', 'Épaisseur padeye / ouverture manille mini', '×'],
-  ['utilWarn', 'Alerte au-delà de ce taux d\'utilisation (matériel)', '×'],
-  ['maxTiltWarn_deg', 'Inclinaison de charge : alerte au-delà de', '°'],
-  ['maxTiltFail_deg', 'Inclinaison de charge : rejet au-delà de', '°'],
-  ['lengthMismatchWarn_mm', 'Écart de longueur admissible (palonnier)', 'mm'],
-  ['maxOutOfPlane_deg', 'Angle hors plan admissible sur padeye', '°'],
+  ['minSlingAngleFail_deg', 'Minimum sling angle to horizontal (reject)', '°'],
+  ['minSlingAngleWarn_deg', 'Warn below this sling angle', '°'],
+  ['maxHoleClearance_mm', 'Allowed hole / pin clearance (absolute)', 'mm'],
+  ['maxHoleClearance_pct', 'Allowed hole / pin clearance (% of pin Ø)', '%'],
+  ['minThicknessRatio', 'Minimum padeye thickness / shackle jaw width', '×'],
+  ['utilWarn', 'Warn above this equipment utilisation', '×'],
+  ['maxTiltWarn_deg', 'Load tilt: warn above', '°'],
+  ['maxTiltFail_deg', 'Load tilt: reject above', '°'],
+  ['lengthMismatchWarn_mm', 'Allowed length mismatch (spreader)', 'mm'],
+  ['minBendingRatio', 'Wire rope / grommet: minimum D/d over the bearing', '×'],
+  ['maxOutOfPlane_deg', 'Allowed out-of-plane angle on a padeye', '°'],
 ];
 
 export function render(root) {
   app.project.rules = app.project.rules || {};
   const r = panel(
-    'Règles de vérification',
-    el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '8px' } }, 'Valeurs par défaut issues des pratiques courantes (DNV-ST-N001, recommandations fabricants). Adaptez-les à la procédure de votre entreprise : elles sont enregistrées avec le projet.'),
+    'Check rules',
+    el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '8px' } }, 'Defaults follow common practice (DNV-ST-N001, manufacturer recommendations). Align them with your company procedure: they are saved with the project.'),
     el(
       'div',
       { class: 'fields wide' },
       RULES.map(([k, label, unit]) => {
         if (app.project.rules[k] == null) app.project.rules[k] = DEFAULT_RULES[k];
-        return field({ label, path: `rules.${k}`, unit, step: 0.01, hint: `Défaut : ${DEFAULT_RULES[k]}` });
+        return field({ label, path: `rules.${k}`, unit, step: 0.01, hint: `Default: ${DEFAULT_RULES[k]}` });
       }),
     ),
-    el('div', { class: 'row', style: { marginTop: '10px' } }, el('button', { class: 'small', onclick: () => { app.project.rules = { ...DEFAULT_RULES }; app.recompute(); window.__rerender(); } }, 'Rétablir les valeurs par défaut')),
+    el('div', { class: 'row', style: { marginTop: '10px' } }, el('button', { class: 'small', onclick: () => { app.project.rules = { ...DEFAULT_RULES }; app.recompute(); window.__rerender(); } }, 'Restore defaults')),
   );
   const about = panel(
-    'Méthode de calcul',
+    'Calculation method',
     el(
       'ul',
       { style: { fontSize: '13px', lineHeight: 1.5 } },
-      el('li', {}, 'Charge suspendue librement : le crochet est à la verticale du COG. Repère pièce X/Y/Z en mm, Z vers le haut.'),
-      el('li', {}, 'Réactions verticales : levier (2 points), équilibre exact (3 points), plaque rigide sur appuis de même raideur (4 points et +). Les cas hyperstatiques sont couverts par le SKL.'),
-      el('li', {}, 'Tension d\'élingue T = R · L / h ; effort de calcul F = T × DAF × SKL × facteur COG × autre facteur. Masterlink et palonnier : charge verticale × DAF (sans SKL).'),
-      el('li', {}, 'Grue : charge statique (poids × WCF + gréement + moufle si déduit) comparée au tableau de charge — le DAF n\'est pas appliqué, le tableau étant déjà certifié pour son usage (offshore : choisir la colonne Hs adaptée).'),
-      el('li', {}, 'Manilles : réduction de WLL en charge latérale (0° 100 %, 45° 70 %, 90° 50 %) si l\'orientation du padeye est renseignée ; contrôle jeu trou/axe, épaisseur/ouverture, largeur d\'élingue dans l\'arc.'),
-      el('li', {}, 'Longueurs : longueur effective = élingue (EWL) + manilles (f + Ø axe) + masterlink / sous-anneau (longueur intérieure). Assiette de la charge estimée avec les longueurs retenues.'),
+      el('li', {}, 'Freely suspended load: the hook is vertically above the COG. Load frame X/Y/Z in mm, Z up.'),
+      el('li', {}, 'Vertical reactions: lever rule (2 points), exact equilibrium (3 points), rigid plate on equal-stiffness supports (4 points and more). Statically indeterminate cases are covered by the SKL.'),
+      el('li', {}, 'Sling tension T = R · L / h; design force F = T × DAF × SKL × COG factor × other factor. Master link and spreader bar: vertical load × DAF (no SKL).'),
+      el('li', {}, 'Crane: static load (weight × WCF + rigging + hook block if deducted) against the load chart — no DAF, the chart being certified for its use (offshore: pick the right Hs column).'),
+      el('li', {}, 'Shackles: WLL reduction under side load (Green Pin curve: 0° 100 %, 45° 70 %, 90° 50 %) when the padeye orientation is entered; hole/pin clearance, thickness/jaw and sling width in the bow are checked.'),
+      el('li', {}, 'Lengths: effective length = sling (EWL) + shackles (f + pin Ø) + master link / sub-link (inside length). The load tilt is estimated with the selected lengths.'),
     ),
     el('p', { style: { fontSize: '12px' } }, DAF_REFERENCE),
     el('p', { style: { fontSize: '12px' } }, SKL_REFERENCE),
-    el('div', { class: 'note warn' }, 'Outil d\'aide à la préparation : il ne remplace pas la revue par une personne compétente, ni les certificats du matériel et de la grue.'),
+    el('div', { class: 'note warn' }, 'Planning aid: it does not replace review by a competent person, nor the certificates of the equipment and of the crane.'),
   );
   const data = panel(
-    'Données locales',
-    el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Le projet en cours et l\'inventaire sont sauvegardés automatiquement dans ce navigateur. Utilisez « Enregistrer » pour obtenir un fichier .liftplan.json à archiver avec le lift plan.'),
+    'Local data',
+    el('div', { class: 'muted', style: { fontSize: '12px' } }, 'The current project and the inventory are saved automatically in this browser. Use "Save" to get a .liftplan.json file to archive with the lift plan.'),
     el(
       'div',
       { class: 'row', style: { marginTop: '8px' } },
-      field({ label: 'Inclure le plan PDF importé dans le fichier projet', path: 'drawingEmbed', type: 'checkbox' }),
-      el('button', { class: 'small danger', onclick: () => { if (confirm('Effacer les données locales (projet + inventaire) de ce navigateur ?')) { try { localStorage.clear(); } catch {} location.reload(); } } }, 'Effacer les données locales'),
+      field({ label: 'Embed the imported PDF drawing in the project file', path: 'drawingEmbed', type: 'checkbox' }),
+      el('button', { class: 'small danger', onclick: () => { if (confirm('Clear the local data (project + inventory) from this browser?')) { try { localStorage.clear(); } catch {} location.reload(); } } }, 'Clear local data'),
     ),
   );
   root.append(el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, r, data), about));

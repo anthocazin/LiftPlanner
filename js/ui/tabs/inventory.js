@@ -1,16 +1,19 @@
-// Inventaire utilisateur (matériel certifié du parc) + consultation du catalogue intégré.
+// User inventory (certified equipment of your own fleet) + browser for the built-in catalogue.
 import { app } from '../app.js';
 import { el, panel, fmt, download, toast } from '../dom.js';
 import { BUILTIN_CATALOG, CATALOG_TYPES } from '../../catalog/data.js';
 
 const DIMS = {
-  shackle: [['bowDia', 'Ø arc'], ['pinDia', 'Ø axe'], ['jawWidth', 'Ouverture'], ['insideLength', 'Long. int.'], ['bowWidth', 'Larg. arc'], ['eyeDia', 'Ø œil']],
-  masterlink: [['stockDia', 'Ø barre'], ['insideWidth', 'Larg. int.'], ['insideLength', 'Long. int.']],
-  roundsling: [['width', 'Largeur']],
-  glink: [['maxSlingWidth', 'Larg. élingue max'], ['effLength', 'Long. utile'], ['barThk', 'Ép. barre']],
-  wiresling: [['width', 'Ø câble']],
-  other: [['effLength', 'Long. utile']],
+  shackle: [['bowDia', 'Bow Ø'], ['pinDia', 'Pin Ø'], ['jawWidth', 'Jaw'], ['insideLength', 'Inside L'], ['bowWidth', 'Bow width'], ['eyeDia', 'Eye Ø']],
+  masterlink: [['stockDia', 'Stock Ø'], ['insideWidth', 'Inside W'], ['insideLength', 'Inside L']],
+  roundsling: [['width', 'Width']],
+  wiresling: [['ropeDia', 'Rope Ø']],
+  grommet: [['ropeDia', 'Body Ø'], ['componentDia', 'Strand Ø']],
+  webbing: [['width', 'Width']],
+  glink: [['maxSlingWidth', 'Max sling W'], ['effLength', 'Eff. length'], ['barThk', 'Bar thk.']],
+  other: [['effLength', 'Eff. length']],
 };
+const SLINGS = ['roundsling', 'wiresling', 'grommet', 'webbing'];
 
 let catFilter = 'shackle';
 let catSearch = '';
@@ -21,17 +24,21 @@ export function render(root) {
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Mon inventaire (matériel certifié)'),
+      el('h2', {}, 'My inventory (certified equipment)'),
       el(
         'div',
         { class: 'row' },
         el('select', { id: 'new-type' }, Object.entries(CATALOG_TYPES).filter(([k]) => k !== 'other').map(([k, v]) => el('option', { value: k }, v))),
-        el('button', { class: 'small', onclick: () => addItem(document.getElementById('new-type').value) }, '+ Ajouter'),
-        el('button', { class: 'small', onclick: exportInv }, 'Exporter'),
-        el('label', { class: 'btn small' }, 'Importer', el('input', { type: 'file', accept: '.json', hidden: true, onchange: importInv })),
+        el('button', { class: 'small', onclick: () => addItem(document.getElementById('new-type').value) }, '+ Add'),
+        el('button', { class: 'small', onclick: exportInv }, 'Export'),
+        el('label', { class: 'btn small' }, 'Import', el('input', { type: 'file', accept: '.json', hidden: true, onchange: importInv })),
       ),
     ),
-    el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '6px' } }, 'Les articles de l\'inventaire (★) sont proposés dans les listes du gréement et utilisés en priorité par la sélection automatique à WLL égale. Une élingue avec une longueur renseignée est utilisée à cette longueur. L\'inventaire est conservé dans ce navigateur et peut être exporté.'),
+    el(
+      'div',
+      { class: 'muted', style: { fontSize: '12px', marginBottom: '6px' } },
+      'Inventory items (★) are offered in the rigging lists and preferred by the automatic selection at equal WLL. A sling with a length entered is used at that length. The inventory is kept in this browser and can be exported.',
+    ),
     el('div', { id: 'inv-table', class: 'tbl-wrap' }),
   );
   const cat = panel(null, el('div', { id: 'cat-root' }));
@@ -46,12 +53,12 @@ function uid() {
 
 function addItem(type, from = null) {
   const inv = (app.project.inventory = app.project.inventory || []);
-  const base = from ? JSON.parse(JSON.stringify(from)) : { type, name: `${CATALOG_TYPES[type]} — nouveau`, brand: '', model: '', wll_t: null, dims: {} };
+  const base = from ? JSON.parse(JSON.stringify(from)) : { type, name: `${CATALOG_TYPES[type]} — new`, brand: '', model: '', wll_t: null, dims: {} };
   delete base.user;
-  inv.push({ ...base, id: uid(), certNo: '', serial: '', source: from ? `Copie de ${from.id}` : 'Inventaire utilisateur' });
+  inv.push({ ...base, id: uid(), certNo: '', serial: '', source: from ? `Copy of ${from.id}` : 'User inventory' });
   app.recompute();
   renderInv();
-  toast('Article ajouté à l\'inventaire');
+  toast('Item added to the inventory');
 }
 
 function renderInv() {
@@ -60,7 +67,7 @@ function renderInv() {
   const inv = app.project.inventory || [];
   box.innerHTML = '';
   if (!inv.length) {
-    box.append(el('div', { class: 'note' }, 'Inventaire vide. Ajoutez vos manilles / élingues / masterlinks certifiés, ou copiez un article du catalogue ci-dessous (bouton « + Inventaire »).'));
+    box.append(el('div', { class: 'note' }, 'Inventory is empty. Add your certified shackles / slings / master links, or copy a catalogue item below ("+ Inventory" button).'));
     return;
   }
   const inp = (obj, key, type = 'text', w) =>
@@ -70,39 +77,49 @@ function renderInv() {
     });
   const rows = inv.map((it, i) => {
     it.dims = it.dims || {};
+    const isSling = SLINGS.includes(it.type);
     return el(
       'tr',
       {},
       el('td', {}, CATALOG_TYPES[it.type] || it.type),
       el('td', { style: { minWidth: '220px' } }, inp(it, 'name')),
       el('td', {}, inp(it, 'wll_t', 'number', '70px')),
-      el('td', {}, it.type === 'roundsling' || it.type === 'wiresling' ? inp(it, 'weight_kg_per_m', 'number', '70px') : inp(it, 'weight_kg', 'number', '70px')),
-      el('td', {}, it.type === 'roundsling' || it.type === 'wiresling' ? inp(it, 'length_m', 'number', '70px') : '—'),
+      el('td', {}, isSling ? inp(it, 'weight_kg_per_m', 'number', '70px') : inp(it, 'weight_kg', 'number', '70px')),
+      el('td', {}, isSling ? inp(it, 'length_m', 'number', '70px') : '—'),
       el('td', {}, el('div', { class: 'row', style: { gap: '4px', flexWrap: 'nowrap' } }, (DIMS[it.type] || []).map(([k, lbl]) => el('label', { title: `${lbl} (mm)`, style: { fontSize: '10px', color: 'var(--muted)' } }, lbl, inp(it.dims, k, 'number', '62px'))))),
       el('td', {}, inp(it, 'certNo', 'text', '110px')),
       el('td', {}, inp(it, 'serial', 'text', '90px')),
       el('td', {}, el('button', { class: 'small danger', onclick: () => { inv.splice(i, 1); app.recompute(); renderInv(); } }, '✕')),
     );
   });
-  box.append(el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Type', 'Désignation', 'WLL (t)', 'Poids (kg | kg/m)', 'Long. (m)', 'Dimensions (mm)', 'N° certificat', 'N° série', ''].map((h) => el('th', {}, h)))), el('tbody', {}, rows)));
+  box.append(
+    el(
+      'table',
+      { class: 'data compact' },
+      el('thead', {}, el('tr', {}, ['Type', 'Description', 'WLL (t)', 'Weight (kg | kg/m)', 'Length (m)', 'Dimensions (mm)', 'Certificate no.', 'Serial no.', ''].map((h) => el('th', {}, h)))),
+      el('tbody', {}, rows),
+    ),
+  );
 }
 
 function renderCatalog() {
   const root = document.getElementById('cat-root');
   if (!root) return;
   root.innerHTML = '';
-  const items = BUILTIN_CATALOG.filter((i) => i.type === catFilter && (!catSearch || i.name.toLowerCase().includes(catSearch.toLowerCase())));
+  const items = BUILTIN_CATALOG.filter((i) => i.type === catFilter && (!catSearch || `${i.name} ${i.model || ''}`.toLowerCase().includes(catSearch.toLowerCase())));
   const keys = DIMS[catFilter] || [];
   root.append(
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Catalogue intégré'),
+      el('h2', {}, `Built-in catalogue (${BUILTIN_CATALOG.length} items)`),
       el(
         'div',
         { class: 'row' },
-        ...['shackle', 'masterlink', 'roundsling', 'glink'].map((t) => el('button', { class: `small ${catFilter === t ? 'active' : ''}`, onclick: () => { catFilter = t; renderCatalog(); } }, CATALOG_TYPES[t])),
-        el('input', { type: 'search', placeholder: 'Filtrer…', value: catSearch, oninput: (e) => { catSearch = e.target.value; renderCatalog(); }, style: { padding: '4px 8px', border: '1px solid var(--line)', borderRadius: '6px' } }),
+        ...['shackle', 'masterlink', 'roundsling', 'wiresling', 'grommet', 'webbing', 'glink'].map((t) =>
+          el('button', { class: `small ${catFilter === t ? 'active' : ''}`, onclick: () => { catFilter = t; renderCatalog(); } }, CATALOG_TYPES[t]),
+        ),
+        el('input', { type: 'search', placeholder: 'Filter…', value: catSearch, oninput: (e) => { catSearch = e.target.value; renderCatalog(); }, style: { padding: '4px 8px', border: '1px solid var(--line)', borderRadius: '6px' } }),
       ),
     ),
     el(
@@ -111,7 +128,7 @@ function renderCatalog() {
       el(
         'table',
         { class: 'data compact' },
-        el('thead', {}, el('tr', {}, ['Désignation', 'WLL (t)', 'CU', ...keys.map((k) => `${k[1]} (mm)`), 'Poids', 'Source', ''].map((h) => el('th', {}, h)))),
+        el('thead', {}, el('tr', {}, ['Description', 'WLL (t)', 'SF', ...keys.map((k) => `${k[1]} (mm)`), 'Weight', 'Source', ''].map((h) => el('th', {}, h)))),
         el(
           'tbody',
           {},
@@ -125,18 +142,22 @@ function renderCatalog() {
               ...keys.map(([k]) => el('td', { class: 'num' }, fmt(it.dims?.[k], 0))),
               el('td', { class: 'num' }, it.weight_kg != null ? `${fmt(it.weight_kg, 2)} kg` : it.weight_kg_per_m != null ? `${fmt(it.weight_kg_per_m, 2)} kg/m` : '—'),
               el('td', { class: 'muted', style: { fontSize: '11px' } }, it.source || ''),
-              el('td', {}, el('button', { class: 'small', title: 'Copier dans mon inventaire pour y ajouter n° de certificat / série', onclick: () => addItem(it.type, it) }, '+ Inventaire')),
+              el('td', {}, el('button', { class: 'small', title: 'Copy into my inventory to add certificate / serial numbers', onclick: () => addItem(it.type, it) }, '+ Inventory')),
             ),
           ),
         ),
       ),
     ),
-    el('div', { class: 'note warn', style: { marginTop: '8px', fontSize: '12px' } }, 'Données relevées sur les fiches publiques des fabricants / distributeurs. Les largeurs et poids des élingues rondes sont des valeurs typiques. Vérifiez toujours contre le certificat du matériel utilisé.'),
+    el(
+      'div',
+      { class: 'note warn', style: { marginTop: '8px', fontSize: '12px' } },
+      'Data taken from public manufacturer / distributor literature (mainly the DS Levage 2025 catalogue). Some values are typical or estimated (see Source column). Always check against the certificate of the equipment used.',
+    ),
   );
 }
 
 function exportInv() {
-  download('inventaire-levage.json', JSON.stringify(app.project.inventory || [], null, 2));
+  download('rigging-inventory.json', JSON.stringify(app.project.inventory || [], null, 2));
 }
 
 async function importInv(e) {
@@ -144,13 +165,13 @@ async function importInv(e) {
   if (!f) return;
   try {
     const data = JSON.parse(await f.text());
-    if (!Array.isArray(data)) throw new Error('format attendu : tableau d\'articles');
+    if (!Array.isArray(data)) throw new Error('expected an array of items');
     const inv = (app.project.inventory = app.project.inventory || []);
     data.forEach((it) => inv.push({ ...it, id: it.id || uid() }));
     app.recompute();
     renderInv();
-    toast(`${data.length} article(s) importé(s)`);
+    toast(`${data.length} item(s) imported`);
   } catch (err) {
-    alert(`Import impossible : ${err.message}`);
+    alert(`Import failed: ${err.message}`);
   }
 }

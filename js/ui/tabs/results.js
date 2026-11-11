@@ -15,16 +15,16 @@ export function summaryCards(res) {
   return el(
     'div',
     { class: 'cards' },
-    c('Poids net', `${fmt(app.project.load.weight_t)} t`, `WCF ${fmt(app.project.load.wcf)}`),
-    c('Poids de calcul', `${fmt(r.W)} t`),
-    c('Poids du gréement', `${fmt(r.rigWeight)} t`, r.spreader ? 'palonnier inclus' : ''),
-    c('Charge statique crochet', `${fmt(res.shlStatic)} t`, 'charge + gréement'),
-    c('Charge grue', `${fmt(res.shlCrane)} t`, app.project.crane.deductHookBlock !== false ? 'moufle inclus' : 'hors moufle'),
-    c('Charge dynamique', `${fmt(res.dynamicHookLoad)} t`, `DAF ${fmt(r.factors.daf)}`),
-    c('Facteurs jambes', fmt(r.fac, 3), `DAF ${fmt(r.factors.daf)} · SKL ${fmt(r.factors.skl)}`),
-    c('Util. grue max', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(1)} %` : '—'),
-    c('Hauteur gréement', `${fmt(r.riggingHeight)} m`, 'padeyes → crochet'),
-    r.tilt ? c('Assiette estimée', `${fmt(r.tilt.tilt_deg)}°`) : null,
+    c('Net weight', `${fmt(app.project.load.weight_t)} t`, `WCF ${fmt(app.project.load.wcf)}`),
+    c('Design weight', `${fmt(r.W)} t`),
+    c('Rigging weight', `${fmt(r.rigWeight)} t`, r.spreader ? 'spreader bar included' : ''),
+    c('Static hook load', `${fmt(res.shlStatic)} t`, 'load + rigging'),
+    c('Crane load', `${fmt(res.shlCrane)} t`, app.project.crane.deductHookBlock !== false ? 'hook block included' : 'hook block excluded'),
+    c('Dynamic hook load', `${fmt(res.dynamicHookLoad)} t`, `DAF ${fmt(r.factors.daf)}`),
+    c('Leg load factor', fmt(r.fac, 3), `DAF ${fmt(r.factors.daf)} · SKL ${fmt(r.factors.skl)}`),
+    c('Max crane utilisation', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(1)} %` : '—'),
+    c('Rigging height', `${fmt(r.riggingHeight)} m`, 'padeyes → hook'),
+    r.tilt ? c('Estimated tilt', `${fmt(r.tilt.tilt_deg)}°`) : null,
   );
 }
 
@@ -48,15 +48,17 @@ export function checksTable(checks, { compact = false } = {}) {
         ),
       );
   }
-  return el('table', { class: `data ${compact ? 'compact' : ''}` }, el('thead', {}, el('tr', {}, ['Statut', 'Élément', 'Vérification', 'Valeur', 'Limite', 'Utilisation'].map((h) => el('th', {}, h)))), tb);
+  return el('table', { class: `data ${compact ? 'compact' : ''}` }, el('thead', {}, el('tr', {}, ['Status', 'Item', 'Check', 'Value', 'Limit', 'Utilisation'].map((h) => el('th', {}, h)))), tb);
 }
+
+const nm = (i) => (i ? i.short || i.name : '—');
 
 export function legsTable(res) {
   const rig = res.rig;
   return el(
     'table',
     { class: 'data compact' },
-    el('thead', {}, el('tr', {}, ['Jambe', 'Point', 'EWL (m)', 'L eff. (m)', 'Angle / horiz.', 'R vert. (t)', 'T stat. (t)', 'F calc. (t)', 'Élingue', 'Manille basse', 'Connexion haute'].map((h) => el('th', {}, h)))),
+    el('thead', {}, el('tr', {}, ['Leg', 'Point', 'EWL (m)', 'Eff. L (m)', 'Angle to horiz.', 'Vert. R (t)', 'Static T (t)', 'Design F (t)', 'Sling', 'Bottom shackle', 'Top connection'].map((h) => el('th', {}, h)))),
     el(
       'tbody',
       {},
@@ -65,16 +67,16 @@ export function legsTable(res) {
           'tr',
           {},
           el('td', {}, el('b', {}, l.label)),
-          el('td', {}, l.pointId || (l.level === 'top' ? 'Palonnier' : '')),
+          el('td', {}, l.pointId || (l.level === 'top' ? 'Spreader' : '')),
           el('td', { class: 'num' }, fmt(l.slingLength)),
           el('td', { class: 'num' }, fmt(l.Leff)),
           el('td', { class: 'num' }, `${l.angleH.toFixed(1)}°`),
           el('td', { class: 'num' }, fmt(l.R)),
           el('td', { class: 'num' }, fmt(l.Tstatic)),
           el('td', { class: 'num' }, el('b', {}, fmt(l.Fdesign))),
-          el('td', {}, l.comps.sling ? l.comps.sling.short || l.comps.sling.name : '—'),
-          el('td', {}, l.comps.bottomShackle ? l.comps.bottomShackle.short || l.comps.bottomShackle.name : '—'),
-          el('td', {}, l.comps.topConn ? l.comps.topConn.short || l.comps.topConn.name : 'direct'),
+          el('td', {}, nm(l.comps.sling)),
+          el('td', {}, nm(l.comps.bottomShackle)),
+          el('td', {}, l.comps.topConn ? nm(l.comps.topConn) : 'direct'),
         ),
       ),
     ),
@@ -86,7 +88,7 @@ export function bomTable(res) {
   return el(
     'table',
     { class: 'data compact' },
-    el('thead', {}, el('tr', {}, ['Rep.', 'Qté', 'Désignation', 'WLL (t)', 'Poids unit. (kg)', 'Emplacement', 'N° certificat'].map((h) => el('th', {}, h)))),
+    el('thead', {}, el('tr', {}, ['Item', 'Qty', 'Description', 'WLL (t)', 'Unit weight (kg)', 'Location', 'Certificate no.'].map((h) => el('th', {}, h)))),
     el(
       'tbody',
       {},
@@ -103,7 +105,7 @@ export function bomTable(res) {
           el('td', {}, b.certNo || ''),
         ),
       ),
-      el('tr', { class: 'group' }, el('td', { colspan: 4 }, 'Poids total du gréement'), el('td', { class: 'num' }, fmt(tot * 1000, 1)), el('td', { colspan: 2 }, '')),
+      el('tr', { class: 'group' }, el('td', { colspan: 4 }, 'Total rigging weight'), el('td', { class: 'num' }, fmt(tot * 1000, 1)), el('td', { colspan: 2 }, '')),
     ),
   );
 }
@@ -113,7 +115,7 @@ function update(res) {
   if (!root) return;
   root.innerHTML = '';
   if (!res || res.rig?.error) {
-    root.append(el('div', { class: 'note fail' }, res?.rig?.error || 'Calcul impossible'));
+    root.append(el('div', { class: 'note fail' }, res?.rig?.error || 'Calculation not possible'));
     return;
   }
   const nF = res.checks.filter((c) => c.status === 'fail').length;
@@ -126,35 +128,30 @@ function update(res) {
       el(
         'div',
         { class: 'panel-head' },
-        el('h2', {}, 'Synthèse'),
-        el('div', { class: 'row' }, badge(res.status), el('span', {}, nF ? `${nF} non-conformité(s)` : nW ? `${nW} alerte(s)` : 'Toutes les vérifications sont satisfaites')),
+        el('h2', {}, 'Summary'),
+        el('div', { class: 'row' }, badge(res.status), el('span', {}, nF ? `${nF} failed check(s)` : nW ? `${nW} warning(s)` : 'All checks passed')),
       ),
       summaryCards(res),
       res.governing?.length
-        ? el('div', { style: { marginTop: '10px' } }, el('b', {}, 'Éléments dimensionnants : '), res.governing.slice(0, 3).map((g, i) => el('span', {}, `${i ? ' · ' : ''}${g.item} — ${g.label.split(' — ')[0]} (${(g.util * 100).toFixed(0)} %)`)))
+        ? el('div', { style: { marginTop: '10px' } }, el('b', {}, 'Governing items: '), res.governing.slice(0, 3).map((g, i) => el('span', {}, `${i ? ' · ' : ''}${g.item} — ${g.label.split(' — ')[0]} (${(g.util * 100).toFixed(0)} %)`)))
         : null,
     ),
     panel(
       null,
-      el('div', { class: 'panel-head' }, el('h2', {}, 'Vérifications'), el('div', { class: 'row' }, fbtn('all', 'Toutes'), fbtn('issues', 'Problèmes'), fbtn('fail', 'Non conformes'), fbtn('warn', 'Alertes'))),
+      el('div', { class: 'panel-head' }, el('h2', {}, 'Checks'), el('div', { class: 'row' }, fbtn('all', 'All'), fbtn('issues', 'Issues'), fbtn('fail', 'Failed'), fbtn('warn', 'Warnings'))),
       el('div', { class: 'tbl-wrap' }, checksTable(shown)),
     ),
-    panel('Efforts par jambe', el('div', { class: 'tbl-wrap' }, legsTable(res))),
+    panel('Leg forces', el('div', { class: 'tbl-wrap' }, legsTable(res))),
     panel(
       null,
-      el(
-        'div',
-        { class: 'panel-head' },
-        el('h2', {}, 'Liste du matériel de levage'),
-        el('button', { class: 'small', onclick: () => exportBomCsv(res) }, 'Exporter CSV'),
-      ),
+      el('div', { class: 'panel-head' }, el('h2', {}, 'Rigging equipment list'), el('button', { class: 'small', onclick: () => exportBomCsv(res) }, 'Export CSV')),
       el('div', { class: 'tbl-wrap' }, bomTable(res)),
     ),
   );
 }
 
 function exportBomCsv(res) {
-  const rows = [['Rep', 'Qte', 'Designation', 'WLL_t', 'Poids_unit_kg', 'Emplacement', 'Certificat']];
+  const rows = [['Item', 'Qty', 'Description', 'WLL_t', 'Unit_weight_kg', 'Location', 'Certificate']];
   res.bom.forEach((b) => rows.push([b.no, b.qty, b.name, b.wll_t ?? '', (b.unitWeight_t * 1000).toFixed(1), [...new Set(b.where)].join(' / '), b.certNo || '']));
-  download('liste-materiel.csv', '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n'), 'text/csv');
+  download('rigging-equipment-list.csv', '﻿' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
 }

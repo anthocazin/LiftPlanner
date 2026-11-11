@@ -1,7 +1,7 @@
 {
   "name": "liftplanner",
-  "version": "0.1.0",
-  "description": "Outil de lift plan offshore / onshore : calcul de gréement, vérifications, catalogue matériel, schémas et storyboard",
+  "version": "0.2.0",
+  "description": "Offshore / onshore lift planning tool: rigging calculation, checks, real rigging hardware catalogue, drawings and storyboard",
   "type": "module",
   "private": true,
   "scripts": {

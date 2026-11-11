@@ -1,5 +1,5 @@
-// Import d'un plan (PDF ou image), calibration d'échelle, pointage des points de levage / COG,
-// mesure et détection de texte (poids, COG) dans le PDF.
+// Drawing import (PDF or image), scale calibration, picking of lift points / COG,
+// measuring and text detection (weight, COG) in the PDF.
 import { app } from './app.js';
 import { el, toast, fmt } from './dom.js';
 
@@ -16,15 +16,15 @@ async function loadPdfJs() {
   if (pdfjs) return pdfjs;
   const url = window.__PDFJS_URL || new URL('../../vendor/pdfjs/pdf.min.mjs', import.meta.url).href;
   pdfjs = await import(url);
-  // version autonome (file://) : worker embarqué en blob ; si le navigateur refuse le worker,
-  // pdf.js bascule automatiquement sur le thread principal (un peu plus lent, même résultat).
+  // standalone build (file://): worker embedded as a blob; if the browser refuses the worker,
+  // pdf.js falls back to the main thread automatically (a little slower, same result).
   pdfjs.GlobalWorkerOptions.workerSrc = window.__PDFJS_WORKER_URL || new URL('../../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
   return pdfjs;
 }
 
 const D = () => app.project.drawing;
 const VIEW_AXES = { top: ['x', 'y'], front: ['x', 'z'], side: ['y', 'z'] };
-const VIEW_LABEL = { top: 'Vue de dessus (X / Y)', front: 'Vue de face (X / Z)', side: 'Vue de côté (Y / Z)' };
+const VIEW_LABEL = { top: 'Top view (X / Y)', front: 'Front view (X / Z)', side: 'Side view (Y / Z)' };
 
 function toModel(u, v) {
   const d = D();
@@ -56,17 +56,17 @@ function build(wrap) {
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Plan de la pièce (PDF / image)'),
-      el('div', { class: 'row' }, el('label', { class: 'btn small' }, 'Importer…', fileInput), app.drawingFile ? el('button', { class: 'small danger', onclick: closeFile }, 'Fermer') : null),
+      el('h2', {}, 'Load drawing (PDF / image)'),
+      el('div', { class: 'row' }, el('label', { class: 'btn small' }, 'Import…', fileInput), app.drawingFile ? el('button', { class: 'small danger', onclick: closeFile }, 'Close') : null),
     ),
   );
   if (!app.drawingFile) {
     const dz = el(
       'div',
       { class: 'dropzone' },
-      el('div', {}, 'Déposez ici le plan de la pièce (PDF, PNG, JPG)'),
-      el('div', { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } }, 'Calibrez l\'échelle avec une cote connue, placez l\'origine, puis cliquez les padeyes et le COG : les coordonnées sont reportées dans le tableau.'),
-      d?.fileName ? el('div', { class: 'note warn', style: { marginTop: '8px' } }, `Calibration enregistrée pour « ${d.fileName} » : ré-importez le fichier pour l\'afficher.`) : null,
+      el('div', {}, 'Drop the load drawing here (PDF, PNG, JPG)'),
+      el('div', { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } }, 'Calibrate the scale on a known dimension, set the origin, then click the padeyes and the COG: coordinates are written to the lift point table.'),
+      d?.fileName ? el('div', { class: 'note warn', style: { marginTop: '8px' } }, `Calibration saved for "${d.fileName}": import the file again to display it.`) : null,
     );
     dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('over'); });
     dz.addEventListener('dragleave', () => dz.classList.remove('over'));
@@ -87,20 +87,20 @@ function build(wrap) {
       'div',
       { class: 'toolbar' },
       doc ? el('span', {}, 'Page ', sel([...Array(doc.numPages)].map((_, i) => [String(i + 1), String(i + 1)]), String(d.page || 1), (v) => { D().page = Number(v); renderPage(); })) : null,
-      el('span', {}, 'Vue ', sel(Object.entries(VIEW_LABEL), d.view || 'top', (v) => { D().view = v; app.recompute(); drawOverlay(); })),
+      el('span', {}, 'View ', sel(Object.entries(VIEW_LABEL), d.view || 'top', (v) => { D().view = v; app.recompute(); drawOverlay(); })),
       el('button', { class: 'small', onclick: () => { zoom = Math.max(0.3, zoom / 1.25); renderPage(); } }, '−'),
       el('button', { class: 'small', onclick: () => { zoom = Math.min(6, zoom * 1.25); renderPage(); } }, '+'),
-      el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: !!d.flipX, onchange: (e) => { D().flipX = e.target.checked; drawOverlay(); } }), 'Inverser horizontal'),
+      el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: !!d.flipX, onchange: (e) => { D().flipX = e.target.checked; drawOverlay(); } }), 'Flip horizontal'),
     ),
     el(
       'div',
       { class: 'toolbar' },
-      modeBtn('cal', '1. Calibrer', 'Cliquez deux points d\'une cote connue puis saisissez la distance réelle'),
-      modeBtn('origin', '2. Origine', 'Cliquez l\'origine du repère pièce (0,0) dans cette vue'),
-      modeBtn('pick', '3. Padeye', 'Cliquez la position d\'un point de levage'),
-      sel([['new', '→ nouveau point'], ...pts.map((p) => [p.id, `→ point ${p.id}`])], pickTarget, (v) => (pickTarget = v)),
-      modeBtn('cog', '4. COG', 'Cliquez la position du centre de gravité'),
-      modeBtn('measure', 'Mesurer', 'Mesure entre deux points'),
+      modeBtn('cal', '1. Calibrate', 'Click the two ends of a known dimension, then enter the real distance'),
+      modeBtn('origin', '2. Origin', 'Click the origin of the load frame (0,0) in this view'),
+      modeBtn('pick', '3. Padeye', 'Click the position of a lift point'),
+      sel([['new', '→ new point'], ...pts.map((p) => [p.id, `→ point ${p.id}`])], pickTarget, (v) => (pickTarget = v)),
+      modeBtn('cog', '4. COG', 'Click the centre of gravity'),
+      modeBtn('measure', 'Measure', 'Distance between two points'),
       el('span', { class: 'muted', id: 'pdf-status', style: { fontSize: '12px' } }, status()),
     ),
   );
@@ -120,14 +120,14 @@ function status() {
   const d = D();
   if (!d) return '';
   const parts = [];
-  parts.push(d.scale ? `Échelle : 1 unité = ${fmt(d.scale, 3)} mm` : 'Échelle non calibrée');
-  parts.push(d.origin ? 'origine définie' : 'origine non définie');
-  if (mode === 'cal1') parts.push('→ cliquez le 1er point de la cote');
-  if (mode === 'cal2') parts.push('→ cliquez le 2e point');
-  if (mode === 'origin') parts.push('→ cliquez l\'origine');
-  if (mode === 'pick') parts.push('→ cliquez un padeye');
-  if (mode === 'cog') parts.push('→ cliquez le COG');
-  if (mode.startsWith('measure')) parts.push('→ cliquez deux points');
+  parts.push(d.scale ? `Scale: 1 unit = ${fmt(d.scale, 3)} mm` : 'Scale not calibrated');
+  parts.push(d.origin ? 'origin set' : 'origin not set');
+  if (mode === 'cal1') parts.push('→ click the first end of the dimension');
+  if (mode === 'cal2') parts.push('→ click the second end');
+  if (mode === 'origin') parts.push('→ click the origin');
+  if (mode === 'pick') parts.push('→ click a padeye');
+  if (mode === 'cog') parts.push('→ click the COG');
+  if (mode.startsWith('measure')) parts.push('→ click two points');
   return parts.join(' · ');
 }
 
@@ -150,7 +150,7 @@ async function openFile(file) {
   await loadDoc();
   mode = same && prev.scale ? 'none' : 'cal1';
   build(document.getElementById('pdf-panel'));
-  toast(same ? 'Plan rechargé avec sa calibration' : 'Plan importé — commencez par calibrer l\'échelle');
+  toast(same ? 'Drawing reloaded with its calibration' : 'Drawing imported — start by calibrating the scale');
 }
 
 function closeFile() {
@@ -172,7 +172,7 @@ async function loadDoc() {
       await findText();
     } catch (e) {
       console.error(e);
-      toast(`PDF illisible : ${e.message}`);
+      toast(`Unreadable PDF: ${e.message}`);
     }
   } else {
     img = await new Promise((res, rej) => {
@@ -249,7 +249,7 @@ function drawOverlay() {
     const t2 = svgEl('text', { x: x - 4, y: y - 44, fill: '#1f8f4e', 'font-size': 12, 'font-weight': 700 });
     t2.textContent = bx.toUpperCase();
     ov.append(t1, t2);
-    // points existants projetés dans la vue
+    // existing points projected into the view
     const [ka, kb] = VIEW_AXES[d.view || 'top'];
     for (const p of app.project.load.liftPoints) {
       const pg = toPage(Number(p[ka]) || 0, Number(p[kb]) || 0);
@@ -275,29 +275,29 @@ function onClick(e) {
     d.cal = { p1: { x: u, y: v } };
     mode = 'cal2';
   } else if (mode === 'cal2') {
-    const dist = Number(String(prompt('Distance réelle entre les deux points (mm) :', d.cal?.dist_mm || '1000') || '').replace(',', '.'));
+    const dist = Number(String(prompt('Real distance between the two points (mm):', d.cal?.dist_mm || '1000') || '').replace(',', '.'));
     if (dist > 0) {
       d.cal = { ...d.cal, p2: { x: u, y: v }, dist_mm: dist };
       const px = Math.hypot(u - d.cal.p1.x, v - d.cal.p1.y);
       d.scale = dist / px;
       mode = d.origin ? 'none' : 'origin';
-      toast(`Échelle : 1 unité = ${fmt(d.scale, 3)} mm`);
+      toast(`Scale: 1 unit = ${fmt(d.scale, 3)} mm`);
     } else mode = 'cal1';
   } else if (mode === 'origin') {
     d.origin = { x: u, y: v };
     mode = 'pick';
-    toast('Origine définie');
+    toast('Origin set');
   } else if (mode === 'pick' || mode === 'cog') {
     const m = toModel(u, v);
     if (!m) {
-      toast('Calibrez l\'échelle et définissez l\'origine d\'abord');
+      toast('Calibrate the scale and set the origin first');
       return;
     }
     const [ka, kb] = VIEW_AXES[d.view || 'top'];
     if (mode === 'cog') {
       app.set(`load.cog_mm.${ka}`, m[0], { silent: true });
       app.set(`load.cog_mm.${kb}`, m[1], { silent: true });
-      toast(`COG : ${ka.toUpperCase()} = ${m[0]} · ${kb.toUpperCase()} = ${m[1]} mm`);
+      toast(`COG: ${ka.toUpperCase()} = ${m[0]} · ${kb.toUpperCase()} = ${m[1]} mm`);
       mode = 'none';
     } else {
       const list = app.project.load.liftPoints;
@@ -311,7 +311,7 @@ function onClick(e) {
       }
       p[ka] = m[0];
       p[kb] = m[1];
-      toast(`Point ${p.id} : ${ka.toUpperCase()} = ${m[0]} · ${kb.toUpperCase()} = ${m[1]} mm`);
+      toast(`Point ${p.id}: ${ka.toUpperCase()} = ${m[0]} · ${kb.toUpperCase()} = ${m[1]} mm`);
       pickTarget = 'new';
     }
     app.recompute();
@@ -322,7 +322,7 @@ function onClick(e) {
   } else if (mode === 'measure2') {
     tmp.push([u, v]);
     const px = Math.hypot(tmp[1][0] - tmp[0][0], tmp[1][1] - tmp[0][1]);
-    toast(d.scale ? `Distance : ${fmt(px * d.scale, 0)} mm` : 'Calibrez l\'échelle pour mesurer');
+    toast(d.scale ? `Distance: ${fmt(px * d.scale, 0)} mm` : 'Calibrate the scale to measure');
     drawOverlay();
     mode = 'measure1';
     setTimeout(() => { tmp = []; drawOverlay(); }, 2500);
@@ -332,7 +332,7 @@ function onClick(e) {
   build(document.getElementById('pdf-panel'));
 }
 
-// ---------------- détection de texte (poids, COG) ----------------
+// ---------------- text detection (weight, COG) ----------------
 async function findText() {
   hits = [];
   if (!doc) return;
@@ -363,7 +363,7 @@ function renderHits() {
   if (!box) return;
   box.innerHTML = '';
   if (!hits.length) return;
-  box.append(el('h3', {}, 'Texte détecté dans le plan'));
+  box.append(el('h3', {}, 'Text found in the drawing'));
   const list = el('div', { class: 'hits' });
   hits.slice(0, 60).forEach((h) => {
     const w = parseWeight(h.text);
@@ -371,9 +371,9 @@ function renderHits() {
       el(
         'div',
         {
-          title: w ? `Cliquer pour appliquer ${fmt(w, 3)} t comme poids net` : '',
+          title: w ? `Click to use ${fmt(w, 3)} t as the net weight` : '',
           onclick: () => {
-            if (w && confirm(`Appliquer ${fmt(w, 3)} t comme poids net de la charge ?`)) {
+            if (w && confirm(`Use ${fmt(w, 3)} t as the net weight of the load?`)) {
               app.set('load.weight_t', Math.round(w * 1000) / 1000);
               app.recompute();
               window.__rerender();

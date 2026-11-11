@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LiftPlanner — Lift plan offshore / onshore</title>
+  <title>LiftPlanner — offshore / onshore lift planning</title>
   <link rel="stylesheet" href="css/app.css" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230f2742'/%3E%3Cpath d='M16 4v9M9 22l7-9 7 9M7 22h18v6H7z' stroke='%23e8822a' stroke-width='2.4' fill='none'/%3E%3C/svg%3E" />
 </head>
@@ -18,11 +18,11 @@
     </div>
     <div class="summary" id="summary"></div>
     <div class="actions">
-      <button id="btn-new" title="Nouveau lift plan vierge">Nouveau</button>
-      <button id="btn-example" title="Charger le projet exemple">Exemple</button>
-      <label class="btn" title="Ouvrir un fichier .liftplan.json">Ouvrir<input type="file" id="file-open" accept=".json,application/json" hidden /></label>
-      <button id="btn-save" title="Enregistrer le projet (.liftplan.json)">Enregistrer</button>
-      <button id="btn-print" class="primary" title="Imprimer / exporter le rapport en PDF">Rapport PDF</button>
+      <button id="btn-new" title="New blank lift plan">New</button>
+      <button id="btn-example" title="Load the example project">Example</button>
+      <label class="btn" title="Open a .liftplan.json file">Open<input type="file" id="file-open" accept=".json,application/json" hidden /></label>
+      <button id="btn-save" title="Save the project (.liftplan.json)">Save</button>
+      <button id="btn-print" class="primary" title="Print / export the report as PDF">PDF report</button>
     </div>
   </header>
   <nav class="tabs no-print" id="tabs"></nav>

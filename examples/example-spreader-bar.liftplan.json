@@ -1,14 +1,14 @@
 {
-  "schema": 1,
+  "schema": 2,
   "project": {
-    "name": "Exemple — levage skid pompe",
-    "liftId": "LP-001",
+    "name": "Example — skid lift with spreader bar",
+    "liftId": "LP-002",
     "revision": "A",
     "date": "2026-11-11",
     "client": "",
-    "site": "Quai / site de montage",
+    "site": "Quay / assembly yard",
     "vessel": "",
-    "description": "Levage du skid depuis la remorque et pose sur sa fondation.",
+    "description": "Lift the skid from the trailer and set it down on its foundation.",
     "preparedBy": "",
     "checkedBy": "",
     "approvedBy": ""
@@ -32,7 +32,7 @@
   },
   "rules": {},
   "load": {
-    "name": "Skid pompe P-101",
+    "name": "Pump skid P-101",
     "weight_t": 12.5,
     "wcfPreset": "calculated",
     "wcf": 1.05,
@@ -108,7 +108,7 @@
     ]
   },
   "crane": {
-    "name": "EXEMPLE — grue mobile 100 t (tableau fictif, NE PAS UTILISER)",
+    "name": "EXAMPLE — 100 t mobile crane (fictitious chart, DO NOT USE)",
     "type": "mobile",
     "boom": {
       "length": 30,
@@ -127,7 +127,7 @@
     "activeColumn": 0,
     "chart": {
       "columns": [
-        "Flèche 30 m — contrepoids complet"
+        "30 m boom — full counterweight"
       ],
       "rows": [
         [
@@ -178,7 +178,8 @@
     }
   },
   "rigging": {
-    "type": "hook",
+    "type": "spreader",
+    "slingFamily": "RS-PES",
     "design": {
       "mode": "angle",
       "targetAngle_deg": 60,
@@ -196,22 +197,9 @@
       "enabled": false,
       "itemId": "auto"
     },
-    "legs": {
-      "A": {
-        "topConnector": "shackle"
-      },
-      "B": {
-        "topConnector": "shackle"
-      },
-      "C": {
-        "topConnector": "shackle"
-      },
-      "D": {
-        "topConnector": "shackle"
-      }
-    },
+    "legs": {},
     "spreader": {
-      "name": "Palonnier PB-01",
+      "name": "Spreader bar SB-01",
       "certNo": "",
       "length_m": 5.4,
       "depth_m": 0.35,
@@ -240,7 +228,7 @@
     },
     "obstacles": [
       {
-        "name": "Remorque",
+        "name": "Trailer",
         "x": 10,
         "y": 0,
         "sx": 12,
@@ -250,7 +238,7 @@
         "color": "#9aa5b1"
       },
       {
-        "name": "Mur / clôture",
+        "name": "Wall / fence",
         "x": 9,
         "y": 10,
         "sx": 0.4,
@@ -260,7 +248,7 @@
         "color": "#c0794f"
       },
       {
-        "name": "Fondation",
+        "name": "Foundation",
         "x": -5.5,
         "y": 15,
         "sx": 6.5,
@@ -272,28 +260,28 @@
     ],
     "steps": [
       {
-        "name": "1. Prise sur remorque",
+        "name": "1. Pick from trailer",
         "radius_m": 10,
         "slew_deg": 0,
         "loadElevation_m": 1.5,
         "heading_deg": 0,
-        "note": "Mise en tension progressive, vérifier l'horizontalité."
+        "note": "Take the weight progressively, check the load is level."
       },
       {
-        "name": "2. Rotation au-dessus du mur",
+        "name": "2. Slew over the wall",
         "radius_m": 14,
         "slew_deg": 60,
         "loadElevation_m": 4,
         "heading_deg": 30,
-        "note": "Garde ≥ 0,5 m au-dessus du mur. Tag lines tenues."
+        "note": "Keep ≥ 0.5 m clearance above the wall. Tag lines held."
       },
       {
-        "name": "3. Pose sur fondation",
+        "name": "3. Set down on foundation",
         "radius_m": 16,
         "slew_deg": 110,
         "loadElevation_m": 0.3,
         "heading_deg": 20,
-        "note": "Dépose lente, guidage sur goujons."
+        "note": "Slow set-down, guide onto the dowels."
       }
     ]
   },
@@ -301,56 +289,56 @@
     "hsMax_m": null,
     "windMax_ms": 9.8,
     "windGust_ms": 12,
-    "visibility": "Bonne",
+    "visibility": "Good",
     "notes": ""
   },
   "checklist": [
     {
-      "label": "Matériel de levage inspecté, certificats valides et identifiés (n° de série)",
+      "label": "Lifting equipment inspected, certificates valid and identified (serial numbers)",
       "checked": false
     },
     {
-      "label": "Grue : certificat en cours de validité, inspection journalière faite, limiteur de charge opérationnel",
+      "label": "Crane: certificate in date, daily inspection done, rated capacity limiter operational",
       "checked": false
     },
     {
-      "label": "Poids et COG confirmés (certificat de pesée ou note de calcul)",
+      "label": "Weight and COG confirmed (weighing certificate or calculation note)",
       "checked": false
     },
     {
-      "label": "Points de levage inspectés (contrôle visuel / CND si requis)",
+      "label": "Lift points inspected (visual / NDT if required)",
       "checked": false
     },
     {
-      "label": "Sol / pont : capacité portante vérifiée (calage, plaques de répartition)",
+      "label": "Ground / deck: bearing capacity checked (cribbing, load spreading mats)",
       "checked": false
     },
     {
-      "label": "Conditions météo dans les limites (vent, houle, visibilité) — prévisions consultées",
+      "label": "Weather within limits (wind, sea state, visibility) — forecast reviewed",
       "checked": false
     },
     {
-      "label": "Zone de levage balisée, personne sous la charge",
+      "label": "Lifting zone barriered off, nobody under the load",
       "checked": false
     },
     {
-      "label": "Communication définie (radio / signaux), signaleur désigné",
+      "label": "Communication agreed (radio / hand signals), banksman / signaller appointed",
       "checked": false
     },
     {
-      "label": "Lignes de guidage (tag lines) en place",
+      "label": "Tag lines in place",
       "checked": false
     },
     {
-      "label": "Analyse de risques (JSA / TRA) et toolbox talk réalisés",
+      "label": "Risk assessment (JSA / TRA) and toolbox talk completed",
       "checked": false
     },
     {
-      "label": "Permis de travail émis",
+      "label": "Permit to work issued",
       "checked": false
     },
     {
-      "label": "Procédure d'arrêt / plan de secours défini",
+      "label": "Stop / emergency and rescue plan defined",
       "checked": false
     }
   ],

@@ -1,4 +1,4 @@
-// Point d'entrée de l'interface.
+// UI entry point.
 import { app } from './app.js';
 import { el, fmt, toast, download, slug } from './dom.js';
 import { defaultProject, emptyProject } from '../state.js';
@@ -14,16 +14,16 @@ import * as tInventory from './tabs/inventory.js';
 import * as tSettings from './tabs/settings.js';
 
 const TABS = [
-  { id: 'project', title: 'Projet', mod: tProject },
-  { id: 'load', title: 'Charge', mod: tLoad },
-  { id: 'crane', title: 'Grue', mod: tCrane },
-  { id: 'rigging', title: 'Gréement', mod: tRigging },
-  { id: 'results', title: 'Vérifications', mod: tResults, dot: true },
-  { id: 'drawings', title: 'Schémas', mod: tDrawings },
+  { id: 'project', title: 'Project', mod: tProject },
+  { id: 'load', title: 'Load', mod: tLoad },
+  { id: 'crane', title: 'Crane', mod: tCrane },
+  { id: 'rigging', title: 'Rigging', mod: tRigging },
+  { id: 'results', title: 'Checks', mod: tResults, dot: true },
+  { id: 'drawings', title: 'Drawings', mod: tDrawings },
   { id: 'story', title: 'Storyboard', mod: tStory },
-  { id: 'report', title: 'Rapport', mod: tReport },
-  { id: 'inventory', title: 'Inventaire', mod: tInventory },
-  { id: 'settings', title: 'Réglages', mod: tSettings },
+  { id: 'report', title: 'Report', mod: tReport },
+  { id: 'inventory', title: 'Inventory', mod: tInventory },
+  { id: 'settings', title: 'Settings', mod: tSettings },
 ];
 
 let active = 'load';
@@ -60,7 +60,7 @@ export function show(id) {
   window.scrollTo({ top: 0 });
 }
 
-/** Re-rendu complet de l'onglet courant (après ajout / suppression de lignes, etc.). */
+/** Full re-render of the current tab (after adding / removing rows, etc.). */
 export function rerender() {
   const y = window.scrollY;
   show(active);
@@ -75,34 +75,34 @@ function renderSummary(res) {
   document.getElementById('project-title').textContent = `${p.project.liftId || ''} ${p.project.name || ''}`.trim() || '—';
   s.innerHTML = '';
   if (!res || res.rig?.error) {
-    s.append(el('div', { class: 'kpi status-fail' }, 'Calcul', el('b', {}, res?.rig?.error || '—')));
+    s.append(el('div', { class: 'kpi status-fail' }, 'Calculation', el('b', {}, res?.rig?.error || '—')));
     return;
   }
   const r = res.rig;
   const k = (label, val, cls = '') => el('div', { class: `kpi ${cls}` }, label, el('b', {}, val));
   const nf = res.checks.filter((c) => c.status === 'fail').length;
   const nw = res.checks.filter((c) => c.status === 'warn').length;
-  const stTxt = res.status === 'fail' ? `${nf} non conforme(s)` : res.status === 'warn' ? `${nw} alerte(s)` : 'Conforme';
+  const stTxt = res.status === 'fail' ? `${nf} failed` : res.status === 'warn' ? `${nw} warning(s)` : 'All checks OK';
   s.append(
-    k('Charge (×WCF)', `${fmt(r.W)} t`),
-    k('Gréement', `${fmt(r.rigWeight)} t`),
-    k('Charge crochet', `${fmt(res.shlCrane)} t`),
+    k('Load (×WCF)', `${fmt(r.W)} t`),
+    k('Rigging', `${fmt(r.rigWeight)} t`),
+    k('Hook load', `${fmt(res.shlCrane)} t`),
     k('DAF · SKL', `${fmt(r.factors.daf)} · ${fmt(r.factors.skl)}`),
-    k('Util. grue max', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'),
-    k('Catégorie', res.category?.cat || '—'),
-    k('Statut', stTxt, `status-${res.status}`),
+    k('Max crane util.', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'),
+    k('Category', res.category?.cat || '—'),
+    k('Status', stTxt, `status-${res.status}`),
   );
 }
 
 function wireActions() {
   document.getElementById('btn-new').onclick = () => {
-    if (!confirm('Créer un lift plan vierge ? Le projet en cours sera remplacé (pensez à l\'enregistrer).')) return;
+    if (!confirm('Create a blank lift plan? The current project will be replaced (save it first).')) return;
     app.reset(emptyProject());
     show('project');
-    toast('Nouveau lift plan');
+    toast('New lift plan');
   };
   document.getElementById('btn-example').onclick = () => {
-    if (!confirm('Charger le projet exemple ? Le projet en cours sera remplacé.')) return;
+    if (!confirm('Load the example project? The current project will be replaced.')) return;
     app.reset(defaultProject());
     show('load');
   };
@@ -114,7 +114,7 @@ function wireActions() {
       out.drawing.mime = app.drawingFile.type || (app.drawingFile.kind === 'pdf' ? 'application/pdf' : 'image/png');
     }
     download(`${slug(`${p.project.liftId}-${p.project.name}`)}.liftplan.json`, JSON.stringify(out, null, 2));
-    toast('Projet enregistré');
+    toast('Project saved');
   };
   document.getElementById('file-open').onchange = async (e) => {
     const f = e.target.files?.[0];
@@ -129,9 +129,9 @@ function wireActions() {
       }
       app.load(data);
       show(active);
-      toast(`Projet « ${app.project.project.name} » chargé`);
+      toast(`Project "${app.project.project.name}" loaded`);
     } catch (err) {
-      alert(`Fichier illisible : ${err.message}`);
+      alert(`Unreadable file: ${err.message}`);
     }
     e.target.value = '';
   };

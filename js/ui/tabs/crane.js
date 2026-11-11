@@ -4,40 +4,40 @@ import { drawCapacityChart } from '../../draw/chart.js';
 import { figure } from '../figure.js';
 
 const TYPES = [
-  ['mobile', 'Grue mobile / télescopique'],
-  ['crawler', 'Grue sur chenilles (treillis)'],
-  ['offshore', 'Grue offshore / pedestal'],
-  ['vessel', 'Grue de navire (heavy lift)'],
-  ['tower', 'Grue à tour'],
-  ['other', 'Autre'],
+  ['mobile', 'Mobile / telescopic crane'],
+  ['crawler', 'Crawler crane (lattice boom)'],
+  ['offshore', 'Offshore / pedestal crane'],
+  ['vessel', 'Vessel crane (heavy lift)'],
+  ['tower', 'Tower crane'],
+  ['other', 'Other'],
 ];
 
 export function render(root) {
   const C = 'crane.';
   const ident = panel(
-    'Grue',
+    'Crane',
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Désignation / configuration', path: `${C}name`, type: 'text', cls: 'span2' }),
+      field({ label: 'Crane / configuration', path: `${C}name`, type: 'text', cls: 'span2' }),
       field({ label: 'Type', path: `${C}type`, type: 'select', options: TYPES }),
-      field({ label: 'Moufle / crochet', path: `${C}hookBlock_t`, unit: 't', hint: 'Poids du moufle + câble si non inclus' }),
-      field({ label: 'SWL du crochet', path: `${C}hookSWL_t`, unit: 't' }),
-      field({ label: 'Largeur d\'assise crochet', path: `${C}hookSeatWidth_mm`, unit: 'mm', hint: 'Pour les élingues posées dans le crochet' }),
-      field({ label: 'Seuil levage critique', path: `${C}utilLimit`, type: 'percent', hint: 'Utilisation au-delà de laquelle le levage est critique' }),
-      field({ label: 'Rayon de travail (sans storyboard)', path: `${C}radius_m`, unit: 'm' }),
-      field({ label: 'Déduire le moufle de la capacité', path: `${C}deductHookBlock`, type: 'checkbox' }),
+      field({ label: 'Hook block', path: `${C}hookBlock_t`, unit: 't', hint: 'Hook block + rope weight if not included in the chart' }),
+      field({ label: 'Hook SWL', path: `${C}hookSWL_t`, unit: 't' }),
+      field({ label: 'Hook seat width', path: `${C}hookSeatWidth_mm`, unit: 'mm', hint: 'For slings placed directly on the hook' }),
+      field({ label: 'Critical lift threshold', path: `${C}utilLimit`, type: 'percent', hint: 'Utilisation above which the lift is critical' }),
+      field({ label: 'Working radius (without storyboard)', path: `${C}radius_m`, unit: 'm' }),
+      field({ label: 'Deduct hook block from capacity', path: `${C}deductHookBlock`, type: 'checkbox' }),
     ),
-    el('h3', {}, 'Géométrie de flèche (pour hauteurs sous crochet et schémas)'),
+    el('h3', {}, 'Boom geometry (hook heights and drawings)'),
     el(
       'div',
       { class: 'fields' },
-      field({ label: 'Longueur de flèche', path: `${C}boom.length`, unit: 'm' }),
-      field({ label: 'Hauteur du pied de flèche', path: `${C}boom.pivotHeight`, unit: 'm', hint: 'Au-dessus du sol / pont de référence' }),
-      field({ label: 'Déport du pied / axe d\'orientation', path: `${C}boom.pivotOffset`, unit: 'm' }),
-      field({ label: 'Angle de flèche mini', path: `${C}boom.minAngle_deg`, unit: '°' }),
-      field({ label: 'Angle de flèche maxi', path: `${C}boom.maxAngle_deg`, unit: '°' }),
-      field({ label: 'Distance mini tête de flèche → crochet', path: `${C}minTipToHook`, unit: 'm', hint: 'Fin de course / anti-collision moufle' }),
+      field({ label: 'Boom length', path: `${C}boom.length`, unit: 'm' }),
+      field({ label: 'Boom foot height', path: `${C}boom.pivotHeight`, unit: 'm', hint: 'Above the reference ground / deck' }),
+      field({ label: 'Boom foot offset from slew axis', path: `${C}boom.pivotOffset`, unit: 'm' }),
+      field({ label: 'Min boom angle', path: `${C}boom.minAngle_deg`, unit: '°' }),
+      field({ label: 'Max boom angle', path: `${C}boom.maxAngle_deg`, unit: '°' }),
+      field({ label: 'Min boom tip → hook distance', path: `${C}minTipToHook`, unit: 'm', hint: 'Anti-two-block limit' }),
     ),
   );
 
@@ -46,27 +46,27 @@ export function render(root) {
     el(
       'div',
       { class: 'panel-head' },
-      el('h2', {}, 'Tableau de charge'),
+      el('h2', {}, 'Load chart'),
       el(
         'div',
         { class: 'row' },
-        field({ path: `${C}interpolation`, type: 'select', options: [['step', 'Lecture conservative (rayon tabulé supérieur)'], ['linear', 'Interpolation linéaire']] }),
+        field({ path: `${C}interpolation`, type: 'select', options: [['step', 'Conservative reading (next tabulated radius)'], ['linear', 'Linear interpolation']] }),
       ),
     ),
     el('div', { id: 'chart-table', class: 'tbl-wrap', style: { maxHeight: '420px', overflowY: 'auto' } }),
     el(
       'div',
       { class: 'row', style: { marginTop: '8px' } },
-      el('button', { class: 'small', onclick: () => { app.project.crane.chart.rows.push([null, ...app.project.crane.chart.columns.map(() => null)]); renderTable(); } }, '+ Ligne'),
-      el('button', { class: 'small', onclick: addColumn }, '+ Colonne'),
-      el('button', { class: 'small', onclick: () => document.getElementById('paste-box').classList.toggle('hide') }, 'Coller depuis Excel…'),
+      el('button', { class: 'small', onclick: () => { app.project.crane.chart.rows.push([null, ...app.project.crane.chart.columns.map(() => null)]); renderTable(); } }, '+ Row'),
+      el('button', { class: 'small', onclick: addColumn }, '+ Column'),
+      el('button', { class: 'small', onclick: () => document.getElementById('paste-box').classList.toggle('hide') }, 'Paste from Excel…'),
     ),
     el(
       'div',
       { id: 'paste-box', class: 'hide', style: { marginTop: '8px' } },
-      el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Collez un tableau (colonnes séparées par tabulation ou point-virgule) : 1re colonne = rayon (m), suivantes = capacités (t). Une 1re ligne d\'en-têtes est reconnue automatiquement.'),
+      el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Paste a table (columns separated by tab or semicolon): 1st column = radius (m), next columns = capacities (t). A header row is detected automatically.'),
       el('textarea', { id: 'paste-area', style: { width: '100%', minHeight: '120px', fontFamily: 'var(--mono)', fontSize: '12px' } }),
-      el('button', { class: 'small primary', onclick: pasteChart }, 'Remplacer le tableau'),
+      el('button', { class: 'small primary', onclick: pasteChart }, 'Replace the chart'),
     ),
   );
 
@@ -85,7 +85,7 @@ function renderTable() {
   const thead = el(
     'tr',
     {},
-    el('th', {}, 'Rayon (m)'),
+    el('th', {}, 'Radius (m)'),
     ch.columns.map((c, j) =>
       el(
         'th',
@@ -93,9 +93,9 @@ function renderTable() {
         el(
           'div',
           { class: 'row', style: { gap: '4px', flexWrap: 'nowrap' } },
-          el('input', { type: 'radio', name: 'activecol', checked: j === active, title: 'Colonne utilisée pour les vérifications', onchange: () => { app.set('crane.activeColumn', j); app.recompute(); } }),
+          el('input', { type: 'radio', name: 'activecol', checked: j === active, title: 'Column used for the checks', onchange: () => { app.set('crane.activeColumn', j); app.recompute(); } }),
           el('input', { type: 'text', value: c, onchange: (e) => { ch.columns[j] = e.target.value; app.recompute(); } }),
-          ch.columns.length > 1 ? el('button', { class: 'small danger', title: 'Supprimer la colonne', onclick: () => { ch.columns.splice(j, 1); ch.rows.forEach((r) => r.splice(j + 1, 1)); if (active >= ch.columns.length) app.set('crane.activeColumn', 0, { silent: true }); app.recompute(); renderTable(); } }, '✕') : null,
+          ch.columns.length > 1 ? el('button', { class: 'small danger', title: 'Delete column', onclick: () => { ch.columns.splice(j, 1); ch.rows.forEach((r) => r.splice(j + 1, 1)); if (active >= ch.columns.length) app.set('crane.activeColumn', 0, { silent: true }); app.recompute(); renderTable(); } }, '✕') : null,
         ),
       ),
     ),
@@ -138,17 +138,17 @@ function pasteChart() {
   if (lines[0].slice(1).some((c) => num(c) == null && c !== '')) header = lines.shift();
   const ncol = Math.max(...lines.map((l) => l.length)) - 1;
   const rows = lines.map((l) => [num(l[0]), ...[...Array(ncol)].map((_, j) => num(l[j + 1]))]).filter((r) => r[0] != null);
-  if (!rows.length) return toast('Aucune ligne valide');
+  if (!rows.length) return toast('No valid row');
   app.project.crane.chart = { columns: header ? header.slice(1, ncol + 1) : [...Array(ncol)].map((_, j) => `Config ${j + 1}`), rows };
   app.set('crane.activeColumn', 0, { silent: true });
   app.recompute();
   renderTable();
-  toast(`${rows.length} lignes importées`);
+  toast(`${rows.length} rows imported`);
 }
 
 function update(res) {
   const box = document.getElementById('cap-chart');
   if (!box) return;
   box.innerHTML = '';
-  box.append(figure(drawCapacityChart(app.project, res, { width: 640, height: 320 }), 'courbe-capacite'));
+  box.append(figure(drawCapacityChart(app.project, res, { width: 640, height: 320 }), 'capacity-curve'));
 }
