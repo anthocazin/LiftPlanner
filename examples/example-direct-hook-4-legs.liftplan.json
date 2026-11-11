@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "project": {
     "name": "Example — pump skid lift",
     "liftId": "LP-001",
@@ -8,21 +8,33 @@
     "client": "",
     "site": "Quay / assembly yard",
     "vessel": "",
+    "location": "Quay 3 — skid foundation F-12",
     "description": "Lift the skid from the trailer and set it down on its foundation.",
+    "reference": "",
+    "headerLines": [
+      "",
+      "",
+      ""
+    ],
     "preparedBy": "",
     "checkedBy": "",
     "approvedBy": ""
   },
+  "logos": {
+    "company": null,
+    "client": null
+  },
   "environment": "onshore",
   "flags": {
-    "tandem": false,
-    "overLive": false,
-    "personnel": false,
-    "subsea": false,
+    "quayToVessel": false,
+    "vesselToQuay": false,
     "vesselToVessel": false,
+    "overLive": false,
+    "subsea": false,
     "heavyThreshold_t": 50
   },
   "factors": {
+    "applyDAF": true,
     "dafMode": "dnv",
     "dafManual": 1.1,
     "sklMode": "auto",
@@ -30,10 +42,26 @@
     "cogFactor": 1,
     "extraFactor": 1
   },
+  "safety": {
+    "measures": {},
+    "further": "",
+    "comms": {
+      "primary": "UHF radio",
+      "secondary": "Hand signals",
+      "other": "",
+      "primaryChecked": false,
+      "secondaryChecked": false
+    },
+    "review": {
+      "done": false,
+      "ref": ""
+    }
+  },
   "rules": {},
   "load": {
     "name": "Pump skid P-101",
     "weight_t": 12.5,
+    "weightBasis": "assessed",
     "wcfPreset": "calculated",
     "wcf": 1.05,
     "dims_mm": {
@@ -51,83 +79,94 @@
       "y": 1300,
       "z": 1100
     },
+    "cogBasis": "drawing",
     "cogEnvelope_mm": {
       "dx": 0,
       "dy": 0
     },
-    "windArea_m2": null,
+    "padeyeRules": {
+      "maxHoleClearance_mm": 3,
+      "maxHoleClearance_pct": 4,
+      "minThicknessRatio": 0.75
+    },
+    "views": {
+      "xy": null,
+      "xz": null
+    },
     "liftPoints": [
       {
         "id": "A",
         "x": 300,
         "y": 300,
         "z": 2600,
+        "used": true,
+        "padeye": true,
         "swl_t": 8.5,
-        "holeDia_mm": 34,
-        "thk_mm": 36,
-        "radius_mm": 65,
-        "azimuth_deg": null,
-        "used": true
+        "holeDia_mm": 30,
+        "thk_mm": 25,
+        "cheekThk_mm": 5,
+        "radius_mm": 55,
+        "height_mm": 80,
+        "azimuth_deg": null
       },
       {
         "id": "B",
         "x": 5700,
         "y": 300,
         "z": 2600,
+        "used": true,
+        "padeye": true,
         "swl_t": 8.5,
-        "holeDia_mm": 34,
-        "thk_mm": 36,
-        "radius_mm": 65,
-        "azimuth_deg": null,
-        "used": true
+        "holeDia_mm": 30,
+        "thk_mm": 25,
+        "cheekThk_mm": 5,
+        "radius_mm": 55,
+        "height_mm": 80,
+        "azimuth_deg": null
       },
       {
         "id": "C",
         "x": 5700,
         "y": 2200,
         "z": 2600,
+        "used": true,
+        "padeye": true,
         "swl_t": 8.5,
-        "holeDia_mm": 34,
-        "thk_mm": 36,
-        "radius_mm": 65,
-        "azimuth_deg": null,
-        "used": true
+        "holeDia_mm": 30,
+        "thk_mm": 25,
+        "cheekThk_mm": 5,
+        "radius_mm": 55,
+        "height_mm": 80,
+        "azimuth_deg": null
       },
       {
         "id": "D",
         "x": 300,
         "y": 2200,
         "z": 2600,
+        "used": true,
+        "padeye": true,
         "swl_t": 8.5,
-        "holeDia_mm": 34,
-        "thk_mm": 36,
-        "radius_mm": 65,
-        "azimuth_deg": null,
-        "used": true
+        "holeDia_mm": 30,
+        "thk_mm": 25,
+        "cheekThk_mm": 5,
+        "radius_mm": 55,
+        "height_mm": 80,
+        "azimuth_deg": null
       }
     ]
   },
   "crane": {
     "name": "EXAMPLE — 100 t mobile crane (fictitious chart, DO NOT USE)",
     "type": "mobile",
-    "boom": {
-      "length": 30,
-      "pivotHeight": 2.2,
-      "pivotOffset": 1.2,
-      "minAngle_deg": 10,
-      "maxAngle_deg": 82
-    },
-    "hookBlock_t": 1.2,
-    "hookSWL_t": 100,
-    "deductHookBlock": true,
+    "configuration": "30 m boom — full counterweight",
     "utilLimit": 0.85,
-    "minTipToHook": 3.5,
     "radius_m": 16,
     "interpolation": "step",
     "activeColumn": 0,
     "chart": {
       "columns": [
-        "30 m boom — full counterweight"
+        "SWL"
       ],
       "rows": [
         [
@@ -179,38 +218,49 @@
   },
   "rigging": {
     "type": "hook",
-    "slingFamily": "RS-PES",
     "design": {
       "mode": "angle",
-      "targetAngle_deg": 60,
+      "targetAngleV_deg": 30,
       "hookHeight_m": 4,
       "minHeight_m": 1,
       "roundLengths": "set"
     },
-    "headType": "masterlink",
-    "masterlink": {
+    "head": {
+      "type": "assembly",
       "itemId": "auto",
-      "subLinks": true,
-      "subLinkItemId": "auto"
+      "subLinkItemId": "auto",
+      "topShackle": false,
+      "topShackleId": "auto"
     },
-    "topShackle": {
-      "enabled": false,
-      "itemId": "auto"
-    },
-    "legs": {
-      "A": {
-        "topConnector": "shackle"
+    "assembly": [
+      {
+        "kind": "shackle",
+        "id": "auto"
       },
-      "B": {
-        "topConnector": "shackle"
+      {
+        "kind": "sling",
+        "family": "RS-PES",
+        "id": "auto",
+        "hitch": "direct"
       },
-      "C": {
-        "topConnector": "shackle"
-      },
-      "D": {
-        "topConnector": "shackle"
+      {
+        "kind": "shackle",
+        "id": "auto"
       }
-    },
+    ],
+    "assemblyTop": [
+      {
+        "kind": "shackle",
+        "id": "auto"
+      },
+      {
+        "kind": "sling",
+        "family": "RS-PES",
+        "id": "auto",
+        "hitch": "direct"
+      }
+    ],
+    "legs": {},
     "spreader": {
       "name": "Spreader bar SB-01",
       "certNo": "",
@@ -221,7 +271,7 @@
       "axis": "x",
       "position": "points",
       "minTopAngle_deg": 60,
-      "bottomTargetAngle_deg": 60,
+      "bottomTargetAngleV_deg": 30,
       "minBottomHeight_m": 2,
       "topLugHoleDia_mm": 0,
       "topLugThk_mm": 0,
@@ -239,6 +289,7 @@
         "W": 3
       }
     },
+    "map": null,
     "obstacles": [
       {
         "name": "Trailer",
@@ -273,28 +324,42 @@
     ],
     "steps": [
       {
-        "name": "1. Pick from trailer",
+        "name": "Toolbox talk, permit and rigging inspection",
+        "note": "TBT held, PTW in place, rigging inspected and laid out as per sketch.",
+        "responsible": "Lifting supervisor",
+        "sketch": false
+      },
+      {
+        "name": "Pick from trailer",
         "radius_m": 10,
         "slew_deg": 0,
         "loadElevation_m": 1.5,
         "heading_deg": 0,
-        "note": "Take the weight progressively, check the load is level."
+        "note": "Take the weight progressively, lift 300 mm and hold: check the load is level.",
+        "responsible": "Crane operator",
+        "sketch": true,
+        "phase": "pick"
       },
       {
-        "name": "2. Slew over the wall",
+        "name": "Slew over the wall",
         "radius_m": 14,
         "slew_deg": 60,
         "loadElevation_m": 4,
         "heading_deg": 30,
-        "note": "Keep ≥ 0.5 m clearance above the wall. Tag lines held."
+        "note": "Keep ≥ 0.5 m clearance above the wall. Tag lines held.",
+        "responsible": "Banksman",
+        "sketch": true
       },
       {
-        "name": "3. Set down on foundation",
+        "name": "Set down on foundation",
         "radius_m": 16,
         "slew_deg": 110,
         "loadElevation_m": 0.3,
         "heading_deg": 20,
-        "note": "Slow set-down, guide onto the dowels."
+        "note": "Slow set-down, guide onto the dowels.",
+        "responsible": "Crane operator",
+        "sketch": true,
+        "phase": "final"
       }
     ]
   },
@@ -356,6 +421,7 @@
     }
   ],
   "inventory": [],
+  "equipmentCheck": {},
   "drawing": null,
   "notes": ""
 }

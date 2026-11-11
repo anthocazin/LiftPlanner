@@ -1,10 +1,32 @@
 import { app } from '../app.js';
-import { el, panel, fmt, badge, utilBar, download } from '../dom.js';
+import { el, panel, fmt, badge, utilBar, download, field } from '../dom.js';
+import { DAF_REFERENCE, SKL_REFERENCE, ENVIRONMENTS } from '../../engine/factors.js';
 
 let filter = 'all';
 
 export function render(root) {
-  root.append(el('div', { id: 'res-root', class: 'grid' }));
+  const f = app.project.factors;
+  const factors = panel(
+    null,
+    el('div', { class: 'panel-head' }, el('h2', {}, 'Design factors'), el('div', { id: 'fac-live', class: 'row' })),
+    el('div', { class: 'fields' },
+      field({ label: 'Environment', path: 'environment', type: 'select', options: Object.entries(ENVIRONMENTS), onchange: () => app.recompute() }),
+      field({ label: 'Apply the dynamic factor (DAF)', path: 'factors.applyDAF', type: 'checkbox', onchange: () => window.__rerender() }),
+      f.applyDAF !== false ? field({ label: 'DAF', path: 'factors.dafMode', type: 'select', options: [['dnv', 'Auto — DNV-ST-N001 (in air, per environment)'], ['manual', 'Imposed value']], onchange: () => window.__rerender() }) : null,
+      f.applyDAF !== false && f.dafMode === 'manual' ? field({ label: 'Imposed DAF', path: 'factors.dafManual', unit: '×', step: 0.01 }) : null,
+      field({ label: 'SKL (skew load factor)', path: 'factors.sklMode', type: 'select', options: [['auto', 'Auto (1.0 / 1.25 if ≥ 4 legs)'], ['manual', 'Imposed value']], onchange: () => window.__rerender() }),
+      f.sklMode === 'manual' ? field({ label: 'Imposed SKL', path: 'factors.sklManual', unit: '×', step: 0.01 }) : null,
+      field({ label: 'COG factor', path: 'factors.cogFactor', unit: '×', step: 0.01, hint: 'If no COG envelope' }),
+      field({ label: 'Other factor', path: 'factors.extraFactor', unit: '×', step: 0.01, hint: 'Yaw, tilt, consequence…' }),
+      field({ label: 'EN mode factor check (K)', path: 'rules.enCheck', type: 'select', options: [['true', 'On — check and size the slings / chains'], ['false', 'Off']], onchange: (v) => { app.project.rules.enCheck = v !== 'false'; app.recompute(); } }),
+    ),
+    el('details', { class: 'sub' }, el('summary', {}, 'How the factors are applied'),
+      el('p', { style: { fontSize: '12.5px' } }, 'Leg design force F = T(static, max over the COG envelope) × DAF × SKL × COG factor × other factor. Master link / head: vertical load × DAF × other factor (no SKL). Crane: static hook load (load × WCF + rigging) against the load chart — the dynamic factor is not applied to the crane, the chart already covers it for the declared mode (check the crane manual, offshore cranes use the sea-state chart).'),
+      el('p', { style: { fontSize: '12.5px' } }, 'EN 13414-1 / EN 818-4 / EN 1492 standard method: rated WLL of a sling set = K × WLL of one leg, K = 1 (1 leg), 1.4 / 1.0 (2 legs, β ≤ 45° / 45–60°), 2.1 / 1.5 (3 or 4 legs). Above 60° to vertical: not allowed. It is checked as well as the leg-by-leg forces.'),
+      el('p', { style: { fontSize: '12px' }, class: 'muted' }, DAF_REFERENCE), el('p', { style: { fontSize: '12px' }, class: 'muted' }, SKL_REFERENCE)),
+  );
+  if (app.project.rules && app.project.rules.enCheck == null) app.project.rules.enCheck = true;
+  root.append(factors, el('div', { id: 'res-root', class: 'grid' }));
   update(app.result);
   root._update = update;
 }
@@ -19,8 +41,8 @@ export function summaryCards(res) {
     c('Design weight', `${fmt(r.W)} t`),
     c('Rigging weight', `${fmt(r.rigWeight)} t`, r.spreader ? 'spreader bar included' : ''),
     c('Static hook load', `${fmt(res.shlStatic)} t`, 'load + rigging'),
-    c('Crane load', `${fmt(res.shlCrane)} t`, app.project.crane.deductHookBlock !== false ? 'hook block included' : 'hook block excluded'),
-    c('Dynamic hook load', `${fmt(res.dynamicHookLoad)} t`, `DAF ${fmt(r.factors.daf)}`),
+    c('Crane load', `${fmt(res.shlCrane)} t`, 'against the load chart'),
+    c('Dynamic hook load', `${fmt(res.dynamicHookLoad)} t`, r.factors.dafOn ? `DAF ${fmt(r.factors.daf)}` : 'DAF off'),
     c('Leg load factor', fmt(r.fac, 3), `DAF ${fmt(r.factors.daf)} · SKL ${fmt(r.factors.skl)}`),
     c('Max crane utilisation', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(1)} %` : '—'),
     c('Rigging height', `${fmt(r.riggingHeight)} m`, 'padeyes → hook'),
@@ -58,27 +80,22 @@ export function legsTable(res) {
   return el(
     'table',
     { class: 'data compact' },
-    el('thead', {}, el('tr', {}, ['Leg', 'Point', 'EWL (m)', 'Eff. L (m)', 'Angle to horiz.', 'Vert. R (t)', 'Static T (t)', 'Design F (t)', 'Sling', 'Bottom shackle', 'Top connection'].map((h) => el('th', {}, h)))),
-    el(
-      'tbody',
-      {},
-      rig.legs.map((l) =>
-        el(
-          'tr',
-          {},
+    el('thead', {}, el('tr', {}, ['Leg', 'Point', 'Eff. length (m)', 'Sling / chain', 'Angle to vert.', 'Vert. R (t)', 'Static T (t)', 'Design F (t)', 'Assembly (load → hook)'].map((h) => el('th', {}, h)))),
+    el('tbody', {},
+      rig.legs.map((l) => {
+        const len = l.parts[l.li];
+        return el('tr', {},
           el('td', {}, el('b', {}, l.label)),
           el('td', {}, l.pointId || (l.level === 'top' ? 'Spreader' : '')),
-          el('td', { class: 'num' }, fmt(l.slingLength)),
-          el('td', { class: 'num' }, fmt(l.Leff)),
-          el('td', { class: 'num' }, `${l.angleH.toFixed(1)}°`),
+          el('td', { class: 'num' }, fmt(l.Leff, 3)),
+          el('td', {}, len?.item ? `${len.kind === 'chain' ? `${len.links} links` : `EWL ${fmt(len.length_m)} m`}` : '—'),
+          el('td', { class: 'num' }, `${l.angleV.toFixed(1)}°`),
           el('td', { class: 'num' }, fmt(l.R)),
           el('td', { class: 'num' }, fmt(l.Tstatic)),
           el('td', { class: 'num' }, el('b', {}, fmt(l.Fdesign))),
-          el('td', {}, nm(l.comps.sling)),
-          el('td', {}, nm(l.comps.bottomShackle)),
-          el('td', {}, l.comps.topConn ? nm(l.comps.topConn) : 'direct'),
-        ),
-      ),
+          el('td', { style: { fontSize: '12px' } }, l.parts.map((p) => nm(p.item)).join(' → ')),
+        );
+      }),
     ),
   );
 }
@@ -111,6 +128,12 @@ export function bomTable(res) {
 }
 
 function update(res) {
+  const fl = document.getElementById('fac-live');
+  if (fl && res?.rig?.factors) {
+    const f = res.rig.factors;
+    fl.innerHTML = '';
+    fl.append(el('span', { class: 'muted' }, `DAF ${f.dafOn ? fmt(f.daf) : 'off (1.00)'} · SKL ${fmt(f.skl)} · COG ${fmt(f.cog)} · other ${fmt(f.extra)} → leg factor `), el('b', {}, fmt(res.rig.fac, 3)));
+  }
   const root = document.getElementById('res-root');
   if (!root) return;
   root.innerHTML = '';

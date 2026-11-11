@@ -25,7 +25,7 @@ function safeSave(key, value) {
 export const app = {
   project: null,
   result: null,
-  drawingFile: null, // { kind, name, bytes | image } — not serialised by default
+  detected: null, // weight / COG found in the last imported drawing
   listeners: new Set(),
   _timer: null,
 
@@ -70,9 +70,15 @@ export const app = {
     }
   },
   persist() {
-    const { drawing, ...rest } = this.project;
-    const light = { ...rest, drawing: drawing ? { ...drawing, dataUrl: undefined } : null };
-    safeSave(LS_KEY, light);
+    // full project (drawing views, map, logos included) — if the browser storage is full, the
+    // images are dropped from the local copy (they stay in the project file when saved).
+    if (!safeSave(LS_KEY, this.project)) {
+      const light = JSON.parse(JSON.stringify(this.project));
+      for (const k of ['xy', 'xz']) if (light.load?.views?.[k]) light.load.views[k].image = null;
+      if (light.storyboard?.map) light.storyboard.map.image = null;
+      safeSave(LS_KEY, light);
+      this.storageFull = true;
+    } else this.storageFull = false;
     safeSave(LS_INV, this.project.inventory || []);
   },
   onChange(fn) {
@@ -87,7 +93,7 @@ export const app = {
     const inv = this.project?.inventory || [];
     this.project = project;
     if (!project.inventory?.length) project.inventory = inv;
-    this.drawingFile = null;
+    this.detected = null;
     this.recompute();
   },
 };

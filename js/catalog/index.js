@@ -1,5 +1,5 @@
 // Catalogue registry (built-in + user inventory) and automatic selection rules.
-import { BUILTIN_CATALOG, ROUNDSLING_STD_LENGTHS, WIRE_STD_LENGTHS, SLING_MODE_FACTORS, GREEN_PIN_SIDE_LOAD, DEFAULT_SHACKLE_RANGES, SLING_FAMILIES } from './data.js';
+import { BUILTIN_CATALOG, ROUNDSLING_STD_LENGTHS, WIRE_STD_LENGTHS, SLING_MODE_FACTORS, GREEN_PIN_SIDE_LOAD, DEFAULT_SHACKLE_RANGES, SLING_FAMILIES, CHAIN_FAMILIES } from './data.js';
 
 let userItems = [];
 
@@ -29,7 +29,54 @@ export function listSlingFamily(family) {
   const type = FAMILY_TYPE[family] || 'roundsling';
   return allItems().filter((it) => (it.family ? it.family === family : it.user && it.type === type));
 }
-export { SLING_FAMILIES };
+export { SLING_FAMILIES, CHAIN_FAMILIES };
+
+/** Length elements: slings (any family) and chains. */
+export const isLengthType = (t) => isSlingType(t) || t === 'chain';
+
+export function listChainFamily(family = 'CH-G80') {
+  return allItems().filter((it) => it.type === 'chain' && (it.family ? it.family === family : it.user));
+}
+
+/** Smallest chain of the family with sufficient WLL for the hitch (choke ×0.8). */
+export function selectChain(requiredWll_t, mode = 'direct', family = 'CH-G80') {
+  const f = slingModeFactor(mode);
+  return listChainFamily(family).sort(byWll).find((c) => c.wll_t * f >= requiredWll_t) || null;
+}
+
+/** Connecting link: same grade and size as the chain when there is one, otherwise by WLL. */
+export function selectConnlink(requiredWll_t, chain = null, grade = 80) {
+  const g = chain?.grade || grade;
+  const cands = listByType('connlink').filter((c) => (c.grade || 80) === g).sort(byWll);
+  if (chain?.dims?.dia) {
+    const exact = cands.find((c) => (c.chainDias || []).includes(chain.dims.dia) && c.wll_t >= requiredWll_t);
+    if (exact) return exact;
+  }
+  return cands.find((c) => c.wll_t >= requiredWll_t) || null;
+}
+
+/** Chain: number of links for a required effective length (rounded to the nearest link, ≥ 1). */
+export function chainLinks(chain, required_m, round = 'nearest') {
+  const p = (chain?.dims?.pitch || 0) / 1000;
+  if (!(p > 0)) return { n: 0, length_m: 0 };
+  const raw = Math.max(required_m, p) / p;
+  const n = Math.max(1, round === 'down' ? Math.floor(raw + 1e-9) : round === 'up' ? Math.ceil(raw - 1e-9) : Math.round(raw));
+  return { n, length_m: n * p, overall_m: n * p + 2 * (chain.dims.dia || 0) / 1000, pitch_m: p };
+}
+
+/**
+ * EN 818-4 / EN 13414-1 / EN 1492 "uniform load" method: WLL of a multi-leg sling set =
+ * K × WLL of one leg. β = largest angle of a leg to the vertical.
+ * 1 leg: 1 · 2 legs: 1.4 (β ≤ 45°), 1.0 (45° < β ≤ 60°) · 3 and 4 legs: 2.1 (β ≤ 45°), 1.5 (45° < β ≤ 60°).
+ * β > 60°: not allowed. Returns null when not allowed.
+ */
+export function enModeFactor(nLegs, betaDeg) {
+  if (betaDeg > 60 + 1e-9) return null;
+  if (nLegs <= 1) return 1;
+  const low = betaDeg <= 45 + 1e-9;
+  if (nLegs === 2) return low ? 1.4 : 1.0;
+  return low ? 2.1 : 1.5;
+}
 
 /**
  * Green Pin side-load reduction (DS Levage / Green Pin curve, angle from the shackle plane).
@@ -67,6 +114,7 @@ export function connectorLength(item, role = 'hole') {
     case 'masterlink':
       return (d.insideLength || 0) / 1000;
     case 'glink':
+    case 'connlink':
       return (d.effLength || 0) / 1000;
     default:
       return (d.effLength || 0) / 1000;
@@ -75,7 +123,7 @@ export function connectorLength(item, role = 'hole') {
 
 export function itemWeight_t(item, length_m = 0) {
   if (!item) return 0;
-  if (isSlingType(item.type)) {
+  if (isSlingType(item.type) || item.type === 'chain') {
     if (item.weight_kg != null && item.length_m) return item.weight_kg / 1000;
     return ((item.weight_kg_per_m || 0) * (length_m || 0)) / 1000;
   }
@@ -108,9 +156,11 @@ export function shackleCompatibility(shackle, { holeDia, padeyeThk, padeyeRadius
       });
   }
   if (padeyeRadius && d.insideLength) {
-    const need = padeyeRadius + (slingThk || 0);
-    if (need > d.insideLength + (d.pinDia || 0) / 2)
-      issues.push({ level: 'fail', code: 'radius', msg: `Padeye radius + sling thickness (${need} mm) > shackle inside length` });
+    // material above the hole (pin bearing at the top of the hole) + what sits in the bow
+    const above = padeyeRadius - (holeDia || d.pinDia || 0) / 2;
+    const need = above + (slingThk || 0);
+    if (need > d.insideLength)
+      issues.push({ level: 'fail', code: 'radius', msg: `Padeye material above the hole (${above.toFixed(0)} mm${slingThk ? ` + ${slingThk} mm in the bow` : ''}) > shackle inside length ${d.insideLength} mm` });
   }
   if (slingWidth && d.bowWidth && slingWidth > d.bowWidth)
     issues.push({

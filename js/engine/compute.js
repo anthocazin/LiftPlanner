@@ -1,7 +1,9 @@
 // Full lift plan calculation.
 import { solveRigging } from './rigging.js';
-import { riggingChecks, craneCheck, hookHeightCheck, DEFAULT_RULES, STATUS_ORDER } from './checks.js';
+import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks.js';
+import { isLengthPart } from './rigging.js';
 import { setUserCatalog, itemWeight_t } from '../catalog/index.js';
+import { chartRange } from './crane.js';
 
 export function buildBOM(rig, project) {
   const lines = new Map();
@@ -14,11 +16,15 @@ export function buildBOM(rig, project) {
     if (prev) {
       prev.qty += qty;
       prev.where.push(opts.where);
+      if (opts.config && !prev.config.includes(opts.config)) prev.config += ` / ${opts.config}`;
     } else
       lines.set(key, {
         key,
         item,
-        name: item.name + (len != null ? ` — EWL ${len.toFixed(2)} m` : ''),
+        name: item.name + (opts.links ? ` — ${opts.links} links (${len.toFixed(3)} m)` : len != null ? ` — EWL ${len.toFixed(2)} m` : ''),
+        ewl_m: len,
+        links: opts.links || null,
+        config: opts.config || '',
         wll_t: item.wll_t,
         qty,
         unitWeight_t: unitW,
@@ -28,16 +34,21 @@ export function buildBOM(rig, project) {
   };
   if (!rig || rig.error) return [];
   for (const leg of rig.legs) {
-    add(leg.comps.bottomShackle, 1, { where: leg.label });
-    add(leg.comps.sling, 1, { length_m: leg.slingLength, where: leg.label });
-    add(leg.comps.topConn, 1, { where: leg.label });
+    const n = leg.parts.length;
+    leg.parts.forEach((p, i) => {
+      const pos = i === 0 ? (leg.level === 'top' ? 'spreader lug' : 'lift point') : i === n - 1 ? (leg.level === 'bottom' ? 'spreader lug' : 'hook side') : 'in line';
+      const lvl = leg.level === 'top' ? 'top legs' : leg.level === 'bottom' ? 'bottom legs' : 'legs';
+      if (isLengthPart(p))
+        add(p.item, 1, { length_m: p.length_m, links: p.kind === 'chain' ? p.links : null, where: leg.label, config: `${lvl}${p.hitch === 'choke' ? ', choked' : ''}` });
+      else add(p.item, 1, { where: leg.label, config: `${lvl} — ${pos}` });
+    });
   }
   const h = rig.head;
   if (h) {
-    add(h.masterlink, 1, { where: 'Head' });
+    add(h.masterlink, 1, { where: 'Head', config: h.integrated ? 'on crane hook, with sub-links' : 'on crane hook' });
     if (h.useSub && h.subLink && !h.integrated)
-      add({ ...h.subLink, id: `${h.subLink.id}#sub`, name: `Sub-link — ${h.subLink.name}` }, h.pairs.length, { where: 'Head' });
-    add(h.topShackle, 1, { where: 'Head' });
+      add({ ...h.subLink, id: `${h.subLink.id}#sub`, name: `Sub-link — ${h.subLink.name}` }, h.pairs.length, { where: 'Head', config: 'under the master link' });
+    add(h.topShackle, 1, { where: 'Head', config: 'crane hook ↔ master link' });
   }
   const out = [...lines.values()];
   if (rig.spreader) {
@@ -50,6 +61,8 @@ export function buildBOM(rig, project) {
       qty: 1,
       unitWeight_t: Number(sp.weight_t) || 0,
       certNo: sp.certNo || '',
+      ewl_m: rig.spreader.length,
+      config: 'horizontal, between top and bottom legs',
       where: ['Spreader'],
     });
   }
@@ -64,7 +77,7 @@ export function worstStatus(checks) {
 /** Computes the whole project. */
 export function computeProject(project) {
   setUserCatalog(project.inventory || []);
-  const rules = { ...DEFAULT_RULES, ...(project.rules || {}) };
+  const rules = { ...DEFAULT_RULES, ...(project.rules || {}), ...(project.load?.padeyeRules || {}) };
   const rig = solveRigging(project, rules);
   const checks = riggingChecks(rig, project, rules);
   const crane = project.crane || {};
@@ -73,21 +86,22 @@ export function computeProject(project) {
     res.status = 'fail';
     return res;
   }
-  const hookBlock = Number(crane.hookBlock_t) || 0;
   res.shlStatic = rig.W + rig.rigWeight; // load + rigging
-  res.shlCrane = res.shlStatic + (crane.deductHookBlock !== false ? hookBlock : 0);
-  res.dynamicHookLoad = rig.W * rig.factors.daf + rig.rigWeight * rig.factors.daf;
-  if (Number(crane.hookSWL_t) > 0) {
-    const u = res.shlStatic / Number(crane.hookSWL_t);
-    checks.push({
-      cat: 'Crane', item: 'Hook block', label: `Hook SWL ${crane.hookSWL_t} t`, value: round2(res.shlStatic),
-      limit: Number(crane.hookSWL_t), unit: 't', util: u, status: u > 1 ? 'fail' : 'ok',
-    });
-  }
+  res.shlCrane = res.shlStatic + (Number(crane.extraHookLoad_t) || 0);
+  res.dynamicHookLoad = res.shlCrane * rig.factors.daf;
+  res.chartRange = chartRange(crane.chart, Number(crane.activeColumn) || 0);
 
   const zMin = (Number(project.load?.origin_mm?.z) || 0) / 1000;
   const hookAboveBottom = rig.hook.z - zMin; // hook height above the underside of the load
   res.hookAboveBottom = hookAboveBottom;
+  // steps placed on the site map: radius and slew from the crane position
+  const cr = project.storyboard?.crane || { x: 0, y: 0 };
+  (project.storyboard?.steps || []).forEach((st) => {
+    if (st.pos && isFinite(st.pos.x) && isFinite(st.pos.y)) {
+      st.radius_m = Math.round(Math.hypot(st.pos.x - cr.x, st.pos.y - cr.y) * 100) / 100;
+      st.slew_deg = Math.round((Math.atan2(st.pos.y - cr.y, st.pos.x - cr.x) * 180) / Math.PI * 10) / 10;
+    }
+  });
   const steps = project.storyboard?.steps?.length
     ? project.storyboard.steps
     : [{ name: 'Max radius', radius_m: crane.radius_m, loadElevation_m: null }];
@@ -99,15 +113,9 @@ export function computeProject(project) {
       return;
     }
     const cc = craneCheck(crane, res.shlCrane, R, label);
-    let hh = [];
-    let requiredHook = null;
-    if (st.loadElevation_m != null && st.loadElevation_m !== '') {
-      requiredHook = Number(st.loadElevation_m) + hookAboveBottom;
-      hh = hookHeightCheck(crane, R, requiredHook, label);
-    }
-    const stepChecks = [...cc.checks, ...hh];
-    checks.push(...stepChecks);
-    res.steps.push({ step: st, label, checks: stepChecks, capacity: cc.capacity, boom: cc.boom, requiredHook });
+    const requiredHook = st.loadElevation_m != null && st.loadElevation_m !== '' ? Number(st.loadElevation_m) + hookAboveBottom : null;
+    checks.push(...cc.checks);
+    res.steps.push({ step: st, label, checks: cc.checks, capacity: cc.capacity, requiredHook });
   });
 
   res.bom = buildBOM(rig, project);
@@ -127,11 +135,12 @@ export function liftCategory(res, project) {
   const reasons = [];
   const lim = Number(project.crane?.utilLimit) || 0.85;
   if (res.craneMaxUtil != null && res.craneMaxUtil > lim) reasons.push(`crane utilisation > ${(lim * 100).toFixed(0)} %`);
-  if (project.flags?.tandem) reasons.push('tandem lift');
-  if (project.flags?.overLive) reasons.push('over live plant');
-  if (project.flags?.personnel) reasons.push('personnel lift');
-  if (project.flags?.subsea) reasons.push('splash zone / subsea');
-  if (project.environment === 'offshore' && project.flags?.vesselToVessel) reasons.push('vessel ↔ vessel / platform transfer');
+  const f = project.flags || {};
+  if (f.overLive) reasons.push('over live plant');
+  if (f.subsea) reasons.push('splash zone / subsea');
+  if (f.vesselToVessel) reasons.push('vessel ↔ vessel / platform transfer');
+  if (f.quayToVessel) reasons.push('quay → vessel');
+  if (f.vesselToQuay) reasons.push('vessel → quay');
   if ((Number(project.load?.weight_t) || 0) >= (Number(project.flags?.heavyThreshold_t) || 50)) reasons.push('heavy load');
   if (project.rigging?.type === 'spreader') reasons.push('spreader bar rigging');
   const cat = reasons.length >= 2 || res.craneMaxUtil > 0.95 ? 'Critical / complex' : reasons.length === 1 ? 'Complex' : 'Routine';

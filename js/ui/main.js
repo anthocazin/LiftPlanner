@@ -108,25 +108,15 @@ function wireActions() {
   };
   document.getElementById('btn-save').onclick = () => {
     const p = app.project;
-    const out = JSON.parse(JSON.stringify(p));
-    if (p.drawingEmbed && app.drawingFile?.bytes && out.drawing) {
-      out.drawing.dataB64 = bytesToB64(app.drawingFile.bytes);
-      out.drawing.mime = app.drawingFile.type || (app.drawingFile.kind === 'pdf' ? 'application/pdf' : 'image/png');
-    }
-    download(`${slug(`${p.project.liftId}-${p.project.name}`)}.liftplan.json`, JSON.stringify(out, null, 2));
-    toast('Project saved');
+    download(`${slug(`${p.project.liftId}-${p.project.name}`)}.liftplan.json`, JSON.stringify(p, null, 2));
+    toast('Project saved (drawings, map and logos included)');
   };
   document.getElementById('file-open').onchange = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
     try {
       const data = JSON.parse(await f.text());
-      app.drawingFile = null;
-      if (data.drawing?.dataB64) {
-        const bytes = b64ToBytes(data.drawing.dataB64);
-        app.drawingFile = { kind: data.drawing.kind, name: data.drawing.fileName, bytes, type: data.drawing.mime };
-        delete data.drawing.dataB64;
-      }
+      app.detected = null;
       app.load(data);
       show(active);
       toast(`Project "${app.project.project.name}" loaded`);
@@ -136,18 +126,6 @@ function wireActions() {
     e.target.value = '';
   };
   document.getElementById('btn-print').onclick = () => printReport();
-}
-
-function bytesToB64(bytes) {
-  let s = '';
-  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-function b64ToBytes(b64) {
-  const s = atob(b64);
-  const out = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
-  return out;
 }
 
 export function printReport() {

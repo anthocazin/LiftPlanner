@@ -1,6 +1,6 @@
 # LiftPlanner
 
-Lift planning tool for **offshore and onshore lifts**: load and crane input, rigging calculation and checks based on **real rigging hardware** (Green Pin shackles, master links, polyester and UHMWPE roundslings, wire rope slings, cable-laid grommets, webbing slings, G-Links), rigging arrangement drawings, lift step storyboard and PDF report.
+Lift planning tool for **offshore and onshore lifts**: import the drawing of the part, click the lift points and the COG on it, build each leg from **real rigging hardware** (Green Pin shackles, connecting links, G80 / G100 chain, roundslings, wire rope slings, grommets, webbing, master links, G-Links — DS Levage 2025 catalogue), get the length of every leg and the minimum WLL, check everything, draw the rigging and the sequence, print the lifting plan in your company template.
 
 **No installation**: a single HTML file that also works **offline** (on board, on site).
 
@@ -16,41 +16,37 @@ Lift planning tool for **offshore and onshore lifts**: load and crane input, rig
 | Local (development) | `python3 -m http.server 8080` in the repository root, then open <http://localhost:8080> |
 | Online | GitHub Pages workflow provided (`.github/workflows/pages.yml`): enable *Settings → Pages → Source = GitHub Actions*. |
 
-The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (optionally with the imported PDF drawing embedded). Three examples are in [`examples/`](examples/).
+The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, site map and logos included). Three examples are in [`examples/`](examples/).
 
-## Features (v0.2)
+## Features (v0.3)
 
-**Load**
-- Weight, weight contingency (WCF: weighed 1.03 / calculated 1.05 / estimated 1.10 / free), dimensions, COG, **COG envelope** (± dx, ± dy: maximum leg forces over the envelope).
-- Lift points: coordinates, padeye SWL, hole Ø, thickness (main plate + cheeks), radius, padeye orientation.
-- **Load drawing import (PDF or image)**: scale calibration on a known dimension, origin, picking of padeyes and COG directly on the drawing (top / front / side view), measuring tool, **detection of weight and COG in the PDF text**.
+**Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (step, details, responsible, sketch on / off, crane radius / slew / load height), design lift conditions, the **safety measures tick list**, further measures, communications and technical review of the template.
 
-**Crane**
-- Multi-column load chart (configurations, offshore Hs columns), **paste straight from Excel**, conservative reading (next tabulated radius) or interpolation.
-- Hook block, hook SWL, critical lift threshold, boom geometry (boom angle, height under hook).
+**Load** — the page is visual:
+- **Import into LiftPlanner** wizard (PDF or image): choose the page and frame of the **XY plan** and **XZ elevation** views, calibrate in two clicks on the outline of the part (or on a known dimension, or with the drawing scale 1:n), set the origin; the overall dimensions are read from the outline.
+- **Weight and COG read from the drawing text** (title block, notes, "COG" mark on the views) with *Use* buttons; COG basis obvious / estimated / drawing.
+- Lift points and COG **placed and dragged on the drawing** (XY gives X / Y, XZ gives Z): lengths, angles and forces are recalculated live. White grid when there is no drawing. The load does not need to be a box.
+- **Padeye characteristics** per point (SWL, main plate, cheek plates, hole Ø, outer radius, hole height, orientation) with the **shackle fit** (pin / hole, thickness / jaw, inside length) and a to-scale drawing; untick *padeye* for choked slings / trunnions and the padeye checks are skipped.
+
+**Crane** — just the load chart: SWL versus radius, minimum and maximum radius (outside = fail), paste from Excel, conservative or interpolated reading, critical lift threshold.
 
 **Rigging**
-- Direct to hook with 1 to n legs (master link, sub-links or quad assembly, slings directly on the hook, top shackle) or **spreader bar** (top slings + 1 or 2 bottom slings per end).
-- **Sling type** per project or per leg: polyester roundsling, UHMWPE roundsling, wire rope sling (eye–eye or endless), cable-laid grommet, webbing sling.
-- **Automatic selection** from the catalogue + your inventory: sling, bottom shackle (hole/pin and thickness/jaw compatibility), top connection (direct / shackle / G-Link), master link (sling congestion). Shackle ranges to use are selectable (Green Pin G-4163, G-5263 Super, P-6036, Wide Body, G-4161 screw pin).
-- Lengths: matched set of one standard length, nearest standard, next standard up, or custom; length can be fixed leg by leg.
-- Factors: **automatic DNV-ST-N001 DAF** (onshore / inshore / offshore) or user value, **SKL** auto (1.25 from 4 legs) or user value, COG factor, free factor.
+- **Leg assembly builder**: drag DS Levage catalogue items (Green Pin shackles, roundslings straight / choked, wire, grommet, webbing, **chain G80 / G100**, **connecting links G80 / G100**, Slingmax G-Link) into the leg, from the load to the hook; one assembly for all legs, override leg by leg. Hook side: master link, master link + sub-links (quad) or directly on the hook, optional hook shackle.
+- For each leg, from the COG: **required bearing-to-bearing length, connector lengths, sling EWL or chain length in whole links** (e.g. *shackle → connecting link → chain → connecting link → shackle* gives the number of links), **minimum WLL** of every part, utilisation.
+- Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; matched set / standard / exact lengths.
+- Object views with the drawing and the rigging overlaid, 3D isometric view; spreader bar (top + bottom assemblies).
 
-**Checks** (status OK / Warning / Fail)
-- Crane: capacity at each radius, critical lift threshold, boom angle, height under hook, hook SWL.
-- Slings (incl. choked hitch), shackles (Green Pin side-load reduction curve), G-Links, master link and sub-links, padeyes (SWL, out-of-plane load).
-- Sling angles, component compatibility, **D/d bending ratio** of wire rope slings and grommets over the shackle bow, **estimated load tilt** with the selected lengths (slack sling), stability (COG above the lift points for 2 points / spreader, COG outside the lift point polygon), spreader bar (WLL, minimum angle from certificate, compression).
-- Indicative lift category (routine / complex / critical).
+**Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), D/d of wire slings, connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at every step.
 
-**Drawings and storyboard**
-- Isometric, plan, front and side views, dimensioned, with forces and angles.
-- **Rigging detail to scale** drawn from the catalogue dimensions (shackle bow, pin, eyes, master link, sub-links, sling, padeye seen edge-on).
-- Storyboard: crane position, obstacles / areas, steps (radius, slew, elevation) → **plan view + radial section per step** with capacity check.
-- **SVG** (vector, editable) and **PNG** export of every drawing.
+**Drawings** — rigging on the imported drawing (XY / XZ), isometric / front / side views, rigging detail to scale (chains drawn link by link), **one plan + elevation sketch per sequence step** ticked "Sketch"; optional **sketch drawn by Claude** from the step text (your Anthropic API key, kept in the browser). SVG / PNG export.
 
-**Report**: full A4 report (operation, load, crane + capacity curve, rigging, equipment list, drawings, checks, storyboard, weather limits, checklist, signatures) → *Print / Save as PDF*. Equipment list exportable to CSV.
+**Storyboard** — **import a site / deck map** (PDF or image), **set its scale with two points and the real distance**, place the crane and the pick-up / set-down positions by clicking (radius and slew measured on the map), obstacles; white background scaled to the load and the crane when there is no map.
 
-**Inventory**: your fleet of certified equipment (certificate no., serial no., actual lengths) — copy from the built-in catalogue, JSON import / export.
+**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, sketches, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
+
+**Inventory** — **equipment for this lift with exact quantities**, an *on hand* tick and the certificate number per line (CSV export); your own certified fleet; browser of the built-in catalogue.
+
+**Settings** — target and maximum leg angle, utilisation, tilt…; **the maths of WLL versus angle** (T = R / cos β table and curve, EN mode factors, shackle side-load curve) and **what hole / pin clearance means**.
 
 ## Calculation method
 
@@ -58,8 +54,9 @@ Summary below, details in [`docs/METHOD.md`](docs/METHOD.md).
 
 - Freely suspended load: the hook is vertically above the COG; load frame X/Y/Z in mm, Z up.
 - Vertical reactions: lever rule (2 points), exact equilibrium (3 points), rigid plate on equal-stiffness supports (≥ 4 points).
-- Sling tension `T = R · L / h`; design force `F = T × DAF × SKL × f_COG × f_other`, compared with the WLL (× hitch factor / side-load factor).
-- Crane: static load `W × WCF + rigging (+ hook block)` against the load chart (no DAF, the chart being certified for its use).
+- Leg tension `T = R / cos β = R · L / h`; design force `F = T × DAF × SKL × f_COG × f_other`, compared with the WLL of every part of the leg (× hitch factor / side-load factor). Sling or chain also ≥ load / K (EN mode factor).
+- Leg length (bearing to bearing) = shackles (inside length + ½ pin in a hole, + pin on a link) + connecting links / G-Links (effective length) + sling EWL or n × chain pitch + head (master link, sub-link).
+- Crane: static load `W × WCF + rigging` against the load chart, between its minimum and maximum radius.
 
 ## Built-in catalogue
 
@@ -80,6 +77,10 @@ Main source: **DS Levage general catalogue 2025** (supplied by the user), cross-
 | Endless sleeved wire rope slings | DS Levage p.20 | Ø8 → Ø36 mm |
 | Cable-laid grommets | DS Levage p.20 | 12.7 → 1000 t |
 | Polyester webbing slings EN 1492-1 | DS Levage p.64 (weight not stated) | 1 → 40 t |
+| Chain grade 80 (EN 818-2) | DS Levage p.20 (WLL, pitch, width, kg/m) | Ø6 → Ø32 mm |
+| Chain grade 100 | DS Levage p.24 | Ø6 → Ø32 mm |
+| Connecting links G80 | DS Levage p.22; effective length **estimated** A − 2C | Ø6 → Ø32 mm |
+| Connecting links G100 | WLL DS Levage p.26; dimensions **indicative** (G80 table) | Ø6 → Ø32 mm |
 | Slingmax® G-Link | Unirope table; effective length **estimated** | 2" → 6" |
 
 The *Source* column of the catalogue browser (Inventory tab) states for each item whether values are published, typical or estimated.
@@ -91,16 +92,16 @@ index.html            user interface (ES modules, no build step)
 css/app.css           screen + print styles
 js/state.js           project model, example, migrations
 js/engine/            pure calculation code (testable under Node)
-  rigging.js          geometry, equipment selection, forces (direct hook / spreader bar)
+  rigging.js          leg assemblies, geometry, equipment selection, forces (direct hook / spreader bar)
   statics.js          force distribution
   equilibrium.js      load tilt with given lengths
   factors.js          DAF, WCF, SKL
-  crane.js            load chart, boom geometry
+  crane.js            load chart (SWL vs radius, range)
   checks.js           checks
   compute.js          orchestration, equipment list, lift category
 js/catalog/           equipment data + selection rules
 js/draw/              SVG generators (views, detail, storyboard, capacity curve)
-js/ui/                user interface (tabs, PDF import, figures)
+js/ui/                user interface: tabs, load views (loadview.js), import wizard, site plan, PDF tools
 vendor/pdfjs/         pdf.js (Apache-2.0)
 tools/                standalone build, example generator
 test/                 engine tests (node --test)
@@ -114,7 +115,6 @@ npm run build     # rebuilds dist/LiftPlanner.html (standalone version)
 ## Roadmap (ideas)
 
 - Tandem lifts (2 cranes), 4-lug spreader frames, lifting beams, Modulift spreader bar load tables.
-- Chain slings (EN 818) with hitch / angle factors.
 - Full DNV-ST-N001 mode: safety factors on MBL, consequence factors, padeye calculation.
 - Wind loads, vessel-to-vessel transfer, splash zone crossing (DNV-RP-N103).
 - Crane library (reusable load charts), import of PDF load charts.

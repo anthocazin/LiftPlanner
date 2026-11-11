@@ -1,7 +1,6 @@
 // Storyboard: site plan view and radial section (elevation) of crane / load for each step.
 import { svgDoc, fitter, line, poly, circle, text, label, path, dim, rect } from './svg.js';
 import { fmt } from './fmt.js';
-import { boomGeometry, maxHookHeight } from '../engine/crane.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -42,7 +41,9 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   const W = opts.width || 520, H = opts.height || 420;
   const sb = project.storyboard || {};
   const cr = sb.crane || { x: 0, y: 0, heading_deg: 0, footprint: { L: 10, W: 3 } };
-  const steps = sb.steps || [];
+  const steps = (sb.steps || []).map((st, i) => ({ ...st, _i: i })).filter((st) => Number(st.radius_m) > 0);
+  stepIndex = stepIndex == null ? null : steps.findIndex((st) => st._i === stepIndex);
+  if (stepIndex === -1) stepIndex = null;
   const fp = loadFootprint(project.load);
   const rMax = Math.max(...steps.map((s) => Number(s.radius_m) || 0), Number(project.crane?.radius_m) || 0, 5);
   const chartMax = Math.max(...(project.crane?.chart?.rows || []).map((r) => Number(r[0]) || 0), 0);
@@ -50,9 +51,15 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   const ext = Math.max(rMax + Math.max(fp.L, fp.W), 6);
   pts.push([cr.x - ext, -(cr.y - ext)], [cr.x + ext, -(cr.y + ext)]);
   (sb.obstacles || []).forEach((o) => rectCorners(o.x, o.y, o.sx, o.sy, o.rot_deg).forEach(([x, y]) => pts.push([x, -y])));
+  const safe = typeof sb.map?.image === 'string' && /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(sb.map.image);
+  const map = safe && sb.map.s > 0 ? sb.map : null;
   const f = fitter(pts, W, H, 26, { top: 34 });
   const P = (x, y) => f([x, -y]);
   let body = '';
+  if (map) {
+    const a = P(-map.ou * map.s, map.ov * map.s), b = P((map.w - map.ou) * map.s, (map.ov - map.h) * map.s);
+    body += `<image href="${map.image}" x="${a[0].toFixed(1)}" y="${a[1].toFixed(1)}" width="${(b[0] - a[0]).toFixed(1)}" height="${(b[1] - a[1]).toFixed(1)}" preserveAspectRatio="none" opacity="${Number(map.opacity ?? 0.85) || 0.85}"/>`;
+  }
   // grid
   const step = ext > 30 ? 10 : 5;
   for (let g = -Math.ceil(ext / step) * step; g <= ext; g += step) {
@@ -84,7 +91,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     const th = rad(Number(st.slew_deg) || 0);
     const lx = cr.x + R * Math.cos(th), ly = cr.y + R * Math.sin(th);
     const corners = rectCorners(lx, ly, fp.L, fp.W, st.heading_deg).map(([x, y]) => P(x, y));
-    const res_i = res?.steps?.[i];
+    const res_i = res?.steps?.[st._i];
     const util = res_i?.checks?.find((c) => c.cat === 'Crane' && c.util != null)?.util;
     const col = util > 1 ? '#c0392b' : util > (project.crane?.utilLimit || 0.85) ? '#b7791f' : '#1f8f4e';
     const lp = P(lx, ly);
@@ -95,7 +102,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     }
     body += poly(corners, { fill: faint ? '#cfd8e3' : '#e8822a', 'fill-opacity': faint ? 0.4 : 0.75, stroke: faint ? '#9aa5b1' : '#9b5a1d', 'stroke-width': faint ? 0.8 : 1.4 });
     body += circle(lp[0], lp[1], faint ? 7 : 9, { fill: '#fff', stroke: faint ? '#9aa5b1' : col, 'stroke-width': 2 });
-    body += text(lp[0], lp[1] + 3.5, String(i + 1), { 'text-anchor': 'middle', 'font-size': faint ? 9 : 10, 'font-weight': 700, fill: faint ? '#7d8996' : '#1c2733' });
+    body += text(lp[0], lp[1] + 3.5, String(st._i + 1), { 'text-anchor': 'middle', 'font-size': faint ? 9 : 10, 'font-weight': 700, fill: faint ? '#7d8996' : '#1c2733' });
   };
   steps.forEach((st, i) => {
     if (stepIndex == null || i !== stepIndex) draw(st, i, stepIndex != null);
@@ -116,7 +123,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   // axes
   body += line(16, H - 16, 40, H - 16, { stroke: '#c0392b', 'stroke-width': 1.5 }) + text(43, H - 13, 'X', { 'font-size': 9, fill: '#c0392b' });
   body += line(16, H - 16, 16, H - 40, { stroke: '#1f8f4e', 'stroke-width': 1.5 }) + text(13, H - 43, 'Y', { 'font-size': 9, fill: '#1f8f4e' });
-  const ttl = stepIndex != null && steps[stepIndex] ? `Plan — ${steps[stepIndex].name || `Step ${stepIndex + 1}`}` : 'Site plan — all steps';
+  const ttl = stepIndex != null && steps[stepIndex] ? `Plan — ${steps[stepIndex]._i + 1}. ${steps[stepIndex].name || ''}` : 'Site plan — all crane steps';
   body += text(12, 20, ttl, { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
   return svgDoc(W, H, body, { title: ttl });
 }
@@ -128,7 +135,6 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   const crane = project.crane || {};
   if (!st) return svgDoc(W, H, text(20, 30, 'Step not found'));
   const R = Number(st.radius_m) || 0;
-  const g = boomGeometry(crane, R);
   const rig = res?.rig;
   const fp = loadFootprint(project.load);
   const elev = Number(st.loadElevation_m) || 0;
@@ -136,9 +142,10 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   const hookZ = elev + hookAboveBottom;
   const rel = rad((Number(st.heading_deg) || 0) - (Number(st.slew_deg) || 0));
   const wRad = Math.abs(fp.L * Math.cos(rel)) + Math.abs(fp.W * Math.sin(rel)); // radial footprint
-  const tipZ = g.valid ? g.tipHeight : hookZ + 4;
+  const tipZ = hookZ + Math.max(3, 0.15 * R);
+  const g = { valid: true, tipHeight: tipZ, angle: (Math.atan2(tipZ - 2, Math.max(R - 1, 0.1)) * 180) / Math.PI };
   const zTop = Math.max(tipZ, hookZ) + 2;
-  const rLeft = -Math.max(4, (Number(crane.boom?.pivotOffset) || 0) + 4);
+  const rLeft = -5;
   const rRight = R + wRad / 2 + 3;
   const zMin = Math.min(0, elev, ...(project.storyboard?.obstacles || []).map((o) => Number(o.h) || 0));
   const f = fitter([[rLeft, -zTop], [rRight, -zMin + 0.5]], W, H, 30, { top: 36, bottom: 40 });
@@ -169,7 +176,7 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
     body += label((a[0] + b[0]) / 2, a[1] - 4, `${o.name} ${fmt(o.h, 1)} m`, { 'text-anchor': 'middle', 'font-size': 9.5 });
   }
   // crane (schematic)
-  const hp = Number(crane.boom?.pivotHeight) || 2, a0 = Number(crane.boom?.pivotOffset) || 0;
+  const hp = 2, a0 = 1;
   const cb0 = P(-3, 0), cb1 = P(3, hp * 0.75);
   body += rect(cb0[0], cb1[1], cb1[0] - cb0[0], cb0[1] - cb1[1], { fill: '#f2c14e', stroke: '#7a5a10', rx: 3 });
   const cab = P(-2.6, hp + 1.3), cab1 = P(-0.4, hp * 0.75);
@@ -184,7 +191,7 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
     const ar = 34;
     const ang = rad(g.angle);
     body += path(`M ${piv[0] + ar} ${piv[1]} A ${ar} ${ar} 0 0 0 ${piv[0] + ar * Math.cos(ang)} ${piv[1] - ar * Math.sin(ang)}`, { fill: 'none', stroke: '#7a5a10' });
-    body += label(piv[0] + ar + 4, piv[1] - 10, `${g.angle.toFixed(1)}°`, { 'font-size': 10, fill: '#7a5a10', 'font-weight': 700 });
+    body += label(piv[0] + ar + 4, piv[1] - 10, 'boom (schematic)', { 'font-size': 9.5, fill: '#7a5a10' });
     // hoist rope + hook
     const hk = P(R, hookZ);
     body += line(tip[0], tip[1], hk[0], hk[1] - 10, { stroke: '#333', 'stroke-width': 1.2 });
@@ -218,12 +225,11 @@ export function drawStoryElevation(project, res, stepIndex, opts = {}) {
   // title block
   const sr = res?.steps?.[stepIndex];
   const cc = sr?.checks?.find((c) => c.cat === 'Crane' && c.util != null);
-  const avail = maxHookHeight(crane, R);
   const lines = [
-    `${st.name || `Step ${stepIndex + 1}`}`,
+    `${stepIndex + 1}. ${st.name || ''}`,
     `Radius ${fmt(R, 1)} m · slew ${fmt(Number(st.slew_deg) || 0, 0)}°`,
-    cc ? `Load ${fmt(cc.value)} t / capacity ${fmt(cc.limit)} t → ${(cc.util * 100).toFixed(0)} %` : 'Capacity: —',
-    avail != null ? `Hook height required ${fmt(hookZ, 1)} m / available ${fmt(avail, 1)} m` : '',
+    cc ? `Load ${fmt(cc.value)} t / SWL ${fmt(cc.limit)} t → ${(cc.util * 100).toFixed(0)} %` : 'SWL: —',
+    `Hook about ${fmt(hookZ, 1)} m above the reference level`,
   ].filter(Boolean);
   const bx = 12, by = 44;
   body += rect(bx, by - 14, 240, lines.length * 14 + 10, { fill: '#fff', stroke: '#c9d3dd', rx: 4 });

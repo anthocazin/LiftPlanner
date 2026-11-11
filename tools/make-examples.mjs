@@ -15,7 +15,10 @@ b.project.date = '2026-11-11';
 b.project.name = 'Example — skid lift with spreader bar';
 b.project.liftId = 'LP-002';
 b.rigging.type = 'spreader';
+b.rigging.head = { type: 'masterlink', itemId: 'auto', topShackle: false };
 b.rigging.legs = {};
+// bottom legs: shackle on the padeye → roundsling → shackle in the bar bottom lug
+b.rigging.assembly = [{ kind: 'shackle', id: 'auto' }, { kind: 'sling', family: 'RS-PES', id: 'auto', hitch: 'direct' }, { kind: 'shackle', id: 'auto' }];
 write('example-spreader-bar.liftplan.json', b);
 
 // 3. Offshore container transfer from a supply vessel, 4-leg wire rope sling set
@@ -28,29 +31,34 @@ c.project.vessel = 'Supply vessel';
 c.project.description = 'Back-load / transfer of a 20 ft tool container between the supply vessel deck and the platform laydown area.';
 c.environment = 'offshore';
 c.flags.vesselToVessel = true;
+c.factors.applyDAF = true;
 c.load.name = "20' tool container";
 c.load.weight_t = 8.2;
 c.load.wcfPreset = 'weighed';
 c.load.wcf = 1.03;
 c.load.dims_mm = { L: 6058, W: 2438, H: 2591 };
 c.load.cog_mm = { x: 3029, y: 1219, z: 1000 };
+const pad = { padeye: true, swl_t: 9.5, holeDia_mm: 30, thk_mm: 30, cheekThk_mm: 3, radius_mm: 50, height_mm: 70, azimuth_deg: null, used: true };
 c.load.liftPoints = [
-  { id: 'A', x: 150, y: 150, z: 2591, swl_t: 9.5, holeDia_mm: 34, thk_mm: 36, radius_mm: 60, azimuth_deg: null, used: true },
-  { id: 'B', x: 5908, y: 150, z: 2591, swl_t: 9.5, holeDia_mm: 34, thk_mm: 36, radius_mm: 60, azimuth_deg: null, used: true },
-  { id: 'C', x: 5908, y: 2288, z: 2591, swl_t: 9.5, holeDia_mm: 34, thk_mm: 36, radius_mm: 60, azimuth_deg: null, used: true },
-  { id: 'D', x: 150, y: 2288, z: 2591, swl_t: 9.5, holeDia_mm: 34, thk_mm: 36, radius_mm: 60, azimuth_deg: null, used: true },
+  { id: 'A', x: 150, y: 150, z: 2591, ...pad },
+  { id: 'B', x: 5908, y: 150, z: 2591, ...pad },
+  { id: 'C', x: 5908, y: 2288, z: 2591, ...pad },
+  { id: 'D', x: 150, y: 2288, z: 2591, ...pad },
 ];
-c.rigging.slingFamily = 'WIRE';
+// 4-leg chain sling set: shackle → connecting link → chain G80 → connecting link → shackle, quad master link
+c.rigging.assembly = [
+  { kind: 'shackle', id: 'auto' }, { kind: 'connlink', family: 'CL-G80', id: 'auto' }, { kind: 'chain', family: 'CH-G80', id: 'auto', hitch: 'direct' },
+  { kind: 'connlink', family: 'CL-G80', id: 'auto' }, { kind: 'shackle', id: 'auto' },
+];
+c.rigging.head = { type: 'assembly', itemId: 'auto', topShackle: true, topShackleId: 'auto' };
+c.rigging.design = { ...c.rigging.design, roundLengths: 'exact' };
 c.rigging.legs = {};
 c.crane = {
   ...c.crane,
   name: 'EXAMPLE — 50 t offshore pedestal crane (fictitious chart, DO NOT USE)',
+  configuration: 'External lift, Hs ≤ 1.5 m',
   type: 'offshore',
-  boom: { length: 40, pivotHeight: 6, pivotOffset: 1.5, minAngle_deg: 15, maxAngle_deg: 80 },
-  hookBlock_t: 0.9,
-  hookSWL_t: 50,
   utilLimit: 0.85,
-  minTipToHook: 4,
   radius_m: 24,
   activeColumn: 1,
   chart: {
@@ -66,9 +74,10 @@ c.storyboard = {
     { name: 'Laydown area', x: -6, y: 10, sx: 10, sy: 8, h: 0, rot_deg: 0, color: '#7f8c8d' },
   ],
   steps: [
-    { name: '1. Pick from the supply vessel', radius_m: 24, slew_deg: 0, loadElevation_m: -12, heading_deg: 0, note: 'Clean lift-off on a wave crest; tag lines handled by the vessel crew.' },
-    { name: '2. Hoist and slew', radius_m: 18, slew_deg: 60, loadElevation_m: 3, heading_deg: 60, note: 'Keep ≥ 1 m clearance above the handrail.' },
-    { name: '3. Set down in laydown', radius_m: 12, slew_deg: 120, loadElevation_m: 0.2, heading_deg: 30, note: 'Set down on timber dunnage.' },
+    { name: 'Toolbox talk and radio check', note: 'Crane operator, banksman on the platform, deck crew on the vessel, bridge.', responsible: 'Lifting supervisor', sketch: false },
+    { name: 'Pick from the supply vessel', radius_m: 24, slew_deg: 0, loadElevation_m: -12, heading_deg: 0, note: 'Clean lift-off on a wave crest; tag lines handled by the vessel crew.', responsible: 'Crane operator', sketch: true },
+    { name: 'Hoist and slew', radius_m: 18, slew_deg: 60, loadElevation_m: 3, heading_deg: 60, note: 'Keep ≥ 1 m clearance above the handrail.', responsible: 'Banksman', sketch: true },
+    { name: 'Set down in laydown', radius_m: 12, slew_deg: 120, loadElevation_m: 0.2, heading_deg: 30, note: 'Set down on timber dunnage.', responsible: 'Crane operator', sketch: true },
   ],
 };
 c.weather = { hsMax_m: 1.5, windMax_ms: 15, windGust_ms: 18, visibility: 'Daylight, > 1 NM', notes: 'Forecast checked 12 h before; stop if Hs > 1.5 m or gusts > 18 m/s.' };

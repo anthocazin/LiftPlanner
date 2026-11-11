@@ -1,6 +1,6 @@
 // User inventory (certified equipment of your own fleet) + browser for the built-in catalogue.
 import { app } from '../app.js';
-import { el, panel, fmt, download, toast } from '../dom.js';
+import { el, panel, fmt, download, toast, badge } from '../dom.js';
 import { BUILTIN_CATALOG, CATALOG_TYPES } from '../../catalog/data.js';
 
 const DIMS = {
@@ -11,6 +11,8 @@ const DIMS = {
   grommet: [['ropeDia', 'Body Ø'], ['componentDia', 'Strand Ø']],
   webbing: [['width', 'Width']],
   glink: [['maxSlingWidth', 'Max sling W'], ['effLength', 'Eff. length'], ['barThk', 'Bar thk.']],
+  chain: [['dia', 'Chain Ø'], ['pitch', 'Pitch'], ['width', 'Outside W']],
+  connlink: [['length', 'Length A'], ['width', 'Width B'], ['barThk', 'Section C'], ['effLength', 'Eff. length']],
   other: [['effLength', 'Eff. length']],
 };
 const SLINGS = ['roundsling', 'wiresling', 'grommet', 'webbing'];
@@ -42,9 +44,61 @@ export function render(root) {
     el('div', { id: 'inv-table', class: 'tbl-wrap' }),
   );
   const cat = panel(null, el('div', { id: 'cat-root' }));
-  root.append(el('div', { class: 'grid' }, inv, cat));
+  const need = panel(null, el('div', { id: 'need-root' }));
+  root.append(el('div', { class: 'grid' }, need, inv, cat));
+  renderNeed(app.result);
   renderInv();
   renderCatalog();
+  root._update = renderNeed;
+}
+
+/** Equipment needed for this lift: exact quantities, on-hand check, certificate numbers. */
+function renderNeed(res) {
+  const box = document.getElementById('need-root');
+  if (!box) return;
+  box.innerHTML = '';
+  const bom = res?.bom || [];
+  const chk = (app.project.equipmentCheck = app.project.equipmentCheck || {});
+  const inv = app.project.inventory || [];
+  const onHandCount = bom.filter((b) => chk[b.key]?.onHand).length;
+  const totQty = bom.reduce((s, b) => s + b.qty, 0);
+  box.append(
+    el('div', { class: 'panel-head' },
+      el('h2', {}, 'Equipment for this lift — check it is on hand'),
+      el('div', { class: 'row' },
+        el('span', {}, `${onHandCount} / ${bom.length} lines on hand · ${totQty} items`),
+        onHandCount === bom.length && bom.length ? badge('ok') : badge('warn'),
+        el('button', { class: 'small', onclick: () => exportNeed(bom, chk) }, 'Export CSV'),
+      ),
+    ),
+  );
+  if (!bom.length) {
+    box.append(el('div', { class: 'note warn' }, res?.rig?.error || 'No rigging calculated yet.'));
+    return;
+  }
+  const tb = el('tbody');
+  bom.forEach((b) => {
+    const c = (chk[b.key] = chk[b.key] || { onHand: false, certNo: '', notes: '' });
+    const inInv = b.item?.user || inv.some((i) => i.id === b.item?.id);
+    tb.append(el('tr', {},
+      el('td', { style: { textAlign: 'center' } }, el('input', { type: 'checkbox', checked: !!c.onHand, onchange: (e) => { c.onHand = e.target.checked; app.persist(); renderNeed(app.result); } })),
+      el('td', { class: 'num' }, el('b', {}, b.qty)),
+      el('td', {}, b.name, inInv ? el('span', { class: 'muted' }, ' ★ inventory') : null),
+      el('td', { class: 'num' }, b.ewl_m != null ? (b.links ? `${b.links} links` : `${fmt(b.ewl_m)} m`) : 'n/a'),
+      el('td', { class: 'num' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
+      el('td', { style: { fontSize: '12px' } }, b.config || [...new Set(b.where)].join(', ')),
+      el('td', {}, el('input', { type: 'text', value: c.certNo || b.certNo || '', placeholder: 'cert. / serial no.', onchange: (e) => { c.certNo = e.target.value; app.persist(); } })),
+    ));
+  });
+  box.append(el('div', { class: 'tbl-wrap' }, el('table', { class: 'data compact' },
+    el('thead', {}, el('tr', {}, ['On hand', 'Qty', 'Item', 'EWL / length', 'WLL', 'Configuration', 'Certificate no.'].map((h) => el('th', {}, h)))), tb)));
+  box.append(el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Quantities come from the rigging calculated on the Rigging page (one line per size and length). Tick each line once the item is physically checked, tagged and its certificate in date. The list is printed in the report.'));
+}
+
+function exportNeed(bom, chk) {
+  const rows = [['On hand', 'Qty', 'Item', 'EWL / length', 'WLL_t', 'Configuration', 'Certificate']];
+  bom.forEach((b) => rows.push([chk[b.key]?.onHand ? 'yes' : 'no', b.qty, b.name, b.ewl_m != null ? (b.links ? `${b.links} links` : b.ewl_m) : 'n/a', b.wll_t ?? '', b.config || '', chk[b.key]?.certNo || '']));
+  download('lift-equipment-check.csv', '\ufeff' + rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n'), 'text/csv');
 }
 
 function uid() {
@@ -116,7 +170,7 @@ function renderCatalog() {
       el(
         'div',
         { class: 'row' },
-        ...['shackle', 'masterlink', 'roundsling', 'wiresling', 'grommet', 'webbing', 'glink'].map((t) =>
+        ...['shackle', 'masterlink', 'roundsling', 'wiresling', 'grommet', 'webbing', 'chain', 'connlink', 'glink'].map((t) =>
           el('button', { class: `small ${catFilter === t ? 'active' : ''}`, onclick: () => { catFilter = t; renderCatalog(); } }, CATALOG_TYPES[t]),
         ),
         el('input', { type: 'search', placeholder: 'Filter…', value: catSearch, oninput: (e) => { catSearch = e.target.value; renderCatalog(); }, style: { padding: '4px 8px', border: '1px solid var(--line)', borderRadius: '6px' } }),

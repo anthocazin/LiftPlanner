@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { distributeVertical, legTensions } from '../js/engine/statics.js';
 import { dafDNV } from '../js/engine/factors.js';
-import { chartCapacity, boomGeometry } from '../js/engine/crane.js';
+import { chartCapacity, chartRange } from '../js/engine/crane.js';
 import { solveRigging } from '../js/engine/rigging.js';
 import { computeProject } from '../js/engine/compute.js';
 import { selectShackle, shackleSideLoadFactor, getItem } from '../js/catalog/index.js';
@@ -72,10 +72,11 @@ test('load chart: conservative reading and interpolation', () => {
   assert.equal(chartCapacity(chart, 15).status, 'beyond');
 });
 
-test('boom geometry', () => {
-  const g = boomGeometry({ boom: { length: 30, pivotHeight: 2, pivotOffset: 1 } }, 16);
-  near(g.angle, 60, 1e-6);
-  near(g.tipHeight, 2 + 30 * Math.sin(Math.PI / 3), 1e-6);
+test('load chart range: min / max radius', () => {
+  const r = chartRange({ rows: [[12, 40], [10, 50], [14, 32]] });
+  assert.equal(r.rMin, 10);
+  assert.equal(r.rMax, 14);
+  assert.equal(chartCapacity({ rows: [[10, 50], [14, 32]] }, 8).status, 'below');
 });
 
 test('direct hook, symmetric 4 points at 60°: T = W/4 / sin60', () => {
@@ -151,7 +152,7 @@ test('offshore: DNV DAF applied to the legs, not to the crane', () => {
   const res = computeProject(p);
   const shl = res.rig.shl;
   near(res.rig.factors.daf, 1.15 + 0.15 * Math.sqrt(100 / shl), 1e-6);
-  const crane = res.checks.find((c) => c.cat === 'Crane' && c.util != null && c.label.startsWith('Capacity'));
+  const crane = res.checks.find((c) => c.cat === 'Crane' && c.util != null && c.label.startsWith('SWL'));
   near(crane.value, res.shlCrane, 0.01);
 });
 
@@ -170,7 +171,7 @@ test('DS Levage catalogue: sling families and wide body shackles', () => {
 
 test('wire rope rigging: smaller shackle bow than rope gives a D/d warning', () => {
   const p = baseProject([['A', 0, 0, 0], ['B', 4000, 0, 0], ['C', 4000, 2000, 0], ['D', 0, 2000, 0]], { x: 2000, y: 1000, z: -500 });
-  p.rigging.slingFamily = 'WIRE';
+  p.rigging.assembly = [{ kind: 'shackle', id: 'auto' }, { kind: 'sling', family: 'WIRE', id: 'auto', hitch: 'direct' }, { kind: 'shackle', id: 'auto' }];
   const res = computeProject(p);
   assert.ok(!res.rig.error, res.rig.error);
   assert.ok(res.rig.legs.every((l) => l.comps.sling.type === 'wiresling'));
@@ -179,9 +180,106 @@ test('wire rope rigging: smaller shackle bow than rope gives a D/d warning', () 
 
 test('quad master link assembly from the catalogue carries the sub-links', () => {
   const p = defaultProject();
-  p.rigging.masterlink = { itemId: 'auto', subLinks: true, subLinkItemId: 'auto' };
+  p.rigging.head = { type: 'assembly', itemId: 'auto', subLinkItemId: 'auto', topShackle: false };
   const res = computeProject(p);
   const h = res.rig.head;
   assert.ok(h.masterlink);
   if (h.integrated) assert.ok(h.subLink && h.masterlink.sub);
+});
+
+import { chainLinks, selectChain, selectConnlink, enModeFactor, connectorLength } from '../js/catalog/index.js';
+import { migrate } from '../js/state.js';
+
+test('chain assembly: shackle → connecting link → chain → connecting link → shackle', () => {
+  const p = baseProject([['A', 0, 0, 0], ['B', 4000, 0, 0], ['C', 4000, 2000, 0], ['D', 0, 2000, 0]], { x: 2000, y: 1000, z: -500 });
+  p.rigging.design = { mode: 'angle', targetAngleV_deg: 30, roundLengths: 'exact' };
+  p.rigging.head = { type: 'masterlink', itemId: 'auto' };
+  p.rigging.assembly = [
+    { kind: 'shackle', id: 'auto' }, { kind: 'connlink', id: 'auto' }, { kind: 'chain', family: 'CH-G80', id: 'auto', hitch: 'direct' },
+    { kind: 'connlink', id: 'auto' }, { kind: 'shackle', id: 'auto' },
+  ];
+  const r = solveRigging(p, DEFAULT_RULES);
+  assert.ok(!r.error, r.error);
+  r.legs.forEach((l) => {
+    const ch = l.parts[2];
+    assert.equal(ch.item.type, 'chain');
+    assert.ok(Number.isInteger(ch.links) && ch.links > 0);
+    near(ch.length_m, (ch.links * ch.item.dims.pitch) / 1000, 1e-9);
+    // connecting links match the chain size and grade
+    [l.parts[1], l.parts[3]].forEach((c) => assert.ok(c.item.chainDias.includes(ch.item.dims.dia)));
+    // bearing-to-bearing length = connectors + chain + head
+    const hw = connectorLength(l.parts[0].item, 'hole') + 2 * connectorLength(l.parts[1].item) + connectorLength(l.parts[4].item, 'link') + r.head.headLen;
+    near(l.Leff, hw + ch.length_m, 1e-9);
+    // the chain length is within half a link of the requirement
+    assert.ok(Math.abs(l.slingLengthReq - ch.length_m) <= ch.item.dims.pitch / 2000 + 1e-9);
+    near(l.angleV, 30, 1.5);
+  });
+});
+
+test('chain catalogue helpers', () => {
+  const c = selectChain(5, 'direct', 'CH-G80');
+  assert.equal(c.dims.dia, 13);
+  assert.equal(selectChain(5, 'choke', 'CH-G80').dims.dia, 16);
+  const cl = selectConnlink(4, c);
+  assert.ok(cl.chainDias.includes(13));
+  assert.equal(chainLinks(c, 1.0).n, 26); // 1000 / 39 = 25.6 → 26 links
+  assert.equal(enModeFactor(4, 30), 2.1);
+  assert.equal(enModeFactor(2, 50), 1.0);
+  assert.equal(enModeFactor(3, 61), null);
+});
+
+test('no padeye: padeye checks skipped', () => {
+  const p = defaultProject();
+  p.load.liftPoints.forEach((pt) => (pt.padeye = false));
+  const res = computeProject(p);
+  assert.ok(!res.checks.some((c) => c.cat === 'Lift points'));
+  assert.ok(!res.checks.some((c) => c.cat === 'Compatibility' && /hole|Padeye/.test(c.label)));
+});
+
+test('example padeye upsizes the shackle for the hole', () => {
+  const res = computeProject(defaultProject());
+  res.rig.legs.forEach((l) => assert.equal(l.parts[0].item.dims.pinDia, 28));
+});
+
+test('DAF can be switched off; EN mode factor check present', () => {
+  const p = defaultProject();
+  p.environment = 'offshore';
+  p.factors.applyDAF = false;
+  const res = computeProject(p);
+  assert.equal(res.rig.factors.daf, 1);
+  assert.ok(res.checks.some((c) => c.cat === 'Factors' && /EN mode factor/.test(c.label)));
+});
+
+test('angle to the vertical: warn above 30°, fail above 45°', () => {
+  const mk = (a) => {
+    const p = baseProject([['A', 0, 0, 0], ['B', 4000, 0, 0]], { x: 2000, y: 0, z: -500 });
+    p.rigging.design = { mode: 'angle', targetAngleV_deg: a, roundLengths: 'exact' };
+    return computeProject(p).checks.filter((c) => c.cat === 'Angles').map((c) => c.status);
+  };
+  assert.ok(mk(25).every((s) => s === 'ok'));
+  assert.ok(mk(38).every((s) => s === 'warn'));
+  assert.ok(mk(50).every((s) => s === 'fail'));
+});
+
+test('v2 project file migrates to leg assemblies', () => {
+  const v2 = {
+    schema: 2,
+    rigging: {
+      type: 'hook', slingFamily: 'WIRE', headType: 'masterlink', masterlink: { itemId: 'auto', subLinks: false },
+      design: { mode: 'angle', targetAngle_deg: 60, roundLengths: 'set' },
+      legs: { A: { topConnector: 'shackle', mode: 'choke' }, B: { topConnector: 'shackle', mode: 'choke' } },
+    },
+    rules: { minSlingAngleFail_deg: 45 },
+    load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
+  };
+  const p = migrate(v2);
+  assert.equal(p.schema, 3);
+  assert.equal(p.rigging.design.targetAngleV_deg, 30);
+  assert.equal(p.rigging.head.type, 'masterlink');
+  assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);
+  assert.equal(p.rigging.assembly[1].family, 'WIRE');
+  assert.equal(p.rigging.assembly[1].hitch, 'choke');
+  assert.equal(p.rules.maxAngleV_deg, 45);
+  const res = computeProject(p);
+  assert.ok(!res.rig.error, res.rig.error);
 });

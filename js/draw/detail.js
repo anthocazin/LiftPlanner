@@ -3,7 +3,7 @@
 // Convention: bearing axes alternate by 90° from one component to the next (front / side view).
 import { svgDoc, path, rect, circle, line, text, label, group, esc } from './svg.js';
 import { fmt } from './fmt.js';
-import { slingModeFactor, shackleSideLoadFactor } from '../catalog/index.js';
+import { shackleSideLoadFactor } from '../catalog/index.js';
 
 const STEEL = '#8b96a3';
 const STEEL_EDGE = '#3c4652';
@@ -123,7 +123,34 @@ function hookShape(y0, size) {
   ) + rect(-r * 0.5, y0 - r * 4.2, r, r * 1.0, { fill: '#6b7785', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
 }
 
-/** Builds the column of one leg (coordinates in mm, y down). */
+/** Chain drawn to scale: a few links at each end, the middle shortened. */
+function chainDraw(item, y0, links, dispMax = 520) {
+  const d = item?.dims?.dia || 13, p = item?.dims?.pitch || 3 * d, w = item?.dims?.width || 3.6 * d;
+  const iw = Math.max(w - 2 * d, d * 1.1);
+  const total = links * p;
+  const shown = Math.min(total, dispMax);
+  const nShow = Math.max(1, Math.round(shown / p));
+  const nTop = links <= nShow ? links : Math.ceil(nShow * 0.65);
+  const nBot = links <= nShow ? 0 : nShow - nTop;
+  let out = '';
+  const link = (k, yy) => (k % 2 === 0 ? ringFace(yy, p, iw, d) : ringEdge(yy, p, d));
+  for (let k = 0; k < nTop; k++) out += link(k, y0 + k * p);
+  let y = y0 + nTop * p;
+  let gapMid = null;
+  if (nBot > 0) {
+    const g = Math.max(2 * p, 40);
+    gapMid = y + g / 2;
+    out += path(`M ${-w} ${y + g * 0.35} L ${w} ${y + g * 0.15} M ${-w} ${y + g * 0.85} L ${w} ${y + g * 0.65}`, { stroke: '#5d6b7a', 'stroke-width': 1, fill: 'none', ...sw });
+    y += g;
+    for (let k = 0; k < nBot; k++) out += link(links - nBot + k, y + k * p);
+    y += nBot * p;
+  }
+  // the last link bearing is at y; the next element hangs in the plane of the last link
+  const lastFace = (links - 1) % 2 === 0;
+  return { svg: out, end: y, mid: gapMid ?? y0 + (y - y0) / 2, halfWidth: w / 2 + d, nextBar: lastFace ? 'lr' : 'depth', a: d };
+}
+
+/** Builds the column of one leg (coordinates in mm, y down): from the hook down to the lift point. */
 function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
   const head = rig.head || {};
   const parts = [];
@@ -136,6 +163,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
   const ext = (hw) => { minX = Math.min(minX, -hw); maxX = Math.max(maxX, hw); };
   const util = (F, wll) => (wll ? `${Math.round((F / wll) * 100)} %` : '');
   const F = leg.Fdesign;
+  const sp = project.rigging.spreader || {};
 
   const fromHook = leg.level !== 'bottom';
   if (fromHook) {
@@ -143,117 +171,127 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     parts.push(hookShape(0, hs));
     labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crane hook`, `static load ${fmt(rig.shl)} t`] });
     ext(hs * 1.6);
-    y = 0;
     if (head.topShackle) {
       const s = head.topShackle;
       const r = shackleSide(s, y + s.dims.pinDia / 2, 1);
       parts.push(r.svg);
       labels.push({ y: y + s.dims.insideLength / 2, x: r.halfWidth, t: [s.name, `WLL ${fmt(s.wll_t)} t`] });
-      y = r.crownY;
-      bar = r.crownDir;
-      barA = r.a;
-      ext(r.halfWidth);
+      y = r.crownY; bar = r.crownDir; barA = r.a; ext(r.halfWidth);
     }
     if (head.masterlink) {
       const m = head.masterlink.dims;
       parts.push(ringFace(y, m.insideLength, m.insideWidth, m.stockDia));
       labels.push({ y: y + m.insideLength / 2, x: m.insideWidth / 2 + m.stockDia, t: [head.masterlink.name, `WLL ${fmt(head.masterlink.wll_t)} t · ${util(rig.Fvert_design, head.masterlink.wll_t)}`] });
       ext(m.insideWidth / 2 + m.stockDia);
-      y += m.insideLength;
-      bar = 'lr';
-      barA = m.stockDia;
+      y += m.insideLength; bar = 'lr'; barA = m.stockDia;
       if (head.useSub && head.subLink && leg.level === 'main') {
         const sd = head.subLink.dims;
         parts.push(ringEdge(y, sd.insideLength, sd.stockDia));
         labels.push({ y: y + sd.insideLength / 2, x: sd.stockDia, t: [/sub-link/i.test(head.subLink.short || head.subLink.name) ? head.subLink.short || head.subLink.name : `Sub-link ${head.subLink.short || head.subLink.name}`, `WLL ${fmt(head.subLink.wll_t)} t`] });
-        y += sd.insideLength;
-        bar = 'depth';
-        barA = sd.stockDia;
+        y += sd.insideLength; bar = 'depth'; barA = sd.stockDia;
       }
-    } else if (head.onHook) {
-      bar = 'depth';
-      barA = 40;
     }
   } else {
-    // spreader bottom sling: starts at the bottom lug
-    const sp = project.rigging.spreader || {};
-    const tc = leg.comps.topConn;
-    const pinY = 0;
-    const pe = padeyeEdge(pinY, Number(sp.bottomLugThk_mm) || (tc ? tc.dims.jawWidth * 0.8 : 30), (tc?.dims.pinDia || 30) * 1.6, Number(sp.bottomLugHoleDia_mm) || (tc?.dims.pinDia || 0) + 2, -1);
+    // spreader bottom leg: starts at the bottom lug of the bar
+    const last = leg.parts[leg.parts.length - 1]?.item;
+    const pe = padeyeEdge(0, Number(sp.bottomLugThk_mm) || (last?.dims?.jawWidth || 38) * 0.8, (last?.dims?.pinDia || 30) * 1.6, Number(sp.bottomLugHoleDia_mm) || (last?.dims?.pinDia || 0) + 2, -1);
     parts.push(pe.svg);
     labels.push({ y: pe.top + 30, x: 40, t: ['Spreader bar bottom lug'] });
-    y = pinY;
     bar = 'lug';
   }
 
-  // top connector
-  const tc = leg.comps.topConn;
-  if (tc && tc.type === 'shackle') {
-    const pinCenter = bar === 'lug' ? y : y + tc.dims.pinDia / 2;
-    const r = bar === 'lr' ? shackleSide(tc, pinCenter, 1) : shackleFront(tc, pinCenter, 1);
-    parts.push(r.svg);
-    labels.push({ y: pinCenter + tc.dims.insideLength * 0.5, x: r.halfWidth, t: [tc.name, `WLL ${fmt(tc.wll_t)} t · ${util(F, tc.wll_t)}`] });
-    ext(r.halfWidth);
-    y = r.crownY;
-    bar = r.crownDir;
-    barA = r.a;
-  } else if (tc && tc.type === 'glink') {
-    const L = tc.dims.effLength || 100, t = tc.dims.barThk || 20;
-    parts.push(bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, tc.dims.maxSlingWidth || 60, t));
-    labels.push({ y: y + L / 2, x: (tc.dims.maxSlingWidth || 60) / 2 + t, t: [tc.name, `WLL ${fmt(tc.wll_t)} t · ${util(F, tc.wll_t)}`] });
-    y += L;
-    bar = bar === 'lr' ? 'depth' : 'lr';
-    barA = t;
+  const list = leg.parts;
+  let slingSvg = null;
+  for (let i = list.length - 1; i >= 0; i--) {
+    const p = list[i];
+    const it = p.item;
+    const wll = it ? it.wll_t * (p.factor || 1) : null;
+    if (!it) {
+      labels.push({ y: y + 20, x: 20, t: [`${p.kind} — not found`] });
+      y += 60;
+      continue;
+    }
+    if (p.kind === 'sling') {
+      const below = list[i - 1]?.item;
+      const sr = sling(it, y, y + slingDisp, bar === 'depth' ? 'depth' : 'lr', { a: barA }, p.length_m, below?.type === 'shackle' ? below.dims?.bowDia || 0 : 0);
+      ext(sr.w / 2 + 20);
+      labels.push({
+        y: sr.mid, x: sr.w / 2, strong: true,
+        t: [it.name, `EWL ${fmt(p.length_m)} m · WLL ${fmt(wll)} t${p.hitch === 'choke' ? ' (choked)' : ''} · ${util(F, wll)}`, `Design T ${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+      });
+      inline.push({ x: -sr.w / 2, y: sr.mid, t: `${fmt(p.length_m)} m` });
+      slingSvg = sr.svg; // drawn last (on top of the bow)
+      y += slingDisp; bar = 'depth'; barA = 0;
+      if (i === 0 && p.hitch === 'choke') {
+        parts.push(rect(-120, y + 10, 240, 60, { fill: '#e8edf2', stroke: STEEL_EDGE, 'stroke-width': 1, 'stroke-dasharray': '5 3', ...sw }));
+        labels.push({ y: y + 40, x: 120, t: ['Choked around the load', p.wrap_m ? `wrap ${fmt(p.wrap_m)} m` : ''] });
+        y += 80;
+      }
+      continue;
+    }
+    if (p.kind === 'chain') {
+      const c = chainDraw(it, y, p.links || 1);
+      parts.push(c.svg);
+      ext(c.halfWidth + 10);
+      labels.push({
+        y: c.mid, x: c.halfWidth, strong: true,
+        t: [it.name, `${p.links} links × ${it.dims.pitch} mm = ${fmt(p.length_m, 3)} m · WLL ${fmt(wll)} t · ${util(F, wll)}`, `Design T ${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+      });
+      inline.push({ x: -c.halfWidth, y: c.mid, t: `${p.links} links` });
+      y = c.end; bar = c.nextBar; barA = c.a;
+      continue;
+    }
+    if (p.kind === 'connlink' || p.kind === 'glink') {
+      const L = it.dims.effLength || 60, t = it.dims.barThk || 15;
+      const W = p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
+      parts.push(bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
+      labels.push({ y: y + L / 2, x: W / 2 + t, t: [it.name, `WLL ${fmt(it.wll_t)} t · ${util(F, it.wll_t)}`] });
+      ext(W / 2 + t);
+      y += L; bar = bar === 'lr' ? 'depth' : 'lr'; barA = t;
+      continue;
+    }
+    if (p.kind === 'shackle') {
+      const d = it.dims;
+      if (i > leg.li || (i === list.length - 1 && leg.li < 0)) {
+        // hook side: pin up on the element above, bow down
+        const pinCenter = bar === 'lug' ? y : y + d.pinDia / 2;
+        const r = bar === 'lr' ? shackleSide(it, pinCenter, 1) : shackleFront(it, pinCenter, 1);
+        parts.push(r.svg);
+        labels.push({ y: pinCenter + d.insideLength * 0.5, x: r.halfWidth, t: [it.name, `WLL ${fmt(wll)} t · ${util(F, wll)}`] });
+        ext(r.halfWidth);
+        y = r.crownY; bar = r.crownDir; barA = r.a;
+      } else {
+        // load side: bow up holding the element above, pin down
+        const pinCenter = y + d.insideLength + d.pinDia / 2;
+        const r = shackleFront(it, pinCenter, -1);
+        const sf = i === 0 && leg.level !== 'top' ? shackleSideLoadFactor(leg.beta || 0) : 1;
+        if (i === 0) {
+          const pt = leg.point;
+          const pad = pt && pt.padeye !== false;
+          const thk = pad ? (Number(pt.thk_mm) || 0) + 2 * (Number(pt.cheekThk_mm) || 0) : Number(sp.topLugThk_mm);
+          const hole = pad ? Number(pt.holeDia_mm) : Number(sp.topLugHoleDia_mm);
+          const R = pad ? Number(pt.radius_mm) : 0;
+          const pe = padeyeEdge(pinCenter, thk || d.jawWidth * 0.8, R || d.pinDia * 1.8, hole || d.pinDia + 2, 1);
+          parts.push(pe.svg);
+          labels.push({
+            y: pinCenter + 40, x: (thk || 30) * 3,
+            t: pt ? [pad ? `Padeye ${pt.id} · SWL ${pt.swl_t ? fmt(pt.swl_t) + ' t' : '—'}` : `Lift point ${pt.id} (no padeye)`, pad ? `thk. ${thk || '?'} mm · hole Ø${hole || '?'} mm` : ''] : ['Spreader bar top lug'],
+          });
+          y = pe.bottom;
+        } else y = pinCenter + d.pinDia;
+        parts.push(r.svg);
+        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [it.name, `WLL ${fmt(it.wll_t * sf)} t · ${util(F, it.wll_t * sf)} · pin Ø${d.pinDia} mm`] });
+        ext(r.halfWidth + d.pinDia);
+        bar = 'depth'; barA = d.pinDia;
+      }
+    }
   }
-
-  // sling
-  const s = leg.comps.sling;
-  const bottomSh = leg.comps.bottomShackle;
-  const slingTop = y;
-  const slingBot = y + slingDisp;
-  const sr = sling(s, slingTop, slingBot, bar === 'depth' ? 'depth' : 'lr', { a: barA }, leg.slingLength, bottomSh?.dims?.bowDia || 0);
-  ext(sr.w / 2 + 20);
-  const wllS = s ? s.wll_t * slingModeFactor(leg.cfg.mode) : null;
-  labels.push({
-    y: sr.mid,
-    x: sr.w / 2,
-    t: [s ? s.name : 'Sling ?', `EWL ${fmt(leg.slingLength)} m · WLL ${fmt(wllS)} t · ${util(F, wllS)}`, `Design T ${fmt(F)} t · ${leg.angleH.toFixed(1)}° to horiz.`],
-    strong: true,
-  });
-
-  // bottom shackle (bow up), sling drawn on top
-  y = slingBot;
-  if (bottomSh) {
-    const d = bottomSh.dims;
-    const pinCenter = y + d.insideLength + d.pinDia / 2;
-    const r = shackleFront(bottomSh, pinCenter, -1);
-    // padeye / lug
-    const pt = leg.point;
-    const sp = project.rigging.spreader || {};
-    const thk = pt ? Number(pt.thk_mm) : Number(sp.topLugThk_mm);
-    const hole = pt ? Number(pt.holeDia_mm) : Number(sp.topLugHoleDia_mm);
-    const rad = pt ? Number(pt.radius_mm) : 0;
-    const pe = padeyeEdge(pinCenter, thk || d.jawWidth * 0.8, rad || d.pinDia * 1.8, hole || d.pinDia + 2, 1);
-    parts.push(pe.svg, r.svg);
-    const sf = shackleSideLoadFactor(leg.beta || 0);
-    labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [bottomSh.name, `WLL ${fmt(bottomSh.wll_t * sf)} t · ${util(F, bottomSh.wll_t * sf)} · pin Ø${d.pinDia} mm`] });
-    ext(r.halfWidth + d.pinDia);
-    labels.push({
-      y: pinCenter + 40,
-      x: (thk || 30) * 3,
-      t: pt
-        ? [`Padeye ${pt.id} · SWL ${pt.swl_t ? fmt(pt.swl_t) + ' t' : '—'}`, `thk. ${thk || '?'} mm · hole Ø${hole || '?'} mm`]
-        : ['Spreader bar top lug'],
-    });
-    y = pe.bottom;
-  }
-  parts.push(sr.svg);
-  inline.push({ x: -sr.w / 2, y: sr.mid, t: `${fmt(leg.slingLength)} m` });
+  if (slingSvg) parts.push(slingSvg);
   return { parts, labels, inline, height: y, minX, maxX, top: fromHook ? -Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35) * 4.3 : -120 };
 }
 
 function legSignature(l) {
-  return [l.level, l.comps.sling?.id, l.slingLength?.toFixed(2), l.comps.bottomShackle?.id, l.comps.topConn?.id, l.cfg.mode].join('|');
+  return [l.level, ...l.parts.map((p) => `${p.kind}:${p.item?.id}:${p.links ?? (p.length_m != null ? Number(p.length_m).toFixed(2) : '')}:${p.hitch || ''}`)].join('|');
 }
 
 /** Full drawing: one column per distinct leg configuration. */
@@ -283,7 +321,7 @@ export function drawRiggingDetail(project, res, opts = {}) {
       body += label(cx + il.x * s - 6, oy + il.y * s + 4, il.t, { 'text-anchor': 'end', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
     // column title
     const names = c.legs.map((l) => l.key).join(', ');
-    const lvl = c.legs[0].level === 'top' ? 'Top slings' : c.legs[0].level === 'bottom' ? 'Bottom slings' : 'Legs';
+    const lvl = c.legs[0].level === 'top' ? 'Top legs' : c.legs[0].level === 'bottom' ? 'Bottom legs' : 'Legs';
     body += text(x, 22, `${lvl} ${names} (×${c.legs.length})`, { 'font-size': 12, 'font-weight': 700, fill: '#173a5e' });
     // callouts
     let lastY = -1e9;
@@ -300,8 +338,56 @@ export function drawRiggingDetail(project, res, opts = {}) {
     }
     x += colW + labelW + 24;
   }
-  body += text(20, Hpx - 10, 'Components to scale (sling body shortened). Catalogue data to be confirmed against the certificates of the equipment used.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened). Catalogue data to be confirmed against the certificates of the equipment used.', { 'font-size': 9.5, fill: '#5d6b7a' });
   return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Rigging detail' });
 }
 
 export { esc };
+
+/**
+ * Padeye + shackle fit, to scale: shackle front view (bow up, pin in the hole) with the padeye
+ * seen edge-on (main plate + cheek plates), and the padeye face view with hole and outer radius.
+ */
+export function drawPadeyeFit(point, shackle, opts = {}) {
+  const W = opts.width || 520, H = opts.height || 300;
+  const t = Number(point?.thk_mm) || 0, tc = Number(point?.cheekThk_mm) || 0;
+  const Dh = Number(point?.holeDia_mm) || 0, R = Number(point?.radius_mm) || 0, Hh = Number(point?.height_mm) || 0;
+  const total = t + 2 * tc;
+  if (!shackle?.dims) return svgDoc(W, H, text(16, 30, 'No shackle selected at this point yet', { fill: '#5d6b7a' }));
+  const d = shackle.dims;
+  // model extents (mm)
+  const span = Math.max(d.length || d.insideLength * 2, (R || d.pinDia * 1.8) * 2 + (Hh || R * 1.5));
+  const k = (H - 60) / (span * 1.25);
+  let body = '';
+  // ---- left: shackle front + padeye edge-on
+  const cx = W * 0.27, pinY = 40 + (d.insideLength + d.pinDia + d.bowDia) * k;
+  const sh = shackleFront(shackle, 0, -1);
+  const peR = R || d.pinDia * 1.8;
+  const pe = padeyeEdge(0, total || d.jawWidth * 0.8, peR, Dh || d.pinDia + 2, 1);
+  let cheeks = '';
+  if (tc > 0)
+    cheeks = rect(-total / 2, -peR * 0.9, tc, peR * 1.8, { fill: '#aab4be', stroke: STEEL_EDGE, 'stroke-width': 0.8, ...sw }) +
+      rect(total / 2 - tc, -peR * 0.9, tc, peR * 1.8, { fill: '#aab4be', stroke: STEEL_EDGE, 'stroke-width': 0.8, ...sw });
+  body += group(pe.svg + cheeks + sh.svg, { transform: `translate(${cx} ${pinY}) scale(${k})` });
+  const fitJaw = total > 0 ? total < d.jawWidth : true;
+  const jawCol = fitJaw ? '#1f8f4e' : '#c0392b';
+  const yJ = pinY + (peR + 20) * k + 10;
+  body += line(cx - (d.jawWidth / 2) * k, yJ, cx + (d.jawWidth / 2) * k, yJ, { stroke: '#3b6ea5', 'stroke-width': 1 });
+  body += text(cx, yJ + 13, `jaw ${d.jawWidth} mm · padeye ${total || '?'} mm`, { 'text-anchor': 'middle', 'font-size': 10.5, fill: jawCol, 'font-weight': 700 });
+  body += text(cx, 18, `${shackle.short || shackle.name}`, { 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
+  // ---- right: padeye face view with hole and pin
+  const fx = W * 0.72, fy = H * 0.5;
+  const base = Hh || peR * 1.4;
+  const face =
+    path(`M ${-peR} 0 A ${peR} ${peR} 0 0 1 ${peR} 0 L ${peR * 1.25} ${base} L ${-peR * 1.25} ${base} Z`, { fill: '#c6ced6', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw }) +
+    rect(-peR * 1.7, base, peR * 3.4, 12, { fill: '#dfe4ea', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw }) +
+    circle(0, 0, (Dh || d.pinDia + 2) / 2, { fill: '#fff', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw }) +
+    circle(0, -((Dh || d.pinDia) - d.pinDia) / 2, d.pinDia / 2, { fill: '#2e8b3a', stroke: '#1d5c25', 'stroke-width': 1, ...sw });
+  const k2 = Math.min((H - 80) / (peR + base + 20), (W * 0.4) / (peR * 3.6));
+  body += group(face, { transform: `translate(${fx} ${fy - ((base - peR) / 2) * k2}) scale(${k2})` });
+  const clr = Dh ? Dh - d.pinDia : null;
+  body += text(fx, 18, `Padeye ${point?.id || ''} — face view`, { 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
+  body += text(fx, H - 26, `hole Ø${Dh || '?'} · pin Ø${d.pinDia}${clr != null ? ` · clearance ${clr.toFixed(1)} mm` : ''}`, { 'text-anchor': 'middle', 'font-size': 10.5, fill: clr != null && clr < 0 ? '#c0392b' : '#1c2733', 'font-weight': 600 });
+  body += text(fx, H - 12, `R ${R || '?'} mm · hole centre ${Hh || '?'} mm above base · inside length ${d.insideLength} mm`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
+  return svgDoc(W, H, body, { title: 'Padeye / shackle fit' });
+}

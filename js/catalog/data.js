@@ -487,6 +487,90 @@ export const GLINKS = GL.map(([code, w, lbs, b, h]) => ({
   source: 'Slingmax G-Link — Unirope table; effective length estimated',
 }));
 
+
+// ---------------------------------------------------------------------------
+// CHAIN — DS Levage grade 80 (p.20) and grade 100 (p.24), EN 818-2 type.
+// a = chain Ø, b = pitch (inside length of a link), c = outside width, weight per metre.
+// Length of n links measured bearing to bearing = n × pitch.
+const CH80 = [
+  // d, wll, pitch, width, kg/m
+  [6, 1.12, 18, 22, 0.78], [7, 1.5, 21, 26, 1.14], [8, 2.0, 24, 30, 1.5], [10, 3.15, 30, 36, 2.27],
+  [13, 5.3, 39, 47, 3.74], [16, 8.0, 48, 58, 5.54], [20, 12.5, 60, 72, 8.94], [22, 15.0, 66, 79, 11.57],
+  [26, 21.2, 78, 93, 15.26], [32, 31.5, 96, 112, 22.61],
+];
+const CH100 = [
+  [6, 1.4, 18, 22, 0.96], [7, 1.9, 21, 25, 1.2], [8, 2.5, 24, 29, 1.57], [10, 4.0, 30, 36, 2.46],
+  [13, 6.7, 39, 47, 4.18], [16, 10.0, 48, 58, 6.28], [19, 14.0, 57, 69, 8.92], [22, 19.0, 66, 79, 11.88],
+  [26, 26.5, 78, 94, 16.18], [32, 40.0, 96, 115, 24.1],
+];
+const mkChain = (rows, grade, page) =>
+  rows.map(([d, wll, p, w, kgm]) => ({
+    id: `DS-CH${grade}-${d}`,
+    type: 'chain',
+    family: `CH-G${grade}`,
+    grade,
+    brand: 'DS Levage',
+    model: `Chain G${grade}`,
+    name: `Chain G${grade} Ø${d} mm`,
+    short: `Chain G${grade} Ø${d}`,
+    wll_t: wll,
+    mbl_factor: 4,
+    weight_kg_per_m: kgm,
+    dims: { dia: d, pitch: p, width: w },
+    source: `${DS} p.${page}`,
+  }));
+export const CHAINS = [...mkChain(CH80, 80, 20), ...mkChain(CH100, 100, 24)];
+export const CHAIN_FAMILIES = { 'CH-G80': 'Chain grade 80 (EN 818-2)', 'CH-G100': 'Chain grade 100' };
+
+// CONNECTING LINKS (chain coupling links, "maille d'accouplement") — DS Levage G80 p.22.
+// A overall length, B width, C bearing section. Effective length (bearing to bearing) is
+// ESTIMATED as A − 2·C. G100 (CW) links: WLL of the G100 chain, dimensions of the G80 link of the
+// same size (indicative — the G100 table of the catalogue is not legible enough).
+const CL80 = [
+  // chain Ø list, wll kg, A, B, C, kg per 100 pcs
+  [[6], 1120, 42, 15, 7.5, 8], [[7, 8], 2000, 60.5, 19.5, 9.5, 14.6], [[10], 3150, 68, 26, 12, 30],
+  [[13], 5300, 87, 30, 15, 63], [[16], 8000, 108.4, 35, 19.4, 115], [[20], 12500, 121.5, 41.8, 24, 210],
+  [[22], 15000, 141.5, 49.5, 26, 300], [[26], 21500, 158, 58, 31, 450], [[32], 31500, 205, 67.5, 38, 821],
+];
+const clDims = (A, B, C) => ({ length: A, width: B, barThk: C, effLength: Math.round((A - 2 * C) * 10) / 10 });
+export const CONNLINKS = [
+  ...CL80.map(([dias, wll, A, B, C, kg]) => ({
+    id: `DS-CL80-${dias.join('-')}`,
+    type: 'connlink',
+    family: 'CL-G80',
+    grade: 80,
+    brand: 'DS Levage',
+    model: 'Connecting link G80',
+    name: `Connecting link G80 for chain Ø${dias.join('/')} mm`,
+    short: `Conn. link G80 Ø${dias.join('/')}`,
+    chainDias: dias,
+    wll_t: wll / 1000,
+    mbl_factor: 4,
+    weight_kg: kg / 100,
+    dims: clDims(A, B, C),
+    source: `${DS} p.22 (effective length estimated A − 2C)`,
+  })),
+  ...CH100.map(([d, wll]) => {
+    const g = CL80.find((r) => r[0].includes(d)) || CL80.find((r) => r[0][0] >= d) || CL80[CL80.length - 1];
+    return {
+      id: `DS-CL100-${d}`,
+      type: 'connlink',
+      family: 'CL-G100',
+      grade: 100,
+      brand: 'DS Levage',
+      model: 'Connecting link G100 (CW)',
+      name: `Connecting link G100 for chain Ø${d} mm`,
+      short: `Conn. link G100 Ø${d}`,
+      chainDias: [d],
+      wll_t: wll,
+      mbl_factor: 4,
+      weight_kg: g[5] / 100,
+      dims: clDims(g[2], g[3], g[4]),
+      source: `${DS} p.26 (WLL); dimensions indicative from the G80 link — check the certificate`,
+    };
+  }),
+];
+
 export const CATALOG_TYPES = {
   shackle: 'Shackle',
   masterlink: 'Master link',
@@ -494,8 +578,10 @@ export const CATALOG_TYPES = {
   wiresling: 'Wire rope sling',
   grommet: 'Grommet',
   webbing: 'Webbing sling',
-  glink: 'G-Link',
+  glink: 'G-Link (Slingmax)',
+  chain: 'Chain',
+  connlink: 'Connecting link',
   other: 'Other',
 };
 
-export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS];
+export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS];

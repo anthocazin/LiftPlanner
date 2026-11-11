@@ -21,6 +21,11 @@ export function drawCapacityChart(project, res, opts = {}) {
   for (let c = 0; c <= cMax; c += stepC) b += line(m.l, Y(c), W - m.r, Y(c), { stroke: '#eef1f4' }) + text(m.l - 6, Y(c) + 3, String(c), { 'font-size': 9, 'text-anchor': 'end', fill: '#5d6b7a' });
   const stepR = rMax > 60 ? 10 : 5;
   for (let r = 0; r <= rMax; r += stepR) b += line(X(r), m.t, X(r), H - m.b, { stroke: '#eef1f4' }) + text(X(r), H - m.b + 12, String(r), { 'font-size': 9, 'text-anchor': 'middle', fill: '#5d6b7a' });
+  // outside the chart: below the minimum radius and beyond the maximum radius
+  b += `<rect x="${m.l}" y="${m.t}" width="${Math.max(0, X(rows[0][0]) - m.l)}" height="${H - m.t - m.b}" fill="#c0392b" opacity=".07"/>`;
+  b += `<rect x="${X(rows[rows.length - 1][0])}" y="${m.t}" width="${Math.max(0, W - m.r - X(rows[rows.length - 1][0]))}" height="${H - m.t - m.b}" fill="#c0392b" opacity=".07"/>`;
+  b += text(X(rows[0][0]) + 3, H - m.b - 6, `R min ${rows[0][0]} m`, { 'font-size': 9, fill: '#c0392b' });
+  b += text(X(rows[rows.length - 1][0]) - 3, H - m.b - 6, `R max ${rows[rows.length - 1][0]} m`, { 'font-size': 9, fill: '#c0392b', 'text-anchor': 'end' });
   b += line(m.l, H - m.b, W - m.r, H - m.b, { stroke: '#333' }) + line(m.l, m.t, m.l, H - m.b, { stroke: '#333' });
   // conservative step line
   const stair = [];

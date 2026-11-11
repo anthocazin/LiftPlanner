@@ -13,8 +13,8 @@
 | W | net weight × WCF (weight contingency factor) |
 | W_r | rigging weight (sum of the components, slings per metre of EWL, spreader bar) |
 | SHL | W + W_r (static hook load, used for the DAF) |
-| Crane load | SHL + hook block (when "deduct hook block" is ticked) |
-| DAF | DNV-ST-N001 in-air table, function of SHL and environment, or user value |
+| Crane load | SHL, checked against the load chart (SWL versus radius) |
+| DAF | DNV-ST-N001 in-air table, function of SHL and environment, or user value; can be switched off (DAF = 1) |
 | SKL | 1.0 for 1 to 3 legs; 1.25 from 4 legs (statically indeterminate); or user value |
 
 Default DAF (DNV-ST-N001, lifts in air):
@@ -34,12 +34,15 @@ The calculation iterates (≤ 5 passes) because the rigging weight depends on th
 ## 3. Geometry
 
 - Freely suspended load: the hook H is vertically above the COG.
-- **Design mode**: hook height such that the most spread leg makes the target angle with the horizontal (or a fixed hook height). This gives the required effective length of each leg, then the sling length: `EWL = L_eff − Σ connectors`.
+- **Leg assembly**: an ordered list of parts from the lift point to the hook (e.g. shackle → connecting link → chain → connecting link → shackle). Exactly one part is the length element (sling or chain).
+- **Design mode**: hook height such that the most spread leg makes the **target angle to the vertical** (default 30°), or a fixed hook height. This gives the required bearing-to-bearing length of each leg `L_eff = |hook − lift point|`, then the length element: `L = L_eff − Σ connectors − head (+ choke wrap)`.
 - Contribution of the components to the effective length:
   - shackle, pin in a hole (padeye, lug): `f + pin Ø / 2` (hole centre → inside of the bow);
   - shackle, pin bearing on a link: `f + pin Ø`;
   - master link / sub-link: inside length;
-  - G-Link: effective length.
+  - connecting link (chain): effective length, estimated `A − 2·C` from the catalogue dimensions; G-Link: effective length;
+  - chain: `n × pitch` bearing to bearing (n links); overall length `n × pitch + 2 d`. n is rounded up to the next link (nearest link in "exact" mode);
+  - sling: EWL rounded to a standard length (matched set, nearest, next up) or exact.
 - **Actual geometry**: with the selected lengths each leg gives a hook height; the mean is used for angles and forces.
 - **Tilt**: rotation of the rigid body about its COG such that the lengths are respected (exact for 1 to 3 legs, least squares above); a sling longer than needed is reported as slack.
 
@@ -58,20 +61,20 @@ The calculation iterates (≤ 5 passes) because the rigging weight depends on th
 
 | Item | Criterion |
 |---|---|
-| Sling | F ≤ WLL × hitch factor (straight 1.0; choked 0.8) |
-| Bottom shackle | F ≤ WLL × side-load factor (Green Pin curve: 0° 1.0 / 45° 0.70 / 90° 0.50, interpolated) |
-| Top connection | F ≤ WLL |
-| Padeye | F ≤ SWL; warning if out-of-plane load > 5° |
-| Compatibility | pin ≤ hole; clearance ≤ max(3 mm; 4 % of pin Ø); thickness < jaw width and ≥ 0.75 × jaw width; padeye radius + sling ≤ inside length; sling width / bow width (info); D/d of wire rope slings and grommets over the bow ≥ 1 (warning) |
+| Sling / chain | F ≤ WLL × hitch factor (straight 1.0; choked 0.8) |
+| Shackle on the lift point | F ≤ WLL × side-load factor (Green Pin curve: 0° 1.0 / 45° 0.70 / 90° 0.50, interpolated) |
+| Other parts (shackles, connecting links, G-Links) | F ≤ WLL; connecting link of the same size and grade as the chain |
+| EN mode factor | load ≤ K × WLL of one leg: K = 1 (1 leg), 1.4 / 1.0 (2 legs, β ≤ 45° / ≤ 60°), 2.1 / 1.5 (3–4 legs); β > 60° not allowed (EN 13414-1, EN 818-4, EN 1492). Slings and chains are also sized to satisfy it |
+| Padeye (if the point has one) | F ≤ SWL; warning if out-of-plane load > 5° |
+| Compatibility | pin ≤ hole; clearance ≤ max(3 mm; 4 % of pin Ø); total padeye thickness (main + 2 cheeks) < jaw width and ≥ 0.75 × jaw width; material above the hole (R − hole/2) + sling ≤ inside length; sling width / bow width (info); D/d of wire rope slings and grommets over the bow ≥ 1 (warning) |
 | Master link, sub-links, top shackle | vertical load × DAF × f_other ≤ WLL; sling congestion ≤ inside width |
-| Angles | angle to horizontal ≥ 45° (fail), warning below 55° |
+| Angles | every leg: angle to the vertical ≤ 30° (target, warning above) and ≤ 45° (maximum, fail above) — both editable |
 | Tilt | warning above 2°, fail above 5° |
 | Stability | 2 points or spreader bar: COG below the lift points; positive reactions |
 | Spreader bar | vertical load × DAF ≤ WLL; top sling angle ≥ minimum angle from the certificate |
-| Crane | crane load ≤ capacity at the radius (conservative reading by default); above the critical threshold → warning; boom angle within limits |
-| Height | required hook height = elevation + (hook → underside of load) ≤ boom tip − minimum distance |
+| Crane | crane load ≤ SWL at the radius (conservative reading by default); radius within the chart (min / max); above the critical threshold → warning |
 
-All thresholds can be changed (Settings tab) and are saved with the project.
+All thresholds can be changed (Settings tab; padeye tolerances on the Load page) and are saved with the project.
 
 ## 6. Assumptions and limits
 

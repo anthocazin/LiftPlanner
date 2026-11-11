@@ -23,26 +23,9 @@ export function chartCapacity(chart, R, col = 0, mode = 'step') {
   return { capacity: rows[iHi][1], status: 'ok', rMin, rMax, rUsed: rows[iHi][0] };
 }
 
-/**
- * Simplified lattice / telescopic boom geometry.
- * crane.boom = { length, pivotHeight, pivotOffset } (m) — radius measured from the slew axis.
- * Returns the boom angle (° to horizontal) and the boom tip height.
- */
-export function boomGeometry(crane, R) {
-  const L = Number(crane?.boom?.length) || 0;
-  const hp = Number(crane?.boom?.pivotHeight) || 0;
-  const a = Number(crane?.boom?.pivotOffset) || 0;
-  const dx = R - a;
-  if (!(L > 0)) return { valid: false, reason: 'Boom length not entered' };
-  if (Math.abs(dx) > L) return { valid: false, reason: 'Radius beyond the geometric reach of the boom' };
-  const angle = (Math.acos(dx / L) * 180) / Math.PI;
-  const tipHeight = hp + Math.sqrt(L * L - dx * dx);
-  return { valid: true, angle, tipHeight, pivot: { r: a, z: hp }, tip: { r: R, z: tipHeight } };
-}
-
-/** Maximum hook height (hook bearing point) under the boom tip. */
-export function maxHookHeight(crane, R) {
-  const g = boomGeometry(crane, R);
-  if (!g.valid) return null;
-  return g.tipHeight - (Number(crane?.minTipToHook) || 0);
+/** Minimum / maximum radius of the load chart (m). */
+export function chartRange(chart, col = 0) {
+  const rows = (chart?.rows || []).map((r) => [Number(r[0]), Number(r[col + 1])]).filter((r) => isFinite(r[0]) && r[1] > 0).sort((a, b) => a[0] - b[0]);
+  if (!rows.length) return null;
+  return { rMin: rows[0][0], rMax: rows[rows.length - 1][0], capMax: Math.max(...rows.map((r) => r[1])) };
 }

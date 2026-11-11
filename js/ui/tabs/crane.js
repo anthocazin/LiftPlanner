@@ -16,29 +16,15 @@ export function render(root) {
   const C = 'crane.';
   const ident = panel(
     'Crane',
-    el(
-      'div',
-      { class: 'fields' },
-      field({ label: 'Crane / configuration', path: `${C}name`, type: 'text', cls: 'span2' }),
+    el('div', { class: 'fields' },
+      field({ label: 'Crane', path: `${C}name`, type: 'text', cls: 'span2' }),
+      field({ label: 'Configuration / mode', path: `${C}configuration`, type: 'text', cls: 'span2', hint: 'Boom, counterweight, offshore / harbour mode…' }),
       field({ label: 'Type', path: `${C}type`, type: 'select', options: TYPES }),
-      field({ label: 'Hook block', path: `${C}hookBlock_t`, unit: 't', hint: 'Hook block + rope weight if not included in the chart' }),
-      field({ label: 'Hook SWL', path: `${C}hookSWL_t`, unit: 't' }),
-      field({ label: 'Hook seat width', path: `${C}hookSeatWidth_mm`, unit: 'mm', hint: 'For slings placed directly on the hook' }),
       field({ label: 'Critical lift threshold', path: `${C}utilLimit`, type: 'percent', hint: 'Utilisation above which the lift is critical' }),
-      field({ label: 'Working radius (without storyboard)', path: `${C}radius_m`, unit: 'm' }),
-      field({ label: 'Deduct hook block from capacity', path: `${C}deductHookBlock`, type: 'checkbox' }),
+      field({ label: 'Working radius (if no sequence)', path: `${C}radius_m`, unit: 'm', hint: 'Otherwise the radii of the sequence steps are checked' }),
     ),
-    el('h3', {}, 'Boom geometry (hook heights and drawings)'),
-    el(
-      'div',
-      { class: 'fields' },
-      field({ label: 'Boom length', path: `${C}boom.length`, unit: 'm' }),
-      field({ label: 'Boom foot height', path: `${C}boom.pivotHeight`, unit: 'm', hint: 'Above the reference ground / deck' }),
-      field({ label: 'Boom foot offset from slew axis', path: `${C}boom.pivotOffset`, unit: 'm' }),
-      field({ label: 'Min boom angle', path: `${C}boom.minAngle_deg`, unit: '°' }),
-      field({ label: 'Max boom angle', path: `${C}boom.maxAngle_deg`, unit: '°' }),
-      field({ label: 'Min boom tip → hook distance', path: `${C}minTipToHook`, unit: 'm', hint: 'Anti-two-block limit' }),
-    ),
+    el('div', { id: 'chart-range', class: 'cards', style: { marginTop: '10px' } }),
+    el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Only the load chart is used: SWL as a function of the radius, between its minimum and maximum radius. Enter the chart of the configuration and mode used (the hook block and rigging deductions are as stated by the crane manual).'),
   );
 
   const chartP = panel(
@@ -147,6 +133,13 @@ function pasteChart() {
 }
 
 function update(res) {
+  const cr = document.getElementById('chart-range');
+  if (cr) {
+    cr.innerHTML = '';
+    const r = res?.chartRange;
+    const c = (k, v) => el('div', { class: 'card' }, el('div', { class: 'k' }, k), el('div', { class: 'v' }, v));
+    cr.append(c('Min radius', r ? `${r.rMin} m` : '—'), c('Max radius', r ? `${r.rMax} m` : '—'), c('Max SWL', r ? `${r.capMax} t` : '—'), c('Hook load', res?.shlCrane ? `${res.shlCrane.toFixed(2)} t` : '—'));
+  }
   const box = document.getElementById('cap-chart');
   if (!box) return;
   box.innerHTML = '';

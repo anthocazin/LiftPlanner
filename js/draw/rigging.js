@@ -148,14 +148,14 @@ export function drawRiggingView(project, res, view = 'iso', opts = {}) {
   for (const leg of rig.legs) {
     const a = pp(leg.bottom);
     const t = pp(convergeTop(leg));
-    const col = leg.comps.sling?.colorHex || '#2a5db0';
+    const col = leg.lengthKind === 'chain' ? '#5d6b7a' : leg.comps.sling?.colorHex || '#2a5db0';
     body += line(a[0], a[1], t[0], t[1], { stroke: col, 'stroke-width': 4.2, 'stroke-linecap': 'round', opacity: 0.92 });
     body += line(a[0], a[1], t[0], t[1], { stroke: '#fff', 'stroke-width': 0.8, 'stroke-dasharray': '6 5', opacity: 0.7 });
     body += shackleGlyph(a, [t[0] - a[0], t[1] - a[1]]);
     if (leg.point) body += circle(a[0], a[1], 2.6, { fill: '#111' });
     if (opts.labels !== false) {
       const m = [a[0] + (t[0] - a[0]) * 0.32, a[1] + (t[1] - a[1]) * 0.32];
-      const txt = opts.forces !== false ? `${leg.key} · ${fmt(leg.slingLength)} m · ${leg.angleH.toFixed(0)}° · ${fmt(leg.Fdesign)} t` : leg.key;
+      const txt = opts.forces !== false ? `${leg.key} · ${fmt(leg.Leff)} m · ${leg.angleV.toFixed(0)}°V · ${fmt(leg.Fdesign)} t` : leg.key;
       const pos = place(m[0] + 6, m[1], txt.length * 5.4, 12);
       if (pos) body += label(pos[0], pos[1], txt, { 'font-size': 10, 'font-weight': 600, fill: '#1c2733' });
     }

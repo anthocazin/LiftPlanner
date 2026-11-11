@@ -51,9 +51,10 @@ export const SKL_REFERENCE =
 
 /** Gathers the effective factors used by the calculation. */
 export function resolveFactors(factors = {}, env, shl_t, nLiftPoints) {
-  const daf = factors.dafMode === 'manual' && factors.dafManual > 0 ? factors.dafManual : dafDNV(shl_t, env);
+  const dafOn = factors.applyDAF !== false;
+  const daf = !dafOn ? 1 : factors.dafMode === 'manual' && factors.dafManual > 0 ? factors.dafManual : dafDNV(shl_t, env);
   const skl = factors.sklMode === 'manual' && factors.sklManual > 0 ? factors.sklManual : defaultSKL(nLiftPoints);
   const cog = factors.cogFactor > 0 ? factors.cogFactor : 1.0;
   const extra = factors.extraFactor > 0 ? factors.extraFactor : 1.0;
-  return { daf, skl, cog, extra, dafAuto: factors.dafMode !== 'manual', sklAuto: factors.sklMode !== 'manual' };
+  return { daf, skl, cog, extra, dafOn, dafAuto: dafOn && factors.dafMode !== 'manual', sklAuto: factors.sklMode !== 'manual' };
 }
