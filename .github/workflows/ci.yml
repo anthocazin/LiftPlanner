@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests du moteur de calcul
+        run: npm test
+      - name: Construction de la version autonome
+        run: npm run build
+      - name: Vérifie que dist/ est à jour
+        run: git diff --exit-code -- dist/ || (echo "::warning::dist/LiftPlanner.html n'est pas à jour — lancez npm run build" && exit 0)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiftPlanner-standalone
+          path: dist/LiftPlanner.html

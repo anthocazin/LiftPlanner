@@ -1,0 +1,13 @@
+{
+  "name": "liftplanner",
+  "version": "0.1.0",
+  "description": "Outil de lift plan offshore / onshore : calcul de gréement, vérifications, catalogue matériel, schémas et storyboard",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node tools/build-standalone.mjs",
+    "serve": "python3 -m http.server 8080"
+  },
+  "license": "UNLICENSED"
+}
