@@ -1,6 +1,7 @@
 // Storyboard: site plan view and radial section (elevation) of crane / load for each step.
 import { svgDoc, fitter, line, poly, circle, text, label, path, dim, rect } from './svg.js';
 import { fmt } from './fmt.js';
+import { shapesSvg } from './shapes.js';
 
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -51,6 +52,7 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
   const ext = Math.max(rMax + Math.max(fp.L, fp.W), 6);
   pts.push([cr.x - ext, -(cr.y - ext)], [cr.x + ext, -(cr.y + ext)]);
   (sb.obstacles || []).forEach((o) => rectCorners(o.x, o.y, o.sx, o.sy, o.rot_deg).forEach(([x, y]) => pts.push([x, -y])));
+  (sb.shapes || []).forEach((q) => pts.push([q.x, -q.y]));
   const safe = typeof sb.map?.image === 'string' && /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i.test(sb.map.image);
   const map = safe && sb.map.s > 0 ? sb.map : null;
   const f = fitter(pts, W, H, 26, { top: 34 });
@@ -73,6 +75,11 @@ export function drawStoryPlan(project, res, stepIndex, opts = {}) {
     body += poly(c, { fill: o.color || '#9aa5b1', 'fill-opacity': 0.45, stroke: '#4a5562', 'stroke-width': 1 });
     const m = P(o.x, o.y);
     body += label(m[0], m[1] + 3, `${o.name} (h ${fmt(o.h, 1)} m)`, { 'text-anchor': 'middle', 'font-size': 9.5 });
+  }
+  // annotation shapes (site coords → drawing)
+  if ((sb.shapes || []).length) {
+    const o = P(0, 0);
+    body += `<g transform="translate(${o[0].toFixed(2)} ${o[1].toFixed(2)}) scale(${f.scale.toFixed(5)})">${shapesSvg(sb.shapes)}</g>`;
   }
   // crane
   const c0 = P(cr.x, cr.y);

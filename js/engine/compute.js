@@ -2,7 +2,7 @@
 import { solveRigging } from './rigging.js';
 import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks.js';
 import { isLengthPart } from './rigging.js';
-import { setUserCatalog, itemWeight_t } from '../catalog/index.js';
+import { setUserCatalog, itemWeight_t, niceName } from '../catalog/index.js';
 import { chartRange } from './crane.js';
 
 export function buildBOM(rig, project) {
@@ -21,7 +21,8 @@ export function buildBOM(rig, project) {
       lines.set(key, {
         key,
         item,
-        name: item.name + (opts.links ? ` — ${opts.links} links (${len.toFixed(3)} m)` : len != null ? ` — EWL ${len.toFixed(2)} m` : ''),
+        name: niceName(item),
+        fullName: item.name,
         ewl_m: len,
         links: opts.links || null,
         config: opts.config || '',
@@ -47,7 +48,7 @@ export function buildBOM(rig, project) {
   if (h) {
     add(h.masterlink, 1, { where: 'Head', config: h.integrated ? 'on crane hook, with sub-links' : 'on crane hook' });
     if (h.useSub && h.subLink && !h.integrated)
-      add({ ...h.subLink, id: `${h.subLink.id}#sub`, name: `Sub-link — ${h.subLink.name}` }, h.pairs.length, { where: 'Head', config: 'under the master link' });
+      add({ ...h.subLink, id: `${h.subLink.id}#sub`, integrated: true }, h.pairs.length, { where: 'Head', config: 'under the master link' });
     add(h.topShackle, 1, { where: 'Head', config: 'crane hook ↔ master link' });
   }
   const out = [...lines.values()];

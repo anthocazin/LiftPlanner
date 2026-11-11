@@ -1,5 +1,5 @@
 // Checks: each check yields a row { cat, item, label, value, limit, unit, util, status, note }.
-import { shackleSideLoadFactor, shackleCompatibility, bendingRatio, enModeFactor } from '../catalog/index.js';
+import { shackleSideLoadFactor, shackleCompatibility, bendingRatio, enModeFactor, niceName } from '../catalog/index.js';
 import { DEFAULT_SHACKLE_RANGES } from '../catalog/data.js';
 import { chartCapacity } from './crane.js';
 import { hasPadeye, padeyeCtx, isLengthPart, PART_KINDS } from './rigging.js';
@@ -60,8 +60,8 @@ export function riggingChecks(rig, project, rules) {
       if (isLengthPart(p)) {
         const wll = it.wll_t * (p.factor || 1);
         const what = p.kind === 'chain'
-          ? `${it.name} — ${p.links} links = ${(p.length_m || 0).toFixed(3)} m`
-          : `${it.name} — EWL ${(p.length_m || 0).toFixed(2)} m`;
+          ? `${niceName(it)} — ${p.links} links = ${(p.length_m || 0).toFixed(3)} m`
+          : `${niceName(it)} — EWL ${(p.length_m || 0).toFixed(2)} m`;
         push(out, {
           cat: p.kind === 'chain' ? 'Chains' : 'Slings', item: name, label: `${what}${p.hitch === 'choke' ? ' (choked ×0.8)' : ''}`,
           value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn),
@@ -73,13 +73,13 @@ export function riggingChecks(rig, project, rules) {
       const where = i === 0 ? (leg.level === 'top' ? 'at spreader lug' : 'at lift point') : i === leg.parts.length - 1 ? (leg.level === 'bottom' ? 'at spreader lug' : 'at hook side') : 'in line';
       const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : 'G-Link';
       push(out, {
-        cat, item: name, label: `${it.name} (${where})${sf < 1 ? ` — side load ${leg.beta.toFixed(0)}° → ×${sf.toFixed(2)}` : ''}`,
+        cat, item: name, label: `${niceName(it)} (${where})${sf < 1 ? ` — side load ${leg.beta.toFixed(0)}° → ×${sf.toFixed(2)}` : ''}`,
         value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn),
       });
       if (p.kind === 'shackle' && it.wideBody && sf < 1)
         push(out, { cat: 'Shackles', item: name, label: 'Side load on a Wide Body shackle: the Green Pin reduction curve does not apply — consult the manufacturer', status: 'warn', unit: '' });
       if (p.kind === 'connlink' && len?.kind === 'chain' && len.item && it.chainDias && !it.chainDias.includes(len.item.dims?.dia))
-        push(out, { cat: 'Compatibility', item: name, label: `${it.short || it.name} does not match chain Ø${len.item.dims?.dia} mm`, status: 'warn', unit: '' });
+        push(out, { cat: 'Compatibility', item: name, label: `${niceName(it)} does not match chain Ø${len.item.dims?.dia} mm`, status: 'warn', unit: '' });
       if (p.kind === 'connlink' && len?.kind === 'chain' && len.item && (it.grade || 80) < (len.item.grade || 80))
         push(out, { cat: 'Compatibility', item: name, label: `Grade ${it.grade} connecting link on a grade ${len.item.grade} chain`, status: 'warn', unit: '' });
       // padeye / lug fit of the shackle pinned in a hole
@@ -179,7 +179,7 @@ export function riggingChecks(rig, project, rules) {
     if (!h.masterlink) push(out, { cat: 'Master link', item: 'Head', label: 'No suitable master link', status: 'fail' });
     else {
       push(out, {
-        cat: 'Master link', item: 'Head', label: h.masterlink.name, value: Fv, limit: h.masterlink.wll_t,
+        cat: 'Master link', item: 'Head', label: niceName(h.masterlink), value: Fv, limit: h.masterlink.wll_t,
         util: Fv / h.masterlink.wll_t, status: utilStatus(Fv / h.masterlink.wll_t, rules.utilWarn),
       });
       const iw = h.masterlink.dims?.insideWidth || 0;
@@ -193,7 +193,7 @@ export function riggingChecks(rig, project, rules) {
       if (!h.integrated) {
         const pairLoad = Math.max(...h.pairs.map((p) => p.reduce((s, l) => s + l.Fdesign * Math.cos((l.angleV * Math.PI) / 180), 0)));
         push(out, {
-          cat: 'Master link', item: 'Sub-links', label: `${h.subLink.name} (×${h.pairs.length})`, value: pairLoad, limit: h.subLink.wll_t,
+          cat: 'Master link', item: 'Sub-links', label: `${niceName(h.subLink)} (×${h.pairs.length})`, value: pairLoad, limit: h.subLink.wll_t,
           util: pairLoad / h.subLink.wll_t, status: utilStatus(pairLoad / h.subLink.wll_t, rules.utilWarn),
         });
       }
@@ -206,7 +206,7 @@ export function riggingChecks(rig, project, rules) {
     }
     if (h.topShackle)
       push(out, {
-        cat: 'Shackles', item: 'Head', label: `${h.topShackle.name} (hook ↔ master link)`, value: Fv, limit: h.topShackle.wll_t,
+        cat: 'Shackles', item: 'Head', label: `${niceName(h.topShackle)} (hook ↔ master link)`, value: Fv, limit: h.topShackle.wll_t,
         util: Fv / h.topShackle.wll_t, status: utilStatus(Fv / h.topShackle.wll_t, rules.utilWarn),
       });
   }

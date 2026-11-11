@@ -9,6 +9,7 @@ import { drawRiggingDetail, drawPadeyeFit } from '../../draw/detail.js';
 import { drawStoryPlan, drawStoryElevation } from '../../draw/story.js';
 import { drawCapacityChart } from '../../draw/chart.js';
 import { staticViewSvg, safeImg } from '../loadview.js';
+import { draw3d } from '../../draw/view3d.js';
 import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { worstStatus } from '../../engine/compute.js';
@@ -148,7 +149,7 @@ export function buildReport() {
     el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration', 'Cert. no.'].map((h) => el('td', {}, h))),
     res.bom.map((b) => el('tr', {},
       el('td', { class: 'c' }, String(b.qty)),
-      el('td', {}, b.item?.name || b.name),
+      el('td', {}, b.name),
       el('td', { class: 'c' }, b.ewl_m != null ? (b.links ? `${b.links} links (${fmt(b.ewl_m, 3)} m)` : `${fmt(b.ewl_m)} m`) : 'n/a'),
       el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
       el('td', {}, b.config || ''),
@@ -174,7 +175,7 @@ export function buildReport() {
     hasImg ? fig(staticViewSvg('xy', p, res, { width: 520, height: 330, title: 'Plan XY — rigging on the drawing' })) : fig(drawRiggingView(p, res, 'plan', { width: 520, height: 330 })),
     hasImg ? fig(staticViewSvg('xz', p, res, { width: 520, height: 330, title: 'Elevation XZ — rigging on the drawing' })) : fig(drawRiggingView(p, res, 'front', { width: 520, height: 330 })),
   ));
-  add(el('div', { class: 'figs avoid-break' }, fig(drawRiggingView(p, res, 'iso', { width: 520, height: 380 })), fig(drawCapacityChart(p, res, { width: 520, height: 300 }))));
+  add(el('div', { class: 'figs avoid-break' }, fig(draw3d(p, res, { width: 520, height: 380, title: 'Rigging — 3D view' })), fig(drawCapacityChart(p, res, { width: 520, height: 300 }))));
   add(el('div', { class: 'avoid-break' }, fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
   if (opts.sketches) {
     let lastCrane = null;

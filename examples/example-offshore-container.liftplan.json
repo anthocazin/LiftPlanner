@@ -87,7 +87,8 @@
     "padeyeRules": {
       "maxHoleClearance_mm": 3,
       "maxHoleClearance_pct": 4,
-      "minThicknessRatio": 0.75
+      "minThicknessRatio": 0.75,
+      "maxHoleRatio": 1.06
     },
     "views": {
       "xy": null,

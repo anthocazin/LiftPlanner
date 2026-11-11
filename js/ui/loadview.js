@@ -123,7 +123,9 @@ function viewContent(key, load, rig, vb, u, editable) {
     // COG
     const c = load.cog_mm || {};
     const ca = +c[A] || 0, cb = +c[B] || 0, r = 9 * u;
-    s += `<g data-drag="cog" class="${opts.editable ? 'grab' : ''}" transform="translate(${n(ca)} ${n(-cb)})">
+    const pe = lvState.mode === 'pick' ? ' pointer-events="none"' : '';
+    s += `<g data-drag="cog"${pe} class="${opts.editable ? 'grab' : ''}" transform="translate(${n(ca)} ${n(-cb)})">
+      ${lvState.selected === 'COG' ? `<circle r="${n(r + 5 * u)}" fill="none" stroke="#e8822a" stroke-width="${n(3 * u)}"/>` : ''}
       <circle r="${n(r)}" fill="#fff" stroke="#111" stroke-width="${n(1.4 * u)}"/>
       <path d="M0 0 L${n(r)} 0 A${n(r)} ${n(r)} 0 0 1 0 ${n(r)} Z M0 0 L${n(-r)} 0 A${n(r)} ${n(r)} 0 0 1 0 ${n(-r)} Z" fill="#111"/>
       <text x="${n(r + 4 * u)}" y="${n(-r)}" font-size="${n(11 * u)}" font-weight="800" fill="#111" paint-order="stroke" stroke="#fff" stroke-width="${n(3 * u)}">COG</text></g>`;
@@ -141,7 +143,7 @@ function viewContent(key, load, rig, vb, u, editable) {
       const sel = lvState.selected === p.id;
       const off = p.used === false;
       const col = off ? '#9aa5b1' : p.padeye === false ? '#1f6fb2' : '#c0392b';
-      s += `<g data-drag="pt" data-i="${i}" class="${opts.editable ? 'grab' : ''}" transform="translate(${n(a)} ${n(-b)})">
+      s += `<g data-drag="pt" data-i="${i}"${pe} class="${opts.editable ? 'grab' : ''}" transform="translate(${n(a)} ${n(-b)})">
         <circle r="${n((sel ? 9 : 7) * u)}" fill="${col}" fill-opacity="${off ? 0.4 : 0.9}" stroke="${sel ? '#e8822a' : '#fff'}" stroke-width="${n((sel ? 3 : 1.5) * u)}"/>
         <line x1="${n(-12 * u)}" y1="0" x2="${n(12 * u)}" y2="0" stroke="${col}" stroke-width="${n(u)}"/><line x1="0" y1="${n(-12 * u)}" x2="0" y2="${n(12 * u)}" stroke="${col}" stroke-width="${n(u)}"/></g>`;
     });
@@ -230,9 +232,11 @@ export function loadView(key, opts = {}) {
       const p = load.liftPoints[drag.i];
       p[A] = sa;
       p[B] = sbv;
+      if (p.picks) p.picks[key] = [sa, sbv];
     } else if (drag.kind === 'cog') {
       load.cog_mm[A] = sa;
       load.cog_mm[B] = sbv;
+      if (load.cogPicks) load.cogPicks[key] = [sa, sbv];
       load.cogBasis = load.cogBasis || 'estimated';
     }
     drag.moved = true;
@@ -241,6 +245,10 @@ export function loadView(key, opts = {}) {
   svg.addEventListener('pointerdown', (ev) => {
     const g = ev.target.closest('[data-drag]');
     const [a, b] = toModel(ev);
+    if (opts.editable && lvState.mode === 'pick' && !g) {
+      opts.onPick?.(key, snap(a), snap(b));
+      return;
+    }
     if (opts.editable && lvState.mode === 'add' && !g) {
       opts.onAdd?.(key, snap(a), snap(b));
       return;

@@ -163,7 +163,7 @@ const COG_LABEL_RE = /^\s*(c\.?\s?o\.?\s?g\.?|cog|cdg|c\.d\.g\.?|g)\s*$/i;
  * cogLabels: [{page,u,v}] } — cogLabels are isolated "COG" labels (position of the COG symbol).
  */
 export async function scanText(src, maxPages = 20) {
-  const weights = [], cogs = [], cogLabels = [];
+  const weights = [], cogs = [], cogLabels = [], scales = [];
   for (let p = 1; p <= Math.min(src.pages, maxPages); p++) {
     const items = await src.text(p);
     for (const it of items) if (COG_LABEL_RE.test(it.str) && !/^\s*g\s*$/i.test(it.str)) cogLabels.push({ page: p, u: it.u, v: it.v });
@@ -172,8 +172,11 @@ export async function scanText(src, maxPages = 20) {
       if (w != null) weights.push({ page: p, text: l.text.slice(0, 140), value: w, score: WEIGHT_RE.test(l.text) ? 2 : 1 });
       const c = parseCog(l.text);
       if (c) cogs.push({ page: p, text: l.text.slice(0, 140), value: c });
+      const sc = l.text.match(/(?:scale|[ée]chelle|ech\.?)\s*[:=]?\s*1\s*[:/]\s*(\d{1,4})\b/i) || l.text.match(/(?:^|\s)1\s*:\s*(\d{1,4})(?:\s|$)/);
+      if (sc && Number(sc[1]) > 0) scales.push({ page: p, text: l.text.slice(0, 100), value: Number(sc[1]), strong: /scale|chelle|ech/i.test(l.text) });
     }
   }
   weights.sort((a, b) => b.score - a.score);
-  return { weights: weights.slice(0, 30), cogs: cogs.slice(0, 10), cogLabels };
+  scales.sort((a, b) => Number(b.strong) - Number(a.strong));
+  return { weights: weights.slice(0, 30), cogs: cogs.slice(0, 10), cogLabels, scales: scales.slice(0, 5) };
 }

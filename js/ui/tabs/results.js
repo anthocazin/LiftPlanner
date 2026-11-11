@@ -1,6 +1,7 @@
 import { app } from '../app.js';
 import { el, panel, fmt, badge, utilBar, download, field } from '../dom.js';
 import { DAF_REFERENCE, SKL_REFERENCE, ENVIRONMENTS } from '../../engine/factors.js';
+import { niceName } from '../../catalog/index.js';
 
 let filter = 'all';
 
@@ -73,7 +74,7 @@ export function checksTable(checks, { compact = false } = {}) {
   return el('table', { class: `data ${compact ? 'compact' : ''}` }, el('thead', {}, el('tr', {}, ['Status', 'Item', 'Check', 'Value', 'Limit', 'Utilisation'].map((h) => el('th', {}, h)))), tb);
 }
 
-const nm = (i) => (i ? i.short || i.name : '—');
+const nm = (i) => niceName(i);
 
 export function legsTable(res) {
   const rig = res.rig;
@@ -115,7 +116,7 @@ export function bomTable(res) {
           {},
           el('td', {}, b.no),
           el('td', { class: 'num' }, b.qty),
-          el('td', {}, b.name),
+          el('td', {}, b.name, b.ewl_m != null ? ` — ${b.links ? `${b.links} links` : `${fmt(b.ewl_m)} m`}` : ''),
           el('td', { class: 'num' }, fmt(b.wll_t)),
           el('td', { class: 'num' }, fmt(b.unitWeight_t * 1000, 1)),
           el('td', {}, [...new Set(b.where)].join(', ')),

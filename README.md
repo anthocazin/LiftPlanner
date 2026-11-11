@@ -18,6 +18,16 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, site map and logos included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.4
+
+- **Load set-up in 4 guided steps**: 1 drawing (PDF / image) → 2 scale (1:n read from the title block, or 2-click calibration) → 3 **top, front and side views** (frame + the same reference corner in each view) → 4 **click every lift point and the COG on each view**: LiftPlanner combines them into X / Y / Z (X from top + front, Y from top + side, Z from front + side) and flags views that disagree.
+- **Real 3D view** (drag to rotate, wheel to zoom, Top / Front / Side presets) with the drawing views projected on their planes; used on the Load and Rigging pages, in Drawings and in the report.
+- **Standard pad eyes type S** (1 → 150 t) in a drop-down that fills SWL, hole, plate, cheeks, radius, height and base length; *auto* picks the smallest for the leg force; datasheet rules T ≥ 75 % jaw and H ≤ 106 % pin checked.
+- **Rigging arrangement schematic**: hook → head → **one leg per lift point** (always in step with the Load page), drag shackles / slings / chains / links onto the legs, click an item to change its size; same assembly on every leg or leg by leg.
+- **Load share of every leg** (static share in t and %, tension, design force) and the **leg length needed for the target angle and the minimum length for the maximum angle**, in bearing-to-bearing length and as sling EWL / number of chain links.
+- **Storyboard shape editor to scale**: rectangle, circle, line, arc, triangle and text in metres, snap, move / resize handles, colours, dashed lines; shown in the step drawings and the report.
+- **Plain equipment names**: "Shackle 17t", "Roundsling 8t — 6 m", "Chain Ø13 G80 — 106 links", "Quad masterlink 17t".
+
 ## Features (v0.3)
 
 **Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (step, details, responsible, sketch on / off, crane radius / slew / load height), design lift conditions, the **safety measures tick list**, further measures, communications and technical review of the template.

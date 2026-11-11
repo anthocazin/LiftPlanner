@@ -3,7 +3,7 @@
 // Convention: bearing axes alternate by 90° from one component to the next (front / side view).
 import { svgDoc, path, rect, circle, line, text, label, group, esc } from './svg.js';
 import { fmt } from './fmt.js';
-import { shackleSideLoadFactor } from '../catalog/index.js';
+import { shackleSideLoadFactor, niceName } from '../catalog/index.js';
 
 const STEEL = '#8b96a3';
 const STEEL_EDGE = '#3c4652';
@@ -175,19 +175,19 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       const s = head.topShackle;
       const r = shackleSide(s, y + s.dims.pinDia / 2, 1);
       parts.push(r.svg);
-      labels.push({ y: y + s.dims.insideLength / 2, x: r.halfWidth, t: [s.name, `WLL ${fmt(s.wll_t)} t`] });
+      labels.push({ y: y + s.dims.insideLength / 2, x: r.halfWidth, t: [niceName(s), `hook ↔ master link`] });
       y = r.crownY; bar = r.crownDir; barA = r.a; ext(r.halfWidth);
     }
     if (head.masterlink) {
       const m = head.masterlink.dims;
       parts.push(ringFace(y, m.insideLength, m.insideWidth, m.stockDia));
-      labels.push({ y: y + m.insideLength / 2, x: m.insideWidth / 2 + m.stockDia, t: [head.masterlink.name, `WLL ${fmt(head.masterlink.wll_t)} t · ${util(rig.Fvert_design, head.masterlink.wll_t)}`] });
+      labels.push({ y: y + m.insideLength / 2, x: m.insideWidth / 2 + m.stockDia, t: [niceName(head.masterlink), `util. ${util(rig.Fvert_design, head.masterlink.wll_t)}`] });
       ext(m.insideWidth / 2 + m.stockDia);
       y += m.insideLength; bar = 'lr'; barA = m.stockDia;
       if (head.useSub && head.subLink && leg.level === 'main') {
         const sd = head.subLink.dims;
         parts.push(ringEdge(y, sd.insideLength, sd.stockDia));
-        labels.push({ y: y + sd.insideLength / 2, x: sd.stockDia, t: [/sub-link/i.test(head.subLink.short || head.subLink.name) ? head.subLink.short || head.subLink.name : `Sub-link ${head.subLink.short || head.subLink.name}`, `WLL ${fmt(head.subLink.wll_t)} t`] });
+        labels.push({ y: y + sd.insideLength / 2, x: sd.stockDia, t: [`Sub-link ${fmt(head.subLink.wll_t)}t`] });
         y += sd.insideLength; bar = 'depth'; barA = sd.stockDia;
       }
     }
@@ -217,7 +217,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       ext(sr.w / 2 + 20);
       labels.push({
         y: sr.mid, x: sr.w / 2, strong: true,
-        t: [it.name, `EWL ${fmt(p.length_m)} m · WLL ${fmt(wll)} t${p.hitch === 'choke' ? ' (choked)' : ''} · ${util(F, wll)}`, `Design T ${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''} · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -sr.w / 2, y: sr.mid, t: `${fmt(p.length_m)} m` });
       slingSvg = sr.svg; // drawn last (on top of the bow)
@@ -235,7 +235,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       ext(c.halfWidth + 10);
       labels.push({
         y: c.mid, x: c.halfWidth, strong: true,
-        t: [it.name, `${p.links} links × ${it.dims.pitch} mm = ${fmt(p.length_m, 3)} m · WLL ${fmt(wll)} t · ${util(F, wll)}`, `Design T ${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: [niceName(it), `${p.links} links = ${fmt(p.length_m, 3)} m · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -c.halfWidth, y: c.mid, t: `${p.links} links` });
       y = c.end; bar = c.nextBar; barA = c.a;
@@ -245,7 +245,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       const L = it.dims.effLength || 60, t = it.dims.barThk || 15;
       const W = p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
       parts.push(bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
-      labels.push({ y: y + L / 2, x: W / 2 + t, t: [it.name, `WLL ${fmt(it.wll_t)} t · ${util(F, it.wll_t)}`] });
+      labels.push({ y: y + L / 2, x: W / 2 + t, t: [niceName(it), util(F, it.wll_t)] });
       ext(W / 2 + t);
       y += L; bar = bar === 'lr' ? 'depth' : 'lr'; barA = t;
       continue;
@@ -257,7 +257,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
         const pinCenter = bar === 'lug' ? y : y + d.pinDia / 2;
         const r = bar === 'lr' ? shackleSide(it, pinCenter, 1) : shackleFront(it, pinCenter, 1);
         parts.push(r.svg);
-        labels.push({ y: pinCenter + d.insideLength * 0.5, x: r.halfWidth, t: [it.name, `WLL ${fmt(wll)} t · ${util(F, wll)}`] });
+        labels.push({ y: pinCenter + d.insideLength * 0.5, x: r.halfWidth, t: [niceName(it), util(F, wll)] });
         ext(r.halfWidth);
         y = r.crownY; bar = r.crownDir; barA = r.a;
       } else {
@@ -280,7 +280,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
           y = pe.bottom;
         } else y = pinCenter + d.pinDia;
         parts.push(r.svg);
-        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [it.name, `WLL ${fmt(it.wll_t * sf)} t · ${util(F, it.wll_t * sf)} · pin Ø${d.pinDia} mm`] });
+        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [niceName(it), `${util(F, it.wll_t * sf)} · pin Ø${d.pinDia}`] });
         ext(r.halfWidth + d.pinDia);
         bar = 'depth'; barA = d.pinDia;
       }
@@ -374,7 +374,7 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   const yJ = pinY + (peR + 20) * k + 10;
   body += line(cx - (d.jawWidth / 2) * k, yJ, cx + (d.jawWidth / 2) * k, yJ, { stroke: '#3b6ea5', 'stroke-width': 1 });
   body += text(cx, yJ + 13, `jaw ${d.jawWidth} mm · padeye ${total || '?'} mm`, { 'text-anchor': 'middle', 'font-size': 10.5, fill: jawCol, 'font-weight': 700 });
-  body += text(cx, 18, `${shackle.short || shackle.name}`, { 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
+  body += text(cx, 18, `${niceName(shackle)} — pin Ø${d.pinDia}, jaw ${d.jawWidth} mm`, { 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#173a5e' });
   // ---- right: padeye face view with hole and pin
   const fx = W * 0.72, fy = H * 0.5;
   const base = Hh || peR * 1.4;

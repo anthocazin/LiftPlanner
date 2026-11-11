@@ -47,7 +47,8 @@ export const CHECKLIFT = [
   'Stop the job when any potentially unsafe condition is recognised',
 ];
 
-const PADEYE_EX = { padeye: true, swl_t: 8.5, holeDia_mm: 30, thk_mm: 25, cheekThk_mm: 5, radius_mm: 55, height_mm: 80, azimuth_deg: null };
+// standard pad eye type S 8.5 t (53.008.50.0S): H 29.5, t = T = 35, R 64, A 64, L 180
+const PADEYE_EX = { padeye: true, padeyeStd: 'PE-S-53.008.50.0S', swl_t: 8.5, holeDia_mm: 29.5, thk_mm: 35, cheekThk_mm: 0, radius_mm: 64, height_mm: 64, baseL_mm: 180, azimuth_deg: null };
 
 export function defaultProject() {
   return {
@@ -85,7 +86,7 @@ export function defaultProject() {
       cog_mm: { x: 2850, y: 1300, z: 1100 },
       cogBasis: 'drawing',
       cogEnvelope_mm: { dx: 0, dy: 0 },
-      padeyeRules: { maxHoleClearance_mm: 3, maxHoleClearance_pct: 4, minThicknessRatio: 0.75 },
+      padeyeRules: { maxHoleClearance_mm: 3, maxHoleClearance_pct: 4, minThicknessRatio: 0.75, maxHoleRatio: 1.06 },
       views: { xy: null, xz: null },
       liftPoints: [
         { id: 'A', x: 300, y: 300, z: 2600, used: true, ...PADEYE_EX },
@@ -145,6 +146,7 @@ export function defaultProject() {
     storyboard: {
       crane: { x: 0, y: 0, heading_deg: 0, footprint: { L: 12, W: 3 } },
       map: null,
+      shapes: [],
       obstacles: [
         { name: 'Trailer', x: 10, y: 0, sx: 12, sy: 2.6, h: 1.5, rot_deg: 0, color: '#9aa5b1' },
         { name: 'Wall / fence', x: 9, y: 10, sx: 0.4, sy: 8, h: 3.5, rot_deg: 30, color: '#c0794f' },

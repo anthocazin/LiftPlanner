@@ -659,6 +659,31 @@ function solveSpreader(project, ctx) {
   };
 }
 
+/**
+ * Leg lengths needed to respect the target and the maximum angle to the vertical (hook above the
+ * COG / spreader lugs): for each group of legs the hook height is set by the most spread leg.
+ */
+function lengthNeeds(res, project, rules) {
+  const design = project.rigging?.design || {};
+  const sp = project.rigging?.spreader || {};
+  const groups = {};
+  res.legs.forEach((l) => (groups[l.level] = groups[l.level] || []).push(l));
+  for (const [lvl, legs] of Object.entries(groups)) {
+    const tgt = lvl === 'bottom' ? Number(sp.bottomTargetAngleV_deg) || 30 : designAngleV(design);
+    const max = Number(rules?.maxAngleV_deg) || 45;
+    const at = (ang) => {
+      const t = Math.tan(rad(Math.min(85, Math.max(1, ang))));
+      const zTop = Math.max(...legs.map((l) => l.bottom.z + hdist(l.top, l.bottom) / t));
+      return legs.map((l) => Math.hypot(hdist(l.top, l.bottom), zTop - l.bottom.z));
+    };
+    const LT = at(tgt), LM = at(max);
+    legs.forEach((l, i) => {
+      const elem = (L) => L - l.hwLength + (l.wrap || 0);
+      l.need = { target: { angle: tgt, L: LT[i], elem: elem(LT[i]) }, max: { angle: max, L: LM[i], elem: elem(LM[i]) } };
+    });
+  }
+}
+
 /** Entry point: solves the rigging, iterating on rigging weight (SHL → DAF). */
 export function solveRigging(project, rules = {}) {
   const load = project.load || {};
@@ -682,5 +707,7 @@ export function solveRigging(project, rules = {}) {
     if (conv) break;
   }
   const shl = W + rigW;
+  lengthNeeds(res, project, rules);
+  res.legs.forEach((l) => (l.share = l.level === 'top' ? l.R / Math.max(W, 1e-9) : l.R / Math.max(W, 1e-9)));
   return { ...res, W, cog, pts, factors: f, fac: f.daf * f.skl * f.cog * f.extra, facHead: f.daf * f.extra, shl };
 }

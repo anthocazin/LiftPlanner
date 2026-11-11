@@ -3,13 +3,13 @@
 import { app } from '../app.js';
 import { el, field, cell, panel, fmt, toast } from '../dom.js';
 import { WCF_PRESETS } from '../../engine/factors.js';
-import { shackleCompatibility } from '../../catalog/index.js';
+import { shackleCompatibility, listPadeyes, getItem } from '../../catalog/index.js';
 import { drawPadeyeFit } from '../../draw/detail.js';
 import { figure } from '../figure.js';
-import { loadView, lvState, resetZoom } from '../loadview.js';
-import { openImportWizard } from '../importwizard.js';
+import { lvState } from '../loadview.js';
+import { loadSetup, refreshSetup } from '../loadsetup.js';
 
-let views = [];
+const views = [];
 
 export function render(root) {
   const L = 'load.';
@@ -38,7 +38,7 @@ export function render(root) {
     ),
     el('div', { id: 'detected' }),
     el('h3', {}, 'Centre of gravity'),
-    el('div', { class: 'fields' },
+    el('div', { class: 'fields', id: 'cog-fields' },
       field({ label: 'COG X', path: `${L}cog_mm.x`, unit: 'mm' }),
       field({ label: 'COG Y', path: `${L}cog_mm.y`, unit: 'mm' }),
       field({ label: 'COG Z', path: `${L}cog_mm.z`, unit: 'mm' }),
@@ -60,42 +60,6 @@ export function render(root) {
     ),
   );
 
-  // ---------- workspace
-  const fileIn = el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; if (f) openImportWizard(f, () => window.__rerender()); e.target.value = ''; } });
-  const modeBtn = (m, txt, title) => el('button', { class: `small ${lvState.mode === m ? 'active' : ''}`, title, onclick: () => { lvState.mode = m; window.__rerender(); } }, txt);
-  const snapSel = el('select', { onchange: (e) => (lvState.snap = Number(e.target.value)) });
-  [1, 5, 10, 50, 100].forEach((v) => snapSel.append(el('option', { value: v, selected: lvState.snap === v }, `snap ${v} mm`)));
-  const hasViews = !!(load.views?.xy || load.views?.xz);
-  views = [
-    loadView('xy', { editable: true, height: 430, onAdd: addAt, onSelect: selectPoint, onChange: () => {} }),
-    loadView('xz', { editable: true, height: 430, onAdd: addAt, onSelect: selectPoint, onChange: () => {} }),
-  ];
-  const ws = panel(
-    null,
-    el('div', { class: 'panel-head' },
-      el('h2', {}, 'Lift points & COG on the drawing'),
-      el('div', { class: 'row' },
-        el('label', { class: 'btn small primary' }, hasViews ? 'Import another drawing…' : 'Import drawing (PDF / image)…', fileIn),
-        hasViews ? el('button', { class: 'small danger', onclick: () => { if (confirm('Remove the drawings from the views?')) { load.views = { xy: null, xz: null }; app.recompute(); window.__rerender(); } } }, 'Remove drawings') : null,
-      ),
-    ),
-    el('div', { class: 'toolbar' },
-      modeBtn('select', 'Select / drag', 'Drag the points and the COG; drag the background to pan, wheel to zoom, double-click to reset'),
-      modeBtn('add', '+ Lift point', 'Click in a view to add a lift point'),
-      modeBtn('cog', 'Place COG', 'Click in a view to place the COG'),
-      snapSel,
-      el('label', { class: 'check', style: { fontSize: '12px' } }, 'Drawing', el('input', { type: 'range', min: 0.1, max: 1, step: 0.05, value: lvState.opacity, oninput: (e) => { lvState.opacity = Number(e.target.value); views.forEach((v) => v.refresh()); } })),
-      el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; views.forEach((v) => v.refresh()); } }), 'Show rigging'),
-      el('button', { class: 'small', onclick: () => { resetZoom(); views.forEach((v) => v.refresh()); } }, 'Fit views'),
-    ),
-    el('div', { class: 'grid g2 lv-pair' }, ...views),
-    el('div', { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } },
-      'XY gives X and Y of each point, XZ gives Z. Points: red = padeye, blue = no padeye (choked sling, trunnion…), grey = not used. Lengths and forces are recalculated as soon as a point is moved.'),
-  );
-  ws.addEventListener('dragover', (e) => { e.preventDefault(); ws.classList.add('over'); });
-  ws.addEventListener('dragleave', () => ws.classList.remove('over'));
-  ws.addEventListener('drop', (e) => { e.preventDefault(); ws.classList.remove('over'); const f = e.dataTransfer.files?.[0]; if (f) openImportWizard(f, () => window.__rerender()); });
-
   // ---------- lift points table
   const pts = panel(
     null,
@@ -110,7 +74,7 @@ export function render(root) {
   );
 
   const pad = panel(null, el('div', { id: 'padeye-panel' }));
-  root.append(ws, el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, ident, pts), pad));
+  root.append(loadSetup(), el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, ident, pts), pad));
   renderPoints();
   renderPadeye();
   update(app.result);
@@ -121,7 +85,7 @@ function selectPoint(id) {
   lvState.selected = id;
   document.querySelectorAll('#lp-table tbody tr').forEach((tr) => tr.classList.toggle('sel', tr.dataset.id === id));
   renderPadeye();
-  views.forEach((v) => v.refresh());
+  refreshSetup();
 }
 
 function nextId(list) {
@@ -173,7 +137,7 @@ function renderPoints() {
     const b = `load.liftPoints.${i}.`;
     const tr = el('tr', { 'data-id': p.id, class: p.id === lvState.selected ? 'sel' : '', onclick: (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') selectPoint(p.id); } },
       el('td', { style: { width: '50px' } }, cell(`${b}id`, 'text', { onchange: () => { lvState.selected = app.project.load.liftPoints[i].id; app.recompute(); window.__rerender(); } })),
-      ...['x', 'y', 'z'].map((k) => el('td', {}, cell(b + k, 'number', { onchange: () => app.recompute() }))),
+      ...['x', 'y', 'z'].map((k) => el('td', {}, cell(b + k, 'number', { onchange: () => { p.picks = {}; app.recompute(); } }))),
       el('td', { style: { textAlign: 'center' } }, cell(`${b}used`, 'checkbox', { onchange: () => app.recompute() })),
       el('td', { style: { textAlign: 'center' } }, cell(`${b}padeye`, 'checkbox', { onchange: () => { app.recompute(); renderPadeye(); } })),
       el('td', {}, p.padeye === false ? el('span', { class: 'muted' }, 'n/a') : cell(`${b}swl_t`, 'number', { onchange: () => app.recompute() })),
@@ -210,19 +174,27 @@ function renderPadeye() {
     box.append(el('div', { class: 'note' }, 'No padeye at this point (sling choked or around a trunnion, hook point, etc.): the padeye / shackle fit and the lift point SWL are not checked. Choose the load-side connection (e.g. choked sling) on the Rigging page.'));
     return;
   }
-  const on = () => app.recompute();
+  const on = () => { p.padeyeStd = null; app.recompute(); renderPadeye(); };
+  const std = el('select', { onchange: (e) => applyStd(p, e.target.value) });
+  std.append(el('option', { value: '' }, 'Custom (type the dimensions)'), el('option', { value: 'auto' }, 'Auto — smallest standard pad eye for the leg force'));
+  listPadeyes().forEach((pe) => std.append(el('option', { value: pe.id, selected: p.padeyeStd === pe.id }, `Pad eye S ${pe.wll_t} t — shackle ${pe.shackleSize} — ${pe.stock}`)));
+  const sel = getItem(p.padeyeStd);
   box.append(
+    el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Standard pad eye (type S)'), std),
+    sel ? el('div', { class: 'muted', style: { fontSize: '12px', margin: '4px 0 8px' } },
+      `${sel.stock}: L ${sel.dims.L} · A ${sel.dims.A} · H Ø${sel.dims.H} · R ${sel.dims.R} · t ${sel.dims.t} · T ${sel.dims.T} mm · ${sel.weight_kg} kg · wire ${sel.wire}. Datasheet: T ≥ 75 % of the shackle inside width, H ≤ 106 % of the pin Ø.`) : null,
     el('div', { class: 'fields' },
       field({ label: 'SWL of the padeye', path: `${b}swl_t`, unit: 't', onchange: on }),
       field({ label: 'Main plate thickness', path: `${b}thk_mm`, unit: 'mm', onchange: on }),
       field({ label: 'Cheek plate thickness (each)', path: `${b}cheekThk_mm`, unit: 'mm', onchange: on, hint: '0 if none' }),
       field({ label: 'Hole diameter', path: `${b}holeDia_mm`, unit: 'mm', onchange: on }),
       field({ label: 'Outer radius at the hole', path: `${b}radius_mm`, unit: 'mm', onchange: on }),
-      field({ label: 'Hole centre height above base', path: `${b}height_mm`, unit: 'mm', onchange: on }),
+      field({ label: 'Hole centre height above base (A)', path: `${b}height_mm`, unit: 'mm', onchange: on }),
+      field({ label: 'Base length (L)', path: `${b}baseL_mm`, unit: 'mm', onchange: on }),
       field({ label: 'Plane azimuth', path: `${b}azimuth_deg`, unit: '°', onchange: on, hint: 'Plan angle of the padeye plane from X; empty = faces the hook' }),
     ),
     el('div', { class: 'row', style: { margin: '6px 0' } },
-      el('button', { class: 'small', onclick: () => { const keys = ['padeye', 'swl_t', 'thk_mm', 'cheekThk_mm', 'holeDia_mm', 'radius_mm', 'height_mm']; list.forEach((q) => keys.forEach((k) => (q[k] = p[k]))); app.recompute(); toast(`Padeye of ${p.id} copied to all points`); } }, 'Copy to all points'),
+      el('button', { class: 'small', onclick: () => { const keys = ['padeye', 'padeyeStd', 'swl_t', 'thk_mm', 'cheekThk_mm', 'holeDia_mm', 'radius_mm', 'height_mm', 'baseL_mm']; list.forEach((q) => keys.forEach((k) => (q[k] = p[k]))); app.recompute(); toast(`Padeye of ${p.id} copied to all points`); } }, 'Copy to all points'),
     ),
     el('div', { id: 'padeye-fit' }),
     el('details', { class: 'sub' },
@@ -231,6 +203,7 @@ function renderPadeye() {
         field({ label: 'Max hole / pin clearance', path: 'load.padeyeRules.maxHoleClearance_mm', unit: 'mm', onchange: on }),
         field({ label: '… or % of pin Ø (larger of the two)', path: 'load.padeyeRules.maxHoleClearance_pct', unit: '%', onchange: on }),
         field({ label: 'Min padeye thickness / jaw width', path: 'load.padeyeRules.minThicknessRatio', unit: '', step: 0.05, onchange: on }),
+        field({ label: 'Max hole Ø / pin Ø (pad eye datasheet 1.06)', path: 'load.padeyeRules.maxHoleRatio', unit: '×', step: 0.01, onchange: on }),
       ),
       el('p', { class: 'muted', style: { fontSize: '12px' } },
         'Hole / pin clearance: the pin must pass through the hole (hole Ø > pin Ø) but a large gap concentrates the bearing stress on a small arc of the pin and of the hole, and lets the shackle rock. Usual rule: clearance ≤ max(3 mm; 4 % of the pin Ø) — otherwise take the next shackle size whose pin matches the hole, or bush the hole. ' +
@@ -239,6 +212,23 @@ function renderPadeye() {
     ),
   );
   updatePadeyeFit(app.result);
+}
+
+/** Fills the padeye of a point from the standard table (or the smallest one for the leg force). */
+function applyStd(p, id) {
+  let pe = id && id !== 'auto' ? getItem(id) : null;
+  if (id === 'auto') {
+    const leg = app.result?.rig?.legs?.find((l) => l.pointId === p.id && l.level !== 'top');
+    const F = leg?.Fdesign || 0;
+    pe = listPadeyes().sort((a, b) => a.wll_t - b.wll_t).find((x) => x.wll_t >= F) || null;
+    if (!pe) { toast('No standard pad eye is large enough'); return; }
+    toast(`Pad eye S ${pe.wll_t} t for a design force of ${fmt(F)} t`);
+  }
+  if (!pe) { p.padeyeStd = null; renderPadeye(); return; }
+  Object.assign(p, { padeye: true, padeyeStd: pe.id, swl_t: pe.wll_t, holeDia_mm: pe.dims.H, thk_mm: pe.dims.t, cheekThk_mm: pe.dims.cheek, radius_mm: pe.dims.R, height_mm: pe.dims.A, baseL_mm: pe.dims.L });
+  app.recompute();
+  renderPadeye();
+  renderPoints();
 }
 
 function updatePadeyeFit(res) {
@@ -291,10 +281,28 @@ function renderDetected() {
   if (items.length) box.append(el('div', { class: 'note info detected' }, el('b', {}, 'Found on the drawing — '), ...items.flatMap((x, i) => (i ? [' · ', x] : [x]))));
 }
 
+function syncCogFields() {
+  const box = document.getElementById('cog-fields');
+  if (!box || box.contains(document.activeElement)) return;
+  const c = app.project.load.cog_mm;
+  const ins = box.querySelectorAll('input');
+  [c.x, c.y, c.z].forEach((v, i) => { if (ins[i]) ins[i].value = v ?? ''; });
+  const sel = box.querySelector('select');
+  if (sel) sel.value = app.project.load.cogBasis || 'drawing';
+}
+
 function update(res) {
+  syncCogFields();
+  if (!document.querySelector('#lp-table')?.contains(document.activeElement)) {
+    document.querySelectorAll('#lp-table tbody tr').forEach((tr, i) => {
+      const p = app.project.load.liftPoints[i];
+      const ins = tr.querySelectorAll('input[type=number]');
+      if (p && ins.length >= 3) ['x', 'y', 'z'].forEach((k, j) => (ins[j].value = p[k] ?? ''));
+    });
+  }
   const w = document.getElementById('wdesign');
   if (w) w.textContent = res?.rig?.W ? `${fmt(res.rig.W)} t` : '—';
-  views.forEach((v) => v.refresh());
+  refreshSetup();
   document.querySelectorAll('#lp-table tbody tr').forEach((tr) => {
     const leg = res?.rig?.legs?.find((l) => l.pointId === tr.dataset.id && l.level !== 'top');
     const F = tr.querySelector('[data-k="F"]');

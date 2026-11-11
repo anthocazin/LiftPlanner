@@ -4,9 +4,10 @@ import { app } from './app.js';
 import { el, toast } from './dom.js';
 import { openSource } from './pdfutil.js';
 import { safeImg } from './loadview.js';
+import { shapesSvg, defaultShape, dragHandle, moveShape } from '../draw/shapes.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-export const svState = { mode: 'select', step: null, tmp: [] };
+export const svState = { mode: 'select', step: null, tmp: [], shapeTool: null, selShape: null, snap: 0.1 };
 let zoom = null;
 
 const n = (v) => (Math.round((Number(v) || 0) * 1000) / 1000).toString();
@@ -28,6 +29,8 @@ export function stepPos(st, cr) {
   const R = Number(st.radius_m) || 0, th = rad(Number(st.slew_deg) || 0);
   return { x: cr.x + R * Math.cos(th), y: cr.y + R * Math.sin(th) };
 }
+
+const niceText = (vb) => vb.w / 60; // default text height: readable at the current zoom
 
 export async function importMap(file) {
   const src = await openSource(file);
@@ -106,6 +109,8 @@ export function siteView(opts = {}) {
       s += `<polygon points="${c.map(([x, y]) => `${n(x)},${n(-y)}`).join(' ')}" fill="${esc(o.color || '#9aa5b1')}" fill-opacity=".45" stroke="#4a5562" stroke-width="${n(u)}"/>`;
       s += `<text x="${n(o.x)}" y="${n(-o.y)}" font-size="${n(10 * u)}" text-anchor="middle" paint-order="stroke" stroke="#fff" stroke-width="${n(3 * u)}">${esc(o.name)}</text>`;
     });
+    // annotation shapes (to scale)
+    s += shapesSvg(sb.shapes || [], { sel: svState.selShape, u, interactive: true });
     // chart radii
     const rows = (p.crane?.chart?.rows || []).map((r) => Number(r[0])).filter((r) => r > 0);
     if (rows.length) {
@@ -148,10 +153,31 @@ export function siteView(opts = {}) {
     svg.innerHTML = s;
   }
 
+  const snapV = (v) => { const k = Number(svState.snap) || 0; return k > 0 ? Math.round(v / k) * k : Math.round(v * 1000) / 1000; };
+  const shapeById = (id) => (app.project.storyboard.shapes || []).find((q) => q.id === id);
   svg.addEventListener('pointermove', (ev) => {
     const [x, y] = toSite(ev);
-    coord.textContent = `X ${x.toFixed(1)} · Y ${y.toFixed(1)} m`;
+    coord.textContent = `X ${x.toFixed(2)} · Y ${y.toFixed(2)} m`;
     if (!drag) return;
+    if (drag.kind === 'create') {
+      const sh = drag.shape, [x0, y0] = drag.start, X = snapV(x), Y = snapV(y);
+      if (sh.type === 'rect' || sh.type === 'triangle') { sh.x = (x0 + X) / 2; sh.y = (y0 + Y) / 2; sh.w = Math.max(0.05, Math.abs(X - x0)); sh.h = Math.max(0.05, Math.abs(Y - y0)); }
+      else if (sh.type === 'circle') sh.r = Math.max(0.05, Math.hypot(X - x0, Y - y0));
+      else if (sh.type === 'arc') { sh.r = Math.max(0.05, Math.hypot(X - x0, Y - y0)); const a = (Math.atan2(Y - y0, X - x0) * 180) / Math.PI; sh.a0 = Math.round(a - 45); sh.a1 = Math.round(a + 45); }
+      else if (sh.type === 'line') { sh.x2 = X; sh.y2 = Y; }
+      draw();
+      return;
+    }
+    if (drag.kind === 'shape') {
+      const sh = shapeById(drag.id);
+      if (sh) { const nx = snapV(drag.ox + (x - drag.x0)), ny = snapV(drag.oy + (y - drag.y0)); moveShape(sh, nx - sh.x, ny - sh.y); draw(); opts.onShape?.(); }
+      return;
+    }
+    if (drag.kind === 'handle') {
+      const sh = shapeById(svState.selShape);
+      if (sh) { dragHandle(sh, drag.h, snapV(x), snapV(y)); draw(); opts.onShape?.(); }
+      return;
+    }
     if (drag.kind === 'pan') {
       zoom = { k: drag.z.k, cx: drag.z.cx - (ev.clientX - drag.x0) * (vb.w / svg.clientWidth), cy: drag.z.cy - (ev.clientY - drag.y0) * (vb.h / svg.clientHeight) };
       draw();
@@ -181,6 +207,50 @@ export function siteView(opts = {}) {
       svState.mode = 'select';
       opts.onChange?.();
       app.recompute();
+      return;
+    }
+    if (svState.mode === 'shape' && svState.shapeTool) {
+      sb.shapes = sb.shapes || [];
+      const sh = defaultShape(svState.shapeTool, snapV(x), snapV(y));
+      if (sh.type === 'text') {
+        const t = prompt('Text:', 'Text');
+        if (!t) return;
+        sh.text = t;
+        sh.size = Math.max(0.2, Math.round(niceText(vb) * 10) / 10);
+        sb.shapes.push(sh);
+        svState.selShape = sh.id;
+        svState.mode = 'select';
+        svState.shapeTool = null;
+        app.persist();
+        draw();
+        opts.onShape?.(true);
+        return;
+      }
+      if (sh.type === 'rect' || sh.type === 'triangle') { sh.w = 0.05; sh.h = 0.05; }
+      if (sh.type === 'circle' || sh.type === 'arc') sh.r = 0.05;
+      if (sh.type === 'line') { sh.x2 = sh.x; sh.y2 = sh.y; }
+      sb.shapes.push(sh);
+      svState.selShape = sh.id;
+      drag = { kind: 'create', shape: sh, start: [sh.x, sh.y] };
+      svg.setPointerCapture(ev.pointerId);
+      return;
+    }
+    const hnd = ev.target.closest('[data-handle]');
+    if (hnd && svState.selShape) {
+      drag = { kind: 'handle', h: hnd.dataset.handle };
+      svg.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+      return;
+    }
+    const shp = ev.target.closest('[data-shape]');
+    if (shp && svState.mode === 'select') {
+      const sh = shapeById(shp.dataset.shape);
+      svState.selShape = sh.id;
+      drag = { kind: 'shape', id: sh.id, x0: x, y0: y, ox: sh.x, oy: sh.y };
+      svg.setPointerCapture(ev.pointerId);
+      draw();
+      opts.onShape?.(true);
+      ev.preventDefault();
       return;
     }
     if (svState.mode === 'scale') {
@@ -215,6 +285,7 @@ export function siteView(opts = {}) {
       ev.preventDefault();
       return;
     }
+    if (svState.selShape) { svState.selShape = null; draw(); opts.onShape?.(true); }
     drag = { kind: 'pan', x0: ev.clientX, y0: ev.clientY, z: zoom || { k: 1, cx: vb.x + vb.w / 2, cy: vb.y + vb.h / 2 } };
     svg.setPointerCapture(ev.pointerId);
   });
@@ -222,6 +293,12 @@ export function siteView(opts = {}) {
     if (!drag) return;
     const d = drag;
     drag = null;
+    if (d.kind === 'create' || d.kind === 'shape' || d.kind === 'handle') {
+      if (d.kind === 'create') { svState.mode = 'select'; svState.shapeTool = null; }
+      app.persist();
+      opts.onShape?.(true);
+      return;
+    }
     if (d.kind !== 'pan' && d.moved) { opts.onChange?.(); app.recompute(); }
     else if (d.kind === 'step') draw();
   };

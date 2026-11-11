@@ -283,3 +283,57 @@ test('v2 project file migrates to leg assemblies', () => {
   const res = computeProject(p);
   assert.ok(!res.rig.error, res.rig.error);
 });
+
+import { niceName, listPadeyes, shackleCompatibility as compat } from '../js/catalog/index.js';
+import { draw3d } from '../js/draw/view3d.js';
+import { shapesSvg, defaultShape, dragHandle } from '../js/draw/shapes.js';
+
+test('standard pad eyes type S and the H ≤ 106 % pin rule', () => {
+  const pe = listPadeyes().find((p) => p.wll_t === 8.5);
+  assert.equal(pe.dims.H, 29.5);
+  assert.equal(listPadeyes().length, 17);
+  const sh = getItem('GP-G4163-8.5');
+  const iss = compat(sh, { holeDia: 32, padeyeThk: 35 }, { ...DEFAULT_RULES, maxHoleRatio: 1.06 });
+  assert.ok(iss.some((i) => i.code === 'hole-ratio' || i.code === 'clearance'));
+  assert.ok(!compat(sh, { holeDia: 29.5, padeyeThk: 35 }, { ...DEFAULT_RULES, maxHoleRatio: 1.06 }).length);
+});
+
+test('static load shared between the legs and lengths needed for the target / max angle', () => {
+  const res = computeProject(defaultProject());
+  const legs = res.rig.legs;
+  near(legs.reduce((s, l) => s + l.share, 0), 1, 1e-6);
+  legs.forEach((l) => {
+    assert.ok(l.need.target.L > l.need.max.L, 'a smaller angle needs a longer leg');
+    near(l.need.target.elem, l.need.target.L - l.hwLength, 1e-9);
+  });
+  // the most spread leg is exactly at the target angle with the target length
+  const t = legs.map((l) => Math.asin(Math.hypot(l.top.x - l.bottom.x, l.top.y - l.bottom.y) / l.need.target.L) * 180 / Math.PI);
+  near(Math.max(...t), 30, 1e-6);
+});
+
+test('simple equipment names', () => {
+  assert.equal(niceName(getItem('GP-G4163-17')), 'Shackle 17t');
+  assert.match(niceName(selectChain(5, 'direct', 'CH-G80')), /^Chain Ø13 G80$/);
+  assert.match(niceName(selectSling(8, 'direct', 'RS-PES'), { length_m: 6 }), /^Roundsling 8t — 6 m$/);
+});
+
+test('3D view and storyboard shapes render', () => {
+  const p = defaultProject();
+  const svg = draw3d(p, computeProject(p), { width: 500, height: 400 });
+  assert.ok(svg.startsWith('<svg') && svg.includes('COG') && svg.includes('Hook'));
+  const r = defaultShape('rect', 0, 0);
+  dragHandle(r, 'size', 3, 2);
+  near(r.w, 6);
+  near(r.h, 4);
+  const s = shapesSvg([r, defaultShape('arc', 0, 0), { ...defaultShape('text', 1, 1), text: '<b>x</b>' }]);
+  assert.ok(s.includes('<polygon') && s.includes(' A ') && s.includes('&lt;b&gt;'));
+});
+
+import { combinePicks } from '../js/ui/loadsetup.js';
+
+test('lift point 3D coordinates combined from the top, front and side views', () => {
+  const t = {};
+  const d = combinePicks(t, { xy: [400, 350], xz: [410, 2200], yz: [340, 2190] });
+  assert.deepEqual([t.x, t.y, t.z], [405, 345, 2195]);
+  assert.equal(d.dx, 10);
+});

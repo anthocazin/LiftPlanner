@@ -87,7 +87,8 @@
     "padeyeRules": {
       "maxHoleClearance_mm": 3,
       "maxHoleClearance_pct": 4,
-      "minThicknessRatio": 0.75
+      "minThicknessRatio": 0.75,
+      "maxHoleRatio": 1.06
     },
     "views": {
       "xy": null,
@@ -101,12 +102,14 @@
         "z": 2600,
         "used": true,
         "padeye": true,
+        "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
-        "holeDia_mm": 30,
-        "thk_mm": 25,
-        "cheekThk_mm": 5,
-        "radius_mm": 55,
-        "height_mm": 80,
+        "holeDia_mm": 29.5,
+        "thk_mm": 35,
+        "cheekThk_mm": 0,
+        "radius_mm": 64,
+        "height_mm": 64,
+        "baseL_mm": 180,
         "azimuth_deg": null
       },
       {
@@ -116,12 +119,14 @@
         "z": 2600,
         "used": true,
         "padeye": true,
+        "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
-        "holeDia_mm": 30,
-        "thk_mm": 25,
-        "cheekThk_mm": 5,
-        "radius_mm": 55,
-        "height_mm": 80,
+        "holeDia_mm": 29.5,
+        "thk_mm": 35,
+        "cheekThk_mm": 0,
+        "radius_mm": 64,
+        "height_mm": 64,
+        "baseL_mm": 180,
         "azimuth_deg": null
       },
       {
@@ -131,12 +136,14 @@
         "z": 2600,
         "used": true,
         "padeye": true,
+        "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
-        "holeDia_mm": 30,
-        "thk_mm": 25,
-        "cheekThk_mm": 5,
-        "radius_mm": 55,
-        "height_mm": 80,
+        "holeDia_mm": 29.5,
+        "thk_mm": 35,
+        "cheekThk_mm": 0,
+        "radius_mm": 64,
+        "height_mm": 64,
+        "baseL_mm": 180,
         "azimuth_deg": null
       },
       {
@@ -146,12 +153,14 @@
         "z": 2600,
         "used": true,
         "padeye": true,
+        "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
-        "holeDia_mm": 30,
-        "thk_mm": 25,
-        "cheekThk_mm": 5,
-        "radius_mm": 55,
-        "height_mm": 80,
+        "holeDia_mm": 29.5,
+        "thk_mm": 35,
+        "cheekThk_mm": 0,
+        "radius_mm": 64,
+        "height_mm": 64,
+        "baseL_mm": 180,
         "azimuth_deg": null
       }
     ]
@@ -288,6 +297,7 @@
       }
     },
     "map": null,
+    "shapes": [],
     "obstacles": [
       {
         "name": "Trailer",

@@ -571,6 +571,46 @@ export const CONNLINKS = [
   }),
 ];
 
+
+// ---------------------------------------------------------------------------
+// PAD EYES type S (standard weld-on padeyes, datasheet supplied by the user).
+// L base length | A hole centre height | H hole Ø | R outer radius | t main plate | T total thickness
+// (T − t = cheek plates). Datasheet rules: T ≥ 75 % of the shackle inside width, H ≤ 106 % of the pin Ø.
+const PE_S = [
+  // stock, shackle size, WLL t, wire in, wire mm, L, A, H, R, t, T, kg
+  ['53.001.00.0S', '3/8"', 1, '3/8"', '9-10', 76, 32, 11.5, 26, 14, 14, 0.3],
+  ['53.001.50.0S', '7/16"', 1.5, '3/8"', '9-10', 90, 32, 13.5, 32, 15, 15, 0.5],
+  ['53.002.00.0S', '1/2"', 2, '1/2"', '12-13', 100, 38, 17, 35, 18, 18, 0.7],
+  ['53.003.25.0S', '5/8"', 3.25, '3/4"', '19', 115, 45, 20, 38, 22, 22, 1.5],
+  ['53.004.75.0S', '3/4"', 4.75, '3/4"', '19', 140, 51, 23, 45, 25, 25, 2],
+  ['53.006.50.0S', '7/8"', 6.5, '1"', '25-26', 150, 57, 26, 51, 30, 30, 3],
+  ['53.008.50.0S', '1"', 8.5, '1"', '25-26', 180, 64, 29.5, 64, 35, 35, 5],
+  ['53.009.50.0S', '1 1/8"', 9.5, '1"', '25-26', 203, 76, 33.5, 76, 40, 40, 7.5],
+  ['53.012.00.0S', '1 1/4"', 12, '1 1/4"', '32', 216, 83, 37, 83, 45, 45, 10],
+  ['53.013.50.0S', '1 3/8"', 13.5, '1 1/4"', '32', 228, 89, 40, 89, 30, 50, 10],
+  ['53.017.00.0S', '1 1/2"', 17, '1 3/8"', '35', 280, 140, 44, 102, 40, 50, 18],
+  ['53.025.00.0S', '1 3/4"', 25, '1 5/8"', '41-42', 305, 140, 53, 121, 40, 60, 23],
+  ['53.035.00.0S', '2"', 35, '2"', '51', 356, 153, 60, 133, 50, 70, 35],
+  ['53.055.00.0S', '2 1/2"', 55, '2 1/2"', '63-64', 482, 165, 74, 152, 50, 90, 55],
+  ['53.085.00.0S', '3"', 85, '3"', '76-77', 559, 203, 87, 178, 60, 110, 90],
+  ['53.120.00.0S', '3 1/2"', 120, '3 3/4"', '95-96', 711, 254, 100, 229, 70, 120, 170],
+  ['53.150.00.0S', '4"', 150, '4"', '102', 813, 280, 114, 254, 80, 150, 250],
+];
+export const PADEYES = PE_S.map(([stock, shackle, wll, wireIn, wireMm, L, A, H, R, t, T, kg]) => ({
+  id: `PE-S-${stock}`,
+  type: 'padeye',
+  family: 'PE-S',
+  stock,
+  shackleSize: shackle,
+  name: `Pad eye type S ${wll} t (${stock})`,
+  short: `Pad eye S ${wll}t`,
+  wll_t: wll,
+  wire: `${wireIn} / ${wireMm} mm`,
+  weight_kg: kg,
+  dims: { L, A, H, R, t, T, cheek: (T - t) / 2 },
+  source: 'Pad eye type S datasheet (S355J2G3, EN 10204 3.1)',
+}));
+
 export const CATALOG_TYPES = {
   shackle: 'Shackle',
   masterlink: 'Master link',
@@ -581,7 +621,8 @@ export const CATALOG_TYPES = {
   glink: 'G-Link (Slingmax)',
   chain: 'Chain',
   connlink: 'Connecting link',
+  padeye: 'Pad eye',
   other: 'Other',
 };
 
-export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS];
+export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS, ...PADEYES];

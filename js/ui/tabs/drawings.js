@@ -6,7 +6,10 @@ import { drawRiggingView } from '../../draw/rigging.js';
 import { drawRiggingDetail } from '../../draw/detail.js';
 import { drawStoryPlan, drawStoryElevation } from '../../draw/story.js';
 import { staticViewSvg } from '../loadview.js';
+import { draw3d } from '../../draw/view3d.js';
+import { viewer3d } from '../viewer3d.js';
 import { figure } from '../figure.js';
+import { niceName } from '../../catalog/index.js';
 
 const opts = { labels: true, forces: true, dims: true };
 const LS_KEY = 'liftplanner.claude.key';
@@ -35,7 +38,7 @@ function update(res) {
     panel('Rigging arrangement',
       hasImg ? el('div', { class: 'grid g2' }, figure(staticViewSvg('xy', p, res, { width: 640, height: 400, title: 'Rigging on the drawing — plan XY' }), 'rigging-on-drawing-xy'), figure(staticViewSvg('xz', p, res, { width: 640, height: 400, title: 'Rigging on the drawing — elevation XZ' }), 'rigging-on-drawing-xz')) : null,
       el('div', { class: 'grid g2' },
-        figure(drawRiggingView(p, res, 'iso', { width: 700, height: 520, ...opts }), 'rigging-iso'),
+        viewer3d({ height: 520, title: '' }),
         el('div', { class: 'grid' }, figure(drawRiggingView(p, res, 'front', { width: 640, height: 260, ...opts }), 'rigging-front'), figure(drawRiggingView(p, res, 'side', { width: 640, height: 260, ...opts }), 'rigging-side'))),
     ),
     panel('Rigging detail (components to scale)', figure(drawRiggingDetail(p, res, { height: 680 }), 'rigging-detail')),
@@ -52,7 +55,7 @@ function update(res) {
     const ref = Number(st.radius_m) > 0 ? i : lastCrane;
     const figs = ref != null
       ? [figure(drawStoryPlan(p, res, ref, { width: 560, height: 400 }), `step-${i + 1}-plan`), figure(drawStoryElevation(p, res, ref, { width: 560, height: 400 }), `step-${i + 1}-elevation`)]
-      : [figure(drawRiggingView(p, res, 'iso', { width: 560, height: 400, ...opts }), `step-${i + 1}-rigging`)];
+      : [figure(draw3d(p, res, { width: 560, height: 400, labels: opts.labels, forces: opts.forces, title: 'Rigging — 3D' }), `step-${i + 1}-rigging`)];
     const safe = st.aiSketch ? sanitizeSvg(st.aiSketch) : null;
     const ai = safe ? figure(safe, `step-${i + 1}-claude-sketch`) : null;
     seq.append(el('section', { class: 'seq-step avoid-break' },
@@ -90,7 +93,7 @@ function claudeSettings() {
 function context(i) {
   const p = app.project, res = app.result, rig = res?.rig;
   const st = p.storyboard.steps[i];
-  const legs = rig && !rig.error ? rig.legs.map((l) => `${l.label}: ${l.parts.map((q) => q.item?.short || q.item?.name || q.kind).join(' → ')}, ${l.angleV.toFixed(0)}° to vertical, length ${l.Leff.toFixed(2)} m`).join('; ') : 'not calculated';
+  const legs = rig && !rig.error ? rig.legs.map((l) => `${l.label}: ${l.parts.map((q) => niceName(q.item)).join(' → ')}, ${l.angleV.toFixed(0)}° to vertical, length ${l.Leff.toFixed(2)} m`).join('; ') : 'not calculated';
   const prev = p.storyboard.steps.slice(0, i + 1).filter((s) => Number(s.radius_m) > 0).pop();
   return [
     `Lift: ${p.project.name} (${p.environment}). ${p.project.description || ''}`,

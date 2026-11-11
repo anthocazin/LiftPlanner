@@ -5,6 +5,7 @@ import { drawStoryPlan, drawStoryElevation } from '../../draw/story.js';
 import { figure } from '../figure.js';
 import { worstStatus } from '../../engine/compute.js';
 import { siteView, svState, importMap } from '../siteview.js';
+import { SHAPE_TYPES } from '../../draw/shapes.js';
 
 let sv = null;
 
@@ -17,7 +18,11 @@ export function render(root) {
   const stepSel = el('select', { onchange: (e) => { svState.step = Number(e.target.value); } });
   crSteps.forEach(({ st, i }) => stepSel.append(el('option', { value: i, selected: svState.step === i }, `${i + 1}. ${st.name || ''}`)));
   if (svState.step == null && crSteps.length) svState.step = crSteps[0].i;
-  sv = siteView({ height: 560, onSelect: () => window.__rerender(), onChange: () => setTimeout(() => window.__rerender(), 0) });
+  sv = siteView({ height: 560, onSelect: () => window.__rerender(), onChange: () => setTimeout(() => window.__rerender(), 0), onShape: (full) => renderShapeProps(full) });
+  const shapeBtn = (t) => el('button', { class: `small ${svState.mode === 'shape' && svState.shapeTool === t ? 'active' : ''}`, title: t === 'text' ? 'Click where the text goes' : 'Drag on the plan', onclick: () => { svState.mode = 'shape'; svState.shapeTool = t; window.__rerender(); } }, SHAPE_TYPES[t]);
+  const snapSel = el('select', { onchange: (e) => (svState.snap = Number(e.target.value)) });
+  [[0, 'no snap'], [0.05, 'snap 5 cm'], [0.1, 'snap 0.1 m'], [0.5, 'snap 0.5 m'], [1, 'snap 1 m']].forEach(([v, t]) => snapSel.append(el('option', { value: v, selected: svState.snap === v }, t)));
+  const shapeBar = el('div', { class: 'toolbar shapes-bar' }, el('b', { style: { fontSize: '12px', marginRight: '4px' } }, 'Draw (to scale):'), ...Object.keys(SHAPE_TYPES).map(shapeBtn), snapSel, el('span', { id: 'shape-props', class: 'shape-props' }));
   const map = panel(
     null,
     el('div', { class: 'panel-head' },
@@ -35,6 +40,7 @@ export function render(root) {
       sb.map?.image ? modeBtn('scale', 'Scale (2 clicks)', 'Click two points whose real distance you know, then enter it') : null,
       sb.map?.image ? el('label', { class: 'check', style: { fontSize: '12px' } }, 'Map', el('input', { type: 'range', min: 0.1, max: 1, step: 0.05, value: sb.map.opacity ?? 0.85, oninput: (e) => { sb.map.opacity = Number(e.target.value); sv.refresh(); } })) : null,
     ),
+    shapeBar,
     sv,
     el('div', { class: 'muted', style: { fontSize: '12px', marginTop: '6px' } },
       sb.map?.image
@@ -61,9 +67,55 @@ export function render(root) {
   );
   root.append(map, el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, site, obs), steps), el('div', { id: 'story-cards', class: 'grid', style: { marginTop: '14px' } }));
   renderTables();
+  renderShapeProps(true);
   update(app.result);
   root._update = update;
 }
+
+/** Properties of the selected shape (dimensions in metres, colours, text). */
+function renderShapeProps(full) {
+  const box = document.getElementById('shape-props');
+  if (!box) return;
+  document.querySelectorAll('.shapes-bar button').forEach((b) => b.classList.toggle('active', svState.mode === 'shape' && SHAPE_TYPES[svState.shapeTool] === b.textContent));
+  const sb = app.project.storyboard;
+  const sh = (sb.shapes || []).find((q) => q.id === svState.selShape);
+  if (!sh) { box.innerHTML = ''; if ((sb.shapes || []).length) box.append(el('span', { class: 'muted', style: { fontSize: '12px' } }, `${sb.shapes.length} shape(s) — click one to edit`)); return; }
+  if (!full && box.dataset.id === sh.id) {
+    // live update of the numbers while dragging
+    box.querySelectorAll('input[data-k]').forEach((i) => { if (document.activeElement !== i && i.type === 'number') i.value = Math.round((Number(sh[i.dataset.k]) || 0) * 1000) / 1000; });
+    return;
+  }
+  box.dataset.id = sh.id;
+  box.innerHTML = '';
+  const num = (k, t, w = '64px') => el('label', {}, `${t} `, el('input', { type: 'number', step: 'any', 'data-k': k, value: Math.round((Number(sh[k]) || 0) * 1000) / 1000, style: { width: w }, onchange: (e) => { sh[k] = Number(e.target.value) || 0; app.persist(); sv.refresh(); } }));
+  const fields = { rect: [['x', 'X'], ['y', 'Y'], ['w', 'W'], ['h', 'H'], ['rot', 'rot°']], triangle: [['x', 'X'], ['y', 'Y'], ['w', 'W'], ['h', 'H'], ['rot', 'rot°']], circle: [['x', 'X'], ['y', 'Y'], ['r', 'R']], arc: [['x', 'X'], ['y', 'Y'], ['r', 'R'], ['a0', 'from°'], ['a1', 'to°']], line: [['x', 'X1'], ['y', 'Y1'], ['x2', 'X2'], ['y2', 'Y2']], text: [['x', 'X'], ['y', 'Y'], ['size', 'height'], ['rot', 'rot°']] }[sh.type] || [];
+  box.append(el('b', {}, `${SHAPE_TYPES[sh.type]} (m)`), ...fields.map(([k, t]) => num(k, t)));
+  if (sh.type === 'line' || sh.type === 'arc') {
+    const L = sh.type === 'line' ? Math.hypot(sh.x2 - sh.x, sh.y2 - sh.y) : (sh.r * (((sh.a1 - sh.a0) % 360) + 360) % 360 * Math.PI) / 180;
+    box.append(el('span', { class: 'muted' }, `length ${fmt(L, 2)} m`));
+  }
+  if (sh.type === 'text') box.append(el('input', { type: 'text', value: sh.text || '', style: { width: '160px' }, onchange: (e) => { sh.text = e.target.value; app.persist(); sv.refresh(); } }));
+  box.append(...[
+    el('label', { title: 'Line colour' }, el('input', { type: 'color', value: sh.stroke || '#1c2733', onchange: (e) => { sh.stroke = e.target.value; app.persist(); sv.refresh(); } })),
+    sh.type !== 'text' && sh.type !== 'line' && sh.type !== 'arc' ? el('label', { title: 'Fill colour' }, el('input', { type: 'checkbox', checked: sh.fill && sh.fill !== 'none', onchange: (e) => { sh.fill = e.target.checked ? '#9aa5b1' : 'none'; app.persist(); renderShapeProps(true); sv.refresh(); } }), 'fill', sh.fill && sh.fill !== 'none' ? el('input', { type: 'color', value: sh.fill, onchange: (e) => { sh.fill = e.target.value; app.persist(); sv.refresh(); } }) : null) : null,
+    sh.type !== 'text' ? el('label', {}, 'line ', el('input', { type: 'number', step: 0.5, min: 0.5, value: sh.lw || 2, style: { width: '48px' }, onchange: (e) => { sh.lw = Number(e.target.value) || 2; app.persist(); sv.refresh(); } })) : null,
+    sh.type !== 'text' ? el('label', {}, el('input', { type: 'checkbox', checked: !!sh.dash, onchange: (e) => { sh.dash = e.target.checked; app.persist(); sv.refresh(); } }), 'dashed') : null,
+    el('button', { class: 'small', onclick: () => { const c = { ...JSON.parse(JSON.stringify(sh)), id: `${sh.id}c${Date.now() % 1000}` }; c.x += 1; c.y -= 1; if (c.type === 'line') { c.x2 += 1; c.y2 -= 1; } sb.shapes.push(c); svState.selShape = c.id; app.persist(); sv.refresh(); renderShapeProps(true); } }, 'Duplicate'),
+    el('button', { class: 'small danger', onclick: () => { sb.shapes = sb.shapes.filter((q) => q.id !== sh.id); svState.selShape = null; app.persist(); sv.refresh(); renderShapeProps(true); } }, 'Delete'),
+  ].filter(Boolean));
+}
+
+document.addEventListener('keydown', (e) => {
+  if (!svState.selShape || !document.querySelector('.shapes-bar')) return;
+  if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+  const sb = app.project.storyboard;
+  sb.shapes = (sb.shapes || []).filter((q) => q.id !== svState.selShape);
+  svState.selShape = null;
+  app.persist();
+  sv?.refresh();
+  renderShapeProps(true);
+});
 
 function renderTables() {
   const sb = app.project.storyboard;

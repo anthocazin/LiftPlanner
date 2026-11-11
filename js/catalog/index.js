@@ -31,6 +31,36 @@ export function listSlingFamily(family) {
 }
 export { SLING_FAMILIES, CHAIN_FAMILIES };
 
+const t1 = (v) => (v == null ? '?' : Number(v) >= 10 ? String(Math.round(Number(v) * 10) / 10) : String(Math.round(Number(v) * 100) / 100));
+
+/**
+ * Short, plain name of an item: "Shackle 17t", "Roundsling 8t", "Chain Ø13 G80", "Masterlink 31.5t".
+ * User inventory items keep their own name.
+ */
+export function niceName(item, { length_m = null, links = null } = {}) {
+  if (!item) return '—';
+  if (item.user && item.name) return item.name;
+  const w = `${t1(item.wll_t)}t`;
+  const len = links ? ` — ${links} links` : length_m != null ? ` — ${Math.round(length_m * 100) / 100} m` : '';
+  switch (item.type) {
+    case 'shackle': return `Shackle ${w}${item.wideBody ? ' wide body' : ''}`;
+    case 'roundsling': return `Roundsling ${w}${item.family === 'RS-UHMWPE' ? ' UHMWPE' : ''}${len}`;
+    case 'wiresling': return `Wire sling Ø${item.dims?.ropeDia || '?'}${item.family === 'WIRE-ENDLESS' ? ' endless' : ''}${len}`;
+    case 'grommet': return `Grommet ${w}${len}`;
+    case 'webbing': return `Webbing sling ${w}${len}`;
+    case 'chain': return `Chain Ø${item.dims?.dia} G${item.grade}${len}`;
+    case 'connlink': return `Connecting link Ø${(item.chainDias || []).join('/')} G${item.grade || 80}`;
+    case 'glink': return `G-Link ${w}`;
+    case 'masterlink': return item.sub ? `Quad masterlink ${w}` : String(item.id).endsWith('#sub') || item.integrated ? `Sub-link ${w}` : `Masterlink ${w}`;
+    case 'padeye': return `Pad eye ${w}`;
+    default: return item.short || item.name || '—';
+  }
+}
+
+export function listPadeyes() {
+  return allItems().filter((it) => it.type === 'padeye');
+}
+
 /** Length elements: slings (any family) and chains. */
 export const isLengthType = (t) => isSlingType(t) || t === 'chain';
 
@@ -145,6 +175,8 @@ export function shackleCompatibility(shackle, { holeDia, padeyeThk, padeyeRadius
     if (d.pinDia > holeDia) issues.push({ level: 'fail', code: 'pin>hole', msg: `Pin Ø${d.pinDia} > hole Ø${holeDia} mm: the shackle does not fit` });
     else if (holeDia - d.pinDia > maxClr)
       issues.push({ level: 'warn', code: 'clearance', msg: `Hole/pin clearance ${(holeDia - d.pinDia).toFixed(1)} mm > ${maxClr.toFixed(1)} mm allowed` });
+    else if (rules.maxHoleRatio > 0 && holeDia > rules.maxHoleRatio * d.pinDia + 1e-9)
+      issues.push({ level: 'warn', code: 'hole-ratio', msg: `Hole Ø${holeDia} > ${Math.round(rules.maxHoleRatio * 100)} % of pin Ø${d.pinDia} mm (pad eye rule)` });
   }
   if (padeyeThk) {
     if (padeyeThk >= d.jawWidth) issues.push({ level: 'fail', code: 'thk>jaw', msg: `Padeye thickness ${padeyeThk} ≥ shackle jaw width ${d.jawWidth} mm` });
@@ -184,7 +216,7 @@ export function selectShackle(requiredWll_t, ctx = {}, rules = {}, ranges = null
     if (issues.some((i) => i.level === 'fail')) continue;
     if (!firstOk) firstOk = s;
     // excessive hole/pin clearance: prefer a larger size whose pin matches the hole better
-    if (!issues.some((i) => i.code === 'clearance')) return s;
+    if (!issues.some((i) => i.code === 'clearance' || i.code === 'hole-ratio')) return s;
   }
   return firstOk || cands.filter((s) => s.wll_t >= requiredWll_t)[0] || null;
 }
