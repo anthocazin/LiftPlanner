@@ -11,6 +11,7 @@
 import { v3, vsub, vlen, vnorm, hdist, deg, rad } from './vec.js';
 import { legTensions, distributeVertical } from './statics.js';
 import { estimateTilt } from './equilibrium.js';
+import { alongWidth } from './compat.js';
 import { resolveFactors } from './factors.js';
 import {
   getItem,
@@ -18,6 +19,7 @@ import {
   selectSling,
   selectChain,
   selectConnlink,
+  selectHook,
   selectMasterlink,
   selectGlink,
   connectorLength,
@@ -36,6 +38,7 @@ const isAuto = (id) => !id || id === 'auto';
 const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 
 export const PART_KINDS = {
+  hook: 'Safety hook',
   shackle: 'Shackle',
   connlink: 'Connecting link',
   glink: 'G-Link (Slingmax)',
@@ -85,8 +88,10 @@ export function cogM(load) {
   return v3(mm(c.x), mm(c.y), mm(c.z));
 }
 
+/** Kind of lift point: 'padeye' (pin in a hole), 'ring' (anchor point, eye bolt…) or 'none'. */
+export const pointKind = (p) => (!p ? 'none' : p.padeye === false && (!p.kind || p.kind === 'padeye') ? 'none' : p.kind || 'padeye');
 /** A lift point has a padeye unless explicitly unticked. */
-export const hasPadeye = (p) => !!p && p.padeye !== false;
+export const hasPadeye = (p) => pointKind(p) === 'padeye';
 
 /** Padeye context used for the shackle fit (total thickness = main plate + 2 cheek plates). */
 export function padeyeCtx(p) {
@@ -160,43 +165,69 @@ function resolveParts(partsIn, F, ctx) {
   const { point, beta, rules } = ctx;
   const parts = partsIn.map((p) => ({ ...p }));
   const errors = [];
-  let li = parts.findIndex(isLengthPart);
+  // several slings / chains are allowed: the first one without a fixed length is sized, the others
+  // keep their length (1 m by default)
+  const lens = parts.map((p, i) => (isLengthPart(p) ? i : -1)).filter((i) => i >= 0);
+  let li = lens.find((i) => !(parts[i].lock && Number(parts[i].length_m) > 0));
+  if (li == null) li = lens[0] ?? -1;
   if (li < 0) errors.push('No sling or chain in the assembly');
-  // 1) length element
-  if (li >= 0) {
-    const p = parts[li];
+  for (const k of lens) {
+    const p = parts[k];
     p.factor = slingModeFactor(p.hitch);
     const Fl = Math.max(F, ctx.Flen || 0); // EN set rating: leg WLL ≥ W / K
     if (p.kind === 'sling') p.item = isAuto(p.id) ? selectSling(Fl, p.hitch, p.family || 'RS-PES') : getItem(p.id);
     else p.item = isAuto(p.id) ? selectChain(Fl, p.hitch, p.family || 'CH-G80') : getItem(p.id);
     p.reqWll = Fl / p.factor;
     p.reqWllLeg = F / p.factor;
+    if (k !== li) {
+      if (!(Number(p.length_m) > 0)) { p.length_m = 1; p.defaulted = true; }
+      if (p.kind === 'chain' && p.item?.dims?.pitch) { const c = chainLinks(p.item, Number(p.length_m), 'nearest'); p.links = c.n; p.length_m = c.length_m; p.overall_m = c.overall_m; }
+      p.fixed = true;
+    }
   }
   const lengthItem = li >= 0 ? parts[li].item : null;
-  const slingWidth = lengthItem?.type === 'chain' ? lengthItem.dims?.width || 0 : lengthItem?.dims?.width || 0;
+  const nearestChain = (i) => {
+    let best = null, bd = 1e9;
+    lens.forEach((k) => { if (parts[k].kind === 'chain' && Math.abs(k - i) < bd) { bd = Math.abs(k - i); best = parts[k].item; } });
+    return best;
+  };
+  const nearSlingWidth = (i) => {
+    const q = [parts[i - 1], parts[i + 1]].find((x) => x?.kind === 'sling' && x.item);
+    return q?.item?.dims?.width || 0;
+  };
+  const slingWidth = lengthItem?.type === 'chain' ? 0 : lengthItem?.dims?.width || 0;
   // 2) connectors
   parts.forEach((p, i) => {
     if (isLengthPart(p)) return;
+    const loadSide = li < 0 ? true : i < li;
     const atLoad = i === 0;
     const atTop = i === parts.length - 1;
     p.factor = 1;
     if (p.kind === 'shackle') {
       let pctx = {};
-      if (atLoad && ctx.level !== 'top' && point) pctx = padeyeCtx(point);
+      if (atLoad && ctx.level !== 'top' && point) pctx = pointKind(point) === 'ring' ? { minJaw: Number(point.ringBar_mm) || 0, maxPin: Number(point.ringIn_mm) || 0 } : padeyeCtx(point);
       if (atLoad && ctx.level === 'top') pctx = ctx.topLug || {};
       if (atTop && ctx.level === 'bottom') pctx = ctx.bottomLug || {};
       if (atLoad && ctx.level !== 'top') p.factor = shackleSideLoadFactor(beta || 0);
       const ranges = p.family ? [p.family] : null;
-      p.item = isAuto(p.id) ? selectShackle(F / p.factor, { ...pctx, slingWidth }, rules, ranges) : getItem(p.id);
+      const sw = nearSlingWidth(i);
+      const neighbourBar = [parts[i - 1], parts[i + 1]].map((q) => (q?.kind === 'chain' ? q.item?.dims?.dia : q?.kind === 'connlink' ? q.item?.dims?.barThk : 0)).filter(Boolean);
+      // pin side on a chain / link: the bar must fit in the jaw
+      const pinNeighbour = loadSide ? parts[i - 1] : parts[i + 1];
+      const minJaw = Math.max(pctx.minJaw || 0, pinNeighbour && ['chain', 'connlink'].includes(pinNeighbour.kind) ? Math.max(...neighbourBar, 0) : 0);
+      p.item = isAuto(p.id) ? selectShackle(F / p.factor, { ...pctx, minJaw, slingWidth: sw }, rules, ranges) : getItem(p.id);
       p.ctx = pctx;
       const inHole = (atLoad && ctx.level !== 'top' && hasPadeye(point)) || (atLoad && ctx.level === 'top') || (atTop && ctx.level === 'bottom');
       p.role = inHole ? 'hole' : 'link';
     } else if (p.kind === 'connlink') {
-      const grade = p.family === 'CL-G100' ? 100 : 80;
-      p.item = isAuto(p.id) ? selectConnlink(F, lengthItem?.type === 'chain' ? lengthItem : null, lengthItem?.grade || grade) : getItem(p.id);
+      const ch = nearestChain(i);
+      p.item = isAuto(p.id) ? selectConnlink(F, ch, 80) : getItem(p.id);
+      p.role = 'link';
+    } else if (p.kind === 'hook') {
+      p.item = isAuto(p.id) ? selectHook(F, nearestChain(i)) : getItem(p.id);
       p.role = 'link';
     } else if (p.kind === 'glink') {
-      p.item = isAuto(p.id) ? selectGlink(F, lengthItem?.type !== 'chain' ? slingWidth : 0) : getItem(p.id);
+      p.item = isAuto(p.id) ? selectGlink(F, nearSlingWidth(i) || slingWidth) : getItem(p.id);
       p.role = 'link';
     }
     p.reqWll = F / p.factor;
@@ -209,7 +240,11 @@ function resolveParts(partsIn, F, ctx) {
 
 /** Bearing-to-bearing length of the connectors of a leg (m). */
 function connectorsLength(parts) {
-  return parts.reduce((s, p) => (isLengthPart(p) ? s : s + connectorLength(p.item, p.role || 'link')), 0);
+  return parts.reduce((s, p) => {
+    if (!isLengthPart(p)) return s + connectorLength(p.item, p.role || 'link');
+    if (p.fixed) return s + (Number(p.length_m) || 0) - (p.hitch === 'choke' ? Math.max(0, Number(p.wrap_m) || 0) : 0);
+    return s;
+  }, 0);
 }
 
 /** Sets the length of the length element for a required effective length Lreq (m). */
@@ -282,8 +317,9 @@ function headConfig(rig) {
     type,
     itemId: h.itemId ?? ml.itemId ?? 'auto',
     subLinkItemId: h.subLinkItemId ?? ml.subLinkItemId ?? 'auto',
-    topShackle: h.topShackle ?? !!rig.topShackle?.enabled,
-    topShackleId: h.topShackleId ?? rig.topShackle?.itemId ?? 'auto',
+    topShackle: false,
+    topShackleId: 'auto',
+    unknownSWL: !!h.unknownSWL,
   };
 }
 
@@ -296,15 +332,8 @@ function pickHead(rig, legs, Fvert, rules) {
   let subLink = null;
   let fitWidth = 0;
   let masterlink = null;
-  // space taken along the master link / hook bearing bar by the last part of each leg
-  const widthOf = (leg) => {
-    const last = leg.parts[leg.parts.length - 1]?.item;
-    if (!last) return 0;
-    if (last.type === 'shackle') return last.dims?.eyeDia || last.dims?.bowDia || 0;
-    if (last.type === 'chain') return last.dims?.dia || 0;
-    if (last.type === 'connlink' || last.type === 'glink') return last.dims?.barThk || 0;
-    return last.dims?.width || 0;
-  };
+  // space taken along the bottom bar of the master link by the last part of each leg
+  const widthOf = (leg) => alongWidth(leg);
   const topShackle = hc.topShackle ? (isAuto(hc.topShackleId) ? selectShackle(Fvert, {}, rules) : getItem(hc.topShackleId)) : null;
   if (hc.type === 'hook') {
     return {
@@ -341,7 +370,24 @@ function pickHead(rig, legs, Fvert, rules) {
   const headLen = connectorLength(masterlink) + connectorLength(topShackle, 'link');
   const subLen = useSub ? connectorLength(subLink) : 0;
   const weight = itemWeight_t(masterlink) + itemWeight_t(topShackle) + (useSub && !integrated ? (pairs?.length || 0) * itemWeight_t(subLink) : 0);
-  return { type: hc.type, masterlink, subLink, pairs, useSub, integrated, topShackle, headLen, subLen, fitWidth, pairWidth, weight };
+  return { type: hc.type, masterlink, subLink, pairs, useSub, integrated, topShackle, headLen, subLen, fitWidth, pairWidth, weight: hc.unknownSWL ? 0 : weight, unknownSWL: hc.unknownSWL };
+}
+
+/** Hook-side shackles pinned on the master link / sub-link: the link bar must fit in the jaw. */
+function fitHeadShackles(legs, head, rules) {
+  if (!head || head.onHook) return;
+  legs.forEach((leg) => {
+    const n = leg.parts.length - 1;
+    const p = leg.parts[n];
+    if (!p || p.kind !== 'shackle' || !isAuto(p.id) || n < leg.li) return;
+    const link = head.useSub && head.subLink && leg.level === 'main' ? head.subLink : head.masterlink;
+    const bar = link?.dims?.stockDia || 0;
+    if (bar && p.item && p.item.dims.jawWidth < bar) {
+      const up = selectShackle(p.reqWll || leg.Fsel, { minJaw: bar }, rules);
+      if (up) p.item = up;
+      aliasComps(leg);
+    }
+  });
 }
 
 /** Result of a converging leg (final geometry + forces). */
@@ -441,6 +487,7 @@ function solveHook(project, ctx) {
       return leg;
     });
     const head = pickHead(rig, legs, W * ctx.facHead, rules);
+    fitHeadShackles(legs, head, rules);
     // 3) lengths
     legs.forEach((leg) => {
       leg.hwLength = connectorsLength(leg.parts) + head.headLen + (head.useSub ? head.subLen : 0);
@@ -619,6 +666,7 @@ function solveSpreader(project, ctx) {
     return leg;
   });
   const head = pickHead(rig, topLegs, (VAm + VBm) * ctx.facHead, rules);
+  fitHeadShackles(topLegs, head, rules);
   topLegs.forEach((leg) => {
     leg.hwLength = connectorsLength(leg.parts) + head.headLen;
     sizeLengthElement(leg, vlen(vsub(topPtD, leg.bottom)), roundMode);

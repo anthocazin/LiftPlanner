@@ -2,13 +2,13 @@
 import { app } from './app.js';
 import { el, fmt, toast, download, slug } from './dom.js';
 import { defaultProject, emptyProject } from '../state.js';
+import { lvState } from './loadview.js';
 import * as tProject from './tabs/project.js';
 import * as tLoad from './tabs/load.js';
 import * as tCrane from './tabs/crane.js';
 import * as tRigging from './tabs/rigging.js';
 import * as tResults from './tabs/results.js';
 import * as tDrawings from './tabs/drawings.js';
-import * as tStory from './tabs/storyboard.js';
 import * as tReport from './tabs/report.js';
 import * as tInventory from './tabs/inventory.js';
 import * as tSettings from './tabs/settings.js';
@@ -20,11 +20,22 @@ const TABS = [
   { id: 'rigging', title: 'Rigging', mod: tRigging },
   { id: 'results', title: 'Checks', mod: tResults, dot: true },
   { id: 'drawings', title: 'Drawings', mod: tDrawings },
-  { id: 'story', title: 'Storyboard', mod: tStory },
   { id: 'report', title: 'Report', mod: tReport },
   { id: 'inventory', title: 'Inventory', mod: tInventory },
   { id: 'settings', title: 'Settings', mod: tSettings },
 ];
+
+// short help on top of every page, and the order of the pages (Next → buttons)
+const INTRO = {
+  project: ['1 / 7', 'Who, where and how: identification printed in the report header, the lift steps (with the crane radius of each one), weather limits and safety measures.'],
+  load: ['2 / 7', 'The object to lift: weight, then its drawing (top / front / side views) or a simple shape, the lift points and the centre of gravity. The 3D view is rebuilt from the views.'],
+  crane: ['3 / 7', 'The crane and its load chart (SWL against radius). Save a crane in "My cranes" to reuse it; a PDF load chart can be read into the table.'],
+  rigging: ['4 / 7', 'From the crane hook down to the lift points: drag the items onto the legs. Sizes are chosen automatically from the force in every leg, the lengths from the target angle.'],
+  results: ['5 / 7', 'Every check with its result. Click a warning to open the item to adjust; the grey line explains why it matters.'],
+  drawings: ['6 / 7', 'The drawings of the plan (schematic, elevations, plan, 3D, components to scale), exportable as SVG / PNG.'],
+  report: ['7 / 7', 'The lift plan as printed. Add your own drawings in the half page kept for them, then print or save as PDF.'],
+};
+const FLOW = ['project', 'load', 'crane', 'rigging', 'results', 'drawings', 'report'];
 
 let active = 'load';
 let root = null;
@@ -56,7 +67,16 @@ export function show(id) {
   root = el('div', { class: 'tab-root' });
   main.append(root);
   const t = TABS.find((x) => x.id === id) || TABS[0];
+  const intro = INTRO[t.id];
+  if (intro) root.append(el('div', { class: 'page-intro no-print' }, el('b', {}, `Step ${intro[0]} — ${t.title}. `), intro[1]));
   t.mod.render(root);
+  const k = FLOW.indexOf(t.id);
+  if (k >= 0) {
+    const tt = (i) => TABS.find((x) => x.id === FLOW[i]).title;
+    root.append(el('div', { class: 'next-row no-print' },
+      k > 0 ? el('button', { onclick: () => show(FLOW[k - 1]) }, `← ${tt(k - 1)}`) : null,
+      k < FLOW.length - 1 ? el('button', { class: 'primary', onclick: () => show(FLOW[k + 1]) }, `Next: ${tt(k + 1)} →`) : el('button', { class: 'primary', onclick: () => printReport() }, 'Print / Save as PDF')));
+  }
   window.scrollTo({ top: 0 });
 }
 
@@ -67,6 +87,14 @@ export function rerender() {
   window.scrollTo({ top: y });
 }
 window.__rerender = rerender;
+/** Opens the page of a check and shows the item to adjust (ref from engine/checks). */
+window.__goto = (ref) => {
+  if (!ref?.tab) return;
+  if (ref.tab === 'load' && ref.point) lvState.selected = ref.point;
+  show(ref.tab);
+  if (ref.tab === 'rigging') tRigging.focus(ref);
+  if (ref.tab === 'load' && ref.point) setTimeout(() => (document.getElementById("padeye-panel") || document.querySelector(`#lp-table tr[data-id="${CSS.escape(ref.point)}"]`))?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+};
 window.__printReport = () => printReport();
 
 function renderSummary(res) {
@@ -139,6 +167,7 @@ function boot() {
   app.init();
   const h = (location.hash || '').slice(1);
   if (TABS.some((t) => t.id === h)) active = h;
+  else if (h === 'story') active = 'project';
   wireActions();
   app.onChange((res) => {
     renderSummary(res);

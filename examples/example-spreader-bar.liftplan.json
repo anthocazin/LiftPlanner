@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "project": {
     "name": "Example — skid lift with spreader bar",
     "liftId": "LP-002",
@@ -101,6 +101,7 @@
         "y": 300,
         "z": 2600,
         "used": true,
+        "kind": "padeye",
         "padeye": true,
         "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
@@ -118,6 +119,7 @@
         "y": 300,
         "z": 2600,
         "used": true,
+        "kind": "padeye",
         "padeye": true,
         "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
@@ -135,6 +137,7 @@
         "y": 2200,
         "z": 2600,
         "used": true,
+        "kind": "padeye",
         "padeye": true,
         "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,
@@ -152,6 +155,7 @@
         "y": 2200,
         "z": 2600,
         "used": true,
+        "kind": "padeye",
         "padeye": true,
         "padeyeStd": "PE-S-53.008.50.0S",
         "swl_t": 8.5,

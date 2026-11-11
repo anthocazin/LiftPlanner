@@ -3,7 +3,8 @@
 import { app } from '../app.js';
 import { el, field, cell, panel, fmt, toast } from '../dom.js';
 import { WCF_PRESETS } from '../../engine/factors.js';
-import { shackleCompatibility, listPadeyes, getItem } from '../../catalog/index.js';
+import { shackleCompatibility, listPadeyes, getItem, listByType, niceName } from '../../catalog/index.js';
+import { pointKind } from '../../engine/rigging.js';
 import { drawPadeyeFit } from '../../draw/detail.js';
 import { figure } from '../figure.js';
 import { lvState } from '../loadview.js';
@@ -131,7 +132,7 @@ function renderPoints() {
   const box = document.getElementById('lp-table');
   if (!box) return;
   const list = app.project.load.liftPoints;
-  const head = ['Id', 'X', 'Y', 'Z', 'Used', 'Padeye', 'SWL (t)', 'Design force', 'Min WLL', ''];
+  const head = ['Id', 'X', 'Y', 'Z', 'Used', 'Type', 'SWL (t)', 'Design force', 'Min WLL', ''];
   const tb = el('tbody');
   list.forEach((p, i) => {
     const b = `load.liftPoints.${i}.`;
@@ -139,8 +140,8 @@ function renderPoints() {
       el('td', { style: { width: '50px' } }, cell(`${b}id`, 'text', { onchange: () => { lvState.selected = app.project.load.liftPoints[i].id; app.recompute(); window.__rerender(); } })),
       ...['x', 'y', 'z'].map((k) => el('td', {}, cell(b + k, 'number', { onchange: () => { p.picks = {}; app.recompute(); } }))),
       el('td', { style: { textAlign: 'center' } }, cell(`${b}used`, 'checkbox', { onchange: () => app.recompute() })),
-      el('td', { style: { textAlign: 'center' } }, cell(`${b}padeye`, 'checkbox', { onchange: () => { app.recompute(); renderPadeye(); } })),
-      el('td', {}, p.padeye === false ? el('span', { class: 'muted' }, 'n/a') : cell(`${b}swl_t`, 'number', { onchange: () => app.recompute() })),
+      el('td', {}, { padeye: 'pad eye', ring: 'ring', none: '—' }[pointKind(p)]),
+      el('td', {}, pointKind(p) === 'none' ? el('span', { class: 'muted' }, 'n/a') : cell(`${b}swl_t`, 'number', { onchange: () => app.recompute() })),
       el('td', { class: 'num', 'data-k': 'F' }, '—'),
       el('td', { class: 'num', 'data-k': 'W' }, '—'),
       el('td', {}, el('button', { class: 'small danger', title: 'Delete', onclick: () => { list.splice(i, 1); app.recompute(); window.__rerender(); } }, '✕')),
@@ -164,14 +165,40 @@ function renderPadeye() {
     return;
   }
   const b = `load.liftPoints.${i}.`;
+  const kind = pointKind(p);
+  const kindSel = el('select', { onchange: (e) => { p.kind = e.target.value; p.padeye = e.target.value === 'padeye'; app.recompute(); renderPadeye(); renderPoints(); } },
+    [['padeye', 'Pad eye (shackle pin in a hole)'], ['ring', 'Anchor point / eye bolt (ring)'], ['none', 'None — sling choked, trunnion, hook point…']].map(([v, t]) => el('option', { value: v, selected: kind === v }, t)));
   box.append(
-    el('div', { class: 'panel-head' },
-      el('h2', {}, `Lift point ${p.id} — padeye`),
-      el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: p.padeye !== false, onchange: (e) => { p.padeye = e.target.checked; app.recompute(); renderPadeye(); renderPoints(); } }), 'This point has a padeye'),
-    ),
+    el('div', { class: 'panel-head' }, el('h2', {}, `Lift point ${p.id}`), el('label', { class: 'field', style: { minWidth: '280px' } }, kindSel)),
   );
-  if (p.padeye === false) {
-    box.append(el('div', { class: 'note' }, 'No padeye at this point (sling choked or around a trunnion, hook point, etc.): the padeye / shackle fit and the lift point SWL are not checked. Choose the load-side connection (e.g. choked sling) on the Rigging page.'));
+  if (kind === 'none') {
+    box.append(el('div', { class: 'note' }, 'No pad eye at this point (sling choked or around a trunnion, hook point, etc.): the pad eye / shackle fit and the lift point SWL are not checked. Choose the load-side connection (e.g. choked round sling) on the Rigging page.'));
+    return;
+  }
+  if (kind === 'ring') {
+    const on2 = () => { app.recompute(); renderPadeye(); };
+    const rs = el('select', { onchange: (e) => { const it = getItem(e.target.value); p.ringStd = e.target.value || null; if (it) Object.assign(p, { swl_t: it.wll_t, ringBar_mm: it.dims.bar, ringIn_mm: it.dims.inW }); on2(); renderPoints(); } });
+    rs.append(el('option', { value: '' }, 'Custom (type the dimensions)'));
+    listByType('ring').forEach((it) => rs.append(el('option', { value: it.id, selected: p.ringStd === it.id }, niceName(it))));
+    const it = getItem(p.ringStd);
+    const leg = app.result?.rig?.legs?.find((l) => l.pointId === p.id && l.level !== 'top');
+    const first = leg?.parts?.[0];
+    const issues = [];
+    if (first?.item?.type === 'shackle') {
+      const d = first.item.dims;
+      if (Number(p.ringBar_mm) > d.jawWidth) issues.push(`ring bar Ø${p.ringBar_mm} > shackle jaw ${d.jawWidth} mm`);
+      if (Number(p.ringIn_mm) && d.pinDia > Number(p.ringIn_mm)) issues.push(`shackle pin Ø${d.pinDia} > ring inside ${p.ringIn_mm} mm`);
+    }
+    box.append(
+      el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Standard anchor point / eye bolt'), rs),
+      it ? el('div', { class: 'muted', style: { fontSize: '12px', margin: '4px 0 8px' } }, `${it.name}: bar Ø${it.dims.bar}, inside ${it.dims.inW}${it.dims.inL && it.dims.inL !== it.dims.inW ? ` × ${it.dims.inL}` : ''} mm${it.note ? ` — ${it.note}` : ''}`) : null,
+      el('div', { class: 'fields' },
+        field({ label: 'SWL of the lift point', path: `${b}swl_t`, unit: 't', onchange: on2 }),
+        field({ label: 'Ring bar Ø', path: `${b}ringBar_mm`, unit: 'mm', onchange: on2 }),
+        field({ label: 'Ring inside width', path: `${b}ringIn_mm`, unit: 'mm', onchange: on2 }),
+      ),
+      first?.item ? el('div', { class: `note ${issues.length ? 'fail' : 'ok'}` }, issues.length ? `${niceName(first.item)} does not fit: ${issues.join('; ')}` : `${niceName(first.item)} fits the ring (bar in the jaw, pin through the ring).`) : null,
+    );
     return;
   }
   const on = () => { p.padeyeStd = null; app.recompute(); renderPadeye(); };

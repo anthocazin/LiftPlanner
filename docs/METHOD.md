@@ -4,7 +4,6 @@
 
 - Load frame: X (length), Y (width), Z up, entered in **mm**, used in **m** in the calculation.
 - Forces in **t** (tonnes-force, 1 t ≈ 9.81 kN). Weights in t, sling lengths in m (EWL).
-- Site frame (storyboard): m, free origin, crane slewing axis at (X, Y). Slew angle measured from the X axis, counter-clockwise.
 
 ## 2. Weights and factors
 
@@ -66,7 +65,7 @@ The calculation iterates (≤ 5 passes) because the rigging weight depends on th
 | Other parts (shackles, connecting links, G-Links) | F ≤ WLL; connecting link of the same size and grade as the chain |
 | EN mode factor | load ≤ K × WLL of one leg: K = 1 (1 leg), 1.4 / 1.0 (2 legs, β ≤ 45° / ≤ 60°), 2.1 / 1.5 (3–4 legs); β > 60° not allowed (EN 13414-1, EN 818-4, EN 1492). Slings and chains are also sized to satisfy it |
 | Padeye (if the point has one) | F ≤ SWL; warning if out-of-plane load > 5° |
-| Compatibility | pin ≤ hole; clearance ≤ max(3 mm; 4 % of pin Ø); total padeye thickness (main + 2 cheeks) < jaw width and ≥ 0.75 × jaw width; material above the hole (R − hole/2) + sling ≤ inside length; sling width / bow width (info); D/d of wire rope slings and grommets over the bow ≥ 1 (warning) |
+| Compatibility | pin ≤ hole; clearance ≤ max(3 mm; 4 % of pin Ø); total padeye thickness (main + 2 cheeks) < jaw width and ≥ 0.75 × jaw width; material above the hole (R − hole/2) + sling ≤ inside length; then every joint of the leg, part by part (see below) |
 | Master link, sub-links, top shackle | vertical load × DAF × f_other ≤ WLL; sling congestion ≤ inside width |
 | Angles | every leg: angle to the vertical ≤ 30° (target, warning above) and ≤ 45° (maximum, fail above) — both editable |
 | Tilt | warning above 2°, fail above 5° |
@@ -83,3 +82,18 @@ All thresholds can be changed (Settings tab; padeye tolerances on the Load page)
 - Padeye, lug and spreader bar strength is not calculated: only their declared SWL / WLL are checked.
 - Master link ratings from the DS Levage tables are sling assembly ratings; they are used as the vertical capacity of the link (conservative).
 - Tandem lifts, subsea / splash zone lifts: out of scope of this version.
+
+
+## Part-to-part compatibility (v0.5)
+
+Every joint between two parts of a leg (lift point → … → master link) is checked with the face each part offers:
+
+| Part | Face used |
+|---|---|
+| Shackle | bow: inside width at the bow 2 × R (bearing for a sling), pin: jaw width (what goes on the pin) and pin Ø |
+| Round sling | bunches on its bearing: width taken ≈ 0.5 × flat width |
+| Flat webbing sling | must lie flat: needs a bearing ≥ its width |
+| Wire rope sling | eye: D/d ≥ 1 over the bearing (warning), eye width ≈ 2 d along the bar |
+| Chain / connecting link / hook / master link | bar Ø (must enter the jaw / the eye) and inside width |
+
+Master link congestion: Σ of the widths taken by every leg on the bottom bar ≤ inside width. A master link marked *SWL not known* is assumed suitable: it is used for the geometry only, not checked and left out of the equipment list.

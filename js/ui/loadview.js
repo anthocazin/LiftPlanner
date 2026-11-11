@@ -47,6 +47,7 @@ function bounds(key, load, rig) {
   pts.push([+c[A] || 0, +c[B] || 0]);
   const ip = imagePlacement(load.views?.[key]);
   if (ip) pts.push([ip.x, -ip.y], [ip.x + ip.w, -(ip.y + ip.h)]);
+  (load.shapes || []).forEach((sh) => { const q = shapeProj(sh, key); if (q.kind === 'circle') pts.push([q.ca - q.r, q.cb - q.r], [q.ca + q.r, q.cb + q.r]); else pts.push([q.a0, q.b0], [q.a1, q.b1]); });
   if (rig && !rig.error && lvState.showRig && key !== 'xy') pts.push([rig.hook[A] * 1000, rig.hook[B] * 1000 + 300]);
   let a0 = Math.min(...pts.map((p) => p[0])), a1 = Math.max(...pts.map((p) => p[0]));
   let b0 = Math.min(...pts.map((p) => p[1])), b1 = Math.max(...pts.map((p) => p[1]));
@@ -73,7 +74,7 @@ function fitBox(key, load, rig, cw, ch, z) {
 }
 
 /** SVG content of a view (model mm, y = −b). u = size of one screen pixel in mm. */
-function viewContent(key, load, rig, vb, u, editable) {
+function viewContent(key, load, rig, vb, u, editable, extra = {}) {
   const [A, B] = AXES[key];
   const opts = { editable };
     let s = '';
@@ -99,18 +100,32 @@ function viewContent(key, load, rig, vb, u, editable) {
     const ea0 = e[`${A}0`], ea1 = e[`${A}1`], eb0 = e[`${B}0`], eb1 = e[`${B}1`];
     if (ea1 > ea0 && eb1 > eb0)
       s += `<rect x="${n(ea0)}" y="${n(-eb1)}" width="${n(ea1 - ea0)}" height="${n(eb1 - eb0)}" fill="${ip ? 'none' : 'rgba(23,58,94,.05)'}" stroke="#173a5e" stroke-width="${n(1.2 * u)}" stroke-dasharray="${n(6 * u)} ${n(4 * u)}"/>`;
+    // simple shapes of the load (uniform weight → COG)
+    s += shapesContent(key, load, u, extra);
     // rigging overlay
     if (rig && lvState.showRig) {
       const hk = [rig.hook[A] * 1000, rig.hook[B] * 1000];
       let rg = '';
+      // legs that coincide in this view share one label
+      const groupsL = [];
       for (const leg of rig.legs) {
         const p0 = [leg.bottom[A] * 1000, leg.bottom[B] * 1000];
         const p1 = [leg.top[A] * 1000, leg.top[B] * 1000];
         const col = leg.lengthKind === 'chain' ? '#5d6b7a' : leg.comps?.sling?.colorHex || '#2a5db0';
         rg += `<line x1="${n(p0[0])}" y1="${n(-p0[1])}" x2="${n(p1[0])}" y2="${n(-p1[1])}" stroke="${esc(col)}" stroke-width="${n(3 * u)}" stroke-linecap="round" opacity=".85"/>`;
-        const mx = p0[0] + (p1[0] - p0[0]) * 0.45, my = p0[1] + (p1[1] - p0[1]) * 0.45;
-        if (key !== 'xy' || leg.level !== 'top')
-          rg += `<text x="${n(mx + 6 * u)}" y="${n(-my)}" font-size="${n(10 * u)}" fill="#173a5e" font-weight="600" paint-order="stroke" stroke="#fff" stroke-width="${n(3 * u)}">${esc(leg.key)} ${leg.angleV.toFixed(0)}° · ${leg.Leff.toFixed(2)} m</text>`;
+        if (key === 'xy' && leg.level === 'top') continue;
+        const g = groupsL.find((q) => Math.hypot(q.p0[0] - p0[0], q.p0[1] - p0[1]) < 25 * u && Math.hypot(q.p1[0] - p1[0], q.p1[1] - p1[1]) < 25 * u);
+        if (g) g.legs.push(leg);
+        else groupsL.push({ p0, p1, legs: [leg] });
+      }
+      for (const g of groupsL) {
+        const { p0, p1 } = g;
+        const t = g.legs.length > 1 ? 0.55 : 0.45;
+        const mx = p0[0] + (p1[0] - p0[0]) * t, my = p0[1] + (p1[1] - p0[1]) * t;
+        const side = p1[0] >= p0[0] ? -1 : 1; // label outside the legs
+        const L = Math.max(...g.legs.map((l) => l.Leff)), ang = Math.max(...g.legs.map((l) => l.angleV));
+        const txt = `${g.legs.map((l) => l.key).join('/')} · ${L.toFixed(2)} m · ${ang.toFixed(0)}°`;
+        rg += `<text x="${n(mx + side * 8 * u)}" y="${n(-my)}" text-anchor="${side > 0 ? 'start' : 'end'}" font-size="${n(11 * u)}" fill="#173a5e" font-weight="700" paint-order="stroke" stroke="#fff" stroke-width="${n(3.5 * u)}">${esc(txt)}</text>`;
       }
       if (rig.spreader) {
         const sa = rig.spreader.lugA, sb = rig.spreader.lugB;
@@ -123,7 +138,7 @@ function viewContent(key, load, rig, vb, u, editable) {
     // COG
     const c = load.cog_mm || {};
     const ca = +c[A] || 0, cb = +c[B] || 0, r = 9 * u;
-    const pe = lvState.mode === 'pick' ? ' pointer-events="none"' : '';
+    const pe = '';
     s += `<g data-drag="cog"${pe} class="${opts.editable ? 'grab' : ''}" transform="translate(${n(ca)} ${n(-cb)})">
       ${lvState.selected === 'COG' ? `<circle r="${n(r + 5 * u)}" fill="none" stroke="#e8822a" stroke-width="${n(3 * u)}"/>` : ''}
       <circle r="${n(r)}" fill="#fff" stroke="#111" stroke-width="${n(1.4 * u)}"/>
@@ -174,20 +189,57 @@ export function staticViewSvg(key, project, res, { width = 560, height = 380, ti
     `<svg x="0" y="22" width="${width}" height="${height}" viewBox="${n(vb.x)} ${n(vb.y)} ${n(vb.w)} ${n(vb.h)}" font-family="Arial, sans-serif">${inner}</svg></svg>`;
 }
 
+/** Projection of a load shape in a view: { kind: 'rect', a0, a1, b0, b1 } or { kind: 'circle', ca, cb, r }. */
+export function shapeProj(sh, key) {
+  const [A, B] = AXES[key];
+  if (sh.type === 'box') return { kind: 'rect', a0: Math.min(sh[`${A}0`], sh[`${A}1`]), a1: Math.max(sh[`${A}0`], sh[`${A}1`]), b0: Math.min(sh[`${B}0`], sh[`${B}1`]), b1: Math.max(sh[`${B}0`], sh[`${B}1`]) };
+  const ax = sh.axis || 'z';
+  const c = { x: +sh.cx || 0, y: +sh.cy || 0, z: +sh.cz || 0 };
+  const r = +sh.r || 0, L = +sh.L || 0;
+  if (ax !== A && ax !== B) return { kind: 'circle', ca: c[A], cb: c[B], r };
+  const span = (k) => (k === ax ? [c[k], c[k] + L] : [c[k] - r, c[k] + r]);
+  const [a0, a1] = span(A), [b0, b1] = span(B);
+  return { kind: 'rect', a0: Math.min(a0, a1), a1: Math.max(a0, a1), b0: Math.min(b0, b1), b1: Math.max(b0, b1) };
+}
+
+function shapesContent(key, load, u, extra) {
+  let s = '';
+  for (const sh of load.shapes || []) {
+    const pr = shapeProj(sh, key);
+    const sel = extra.selShape === sh.id;
+    const st = `stroke="${sh.void ? '#7b3fb0' : '#c96a17'}" stroke-width="${n((sel ? 2.4 : 1.4) * u)}" ${sh.void ? `stroke-dasharray="${n(5 * u)} ${n(3 * u)}"` : ''} fill="${sh.void ? 'rgba(123,63,176,.06)' : 'rgba(232,130,42,.16)'}"`;
+    const pe = extra.shapesEditable ? ` data-shape="${esc(sh.id)}" class="grab"` : ' pointer-events="none"';
+    if (pr.kind === 'circle') s += `<g${pe}><circle cx="${n(pr.ca)}" cy="${n(-pr.cb)}" r="${n(pr.r)}" ${st}/></g>`;
+    else s += `<g${pe}><rect x="${n(pr.a0)}" y="${n(-pr.b1)}" width="${n(pr.a1 - pr.a0)}" height="${n(pr.b1 - pr.b0)}" ${st}/></g>`;
+    if (sel && extra.shapesEditable) {
+      const h = pr.kind === 'circle' ? [pr.ca + pr.r, pr.cb] : [pr.a1, pr.b1];
+      s += `<rect data-shandle="1" x="${n(h[0] - 6 * u)}" y="${n(-h[1] - 6 * u)}" width="${n(12 * u)}" height="${n(12 * u)}" fill="#fff" stroke="#e8822a" stroke-width="${n(2 * u)}" class="grab"/>`;
+    }
+    if (sh.name) s += `<text x="${n((pr.kind === 'circle' ? pr.ca : pr.a0) + 4 * u)}" y="${n(-(pr.kind === 'circle' ? pr.cb : pr.b1) + 12 * u)}" font-size="${n(10 * u)}" fill="#9b5a1d" pointer-events="none">${esc(sh.name)}</text>`;
+  }
+  return s;
+}
+
 /**
- * Creates a view. opts: { editable, height, onSelect(id), onChange(), title }
- * The element exposes .refresh().
+ * Creates a view. opts: { editable, height, title, onPick(key,a,b), onAdd(key,a,b), onSelect(id),
+ * onChange(), shapes: { editable, selected(), onSelect(id), onCreate(shape) } }.
+ * Mouse: click = place (current tool), drag the background = pan, drag a marker = move it,
+ * wheel = zoom at the cursor, double-click = fit. Buttons: + − fit and full screen.
  */
 export function loadView(key, opts = {}) {
   const [A, B] = AXES[key];
   const box = el('div', { class: 'lv' });
-  const head = el('div', { class: 'lv-head' }, el('b', {}, opts.title || VIEW_NAMES[key]), el('span', { class: 'muted lv-coord' }, ''));
+  const zoomBtn = (t, f, title) => el('button', { class: 'lv-btn', title, onclick: (e) => { e.stopPropagation(); f(); } }, t);
+  const head = el('div', { class: 'lv-head' }, el('b', {}, opts.title || VIEW_NAMES[key]), el('span', { class: 'muted lv-coord' }, ''),
+    el('span', { class: 'lv-tools' },
+      zoomBtn('+', () => zoomBy(1 / 1.3), 'Zoom in'), zoomBtn('−', () => zoomBy(1.3), 'Zoom out'), zoomBtn('Fit', () => { delete zoomState[key]; draw(); }, 'Fit the view'),
+      zoomBtn('⤢', () => { box.classList.toggle('lv-max'); setTimeout(draw, 30); }, 'Full screen / back')));
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('class', 'lv-svg');
   svg.style.height = `${opts.height || 420}px`;
   box.append(head, svg);
   const coord = head.querySelector('.lv-coord');
-  let vb = null; // current viewBox {x, y, w, h}
+  let vb = null;
   let drag = null;
 
   const toModel = (ev) => {
@@ -203,6 +255,15 @@ export function loadView(key, opts = {}) {
     const s = Number(lvState.snap) || 1;
     return Math.round(v / s) * s;
   };
+  const curZoom = () => zoomState[key] || { k: 1, cx: vb.x + vb.w / 2, cy: vb.y + vb.h / 2 };
+  function zoomBy(f, at) {
+    const cur = curZoom();
+    const k = Math.min(6, Math.max(0.02, cur.k * f));
+    const r = k / cur.k;
+    const [a, b] = at || [cur.cx, -cur.cy];
+    zoomState[key] = { k, cx: a + (cur.cx - a) * r, cy: -b + (cur.cy + b) * r };
+    draw();
+  }
 
   function draw() {
     const load = app.project.load;
@@ -211,115 +272,138 @@ export function loadView(key, opts = {}) {
     const cw = svg.clientWidth || 600, ch = svg.clientHeight || opts.height || 420;
     vb = fitBox(key, load, rig, cw, ch, zoomState[key]);
     svg.setAttribute('viewBox', `${n(vb.x)} ${n(vb.y)} ${n(vb.w)} ${n(vb.h)}`);
-    svg.innerHTML = viewContent(key, load, rig, vb, vb.w / cw, !!opts.editable);
+    svg.innerHTML = viewContent(key, load, rig, vb, vb.w / cw, !!opts.editable, { shapesEditable: !!opts.shapes?.editable, selShape: opts.shapes?.selected?.() });
+    svg.style.cursor = lvState.tool ? 'crosshair' : 'grab';
   }
 
-  // ---------- interactions
+  const load = () => app.project.load;
   svg.addEventListener('pointermove', (ev) => {
     const [a, b] = toModel(ev);
     coord.textContent = `${A.toUpperCase()} ${Math.round(a)} · ${B.toUpperCase()} ${Math.round(b)} mm`;
     if (!drag) return;
-    if (drag.kind === 'pan') {
-      const dx = (ev.clientX - drag.x0) * (vb.w / svg.clientWidth);
-      const dy = (ev.clientY - drag.y0) * (vb.h / svg.clientHeight);
+    const moved = Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 4;
+    if (moved) drag.moved = true;
+    if (!drag.moved) return;
+    if (drag.kind === 'bg') {
+      // background: pan (or draw a new shape with a shape tool)
+      if (drag.create) {
+        const sh = drag.create;
+        const [a0, b0] = drag.m0;
+        if (sh.type === 'box') { sh[`${A}0`] = snap(Math.min(a0, a)); sh[`${A}1`] = snap(Math.max(a0, a)); sh[`${B}0`] = snap(Math.min(b0, b)); sh[`${B}1`] = snap(Math.max(b0, b)); }
+        else sh.r = Math.max(1, snap(Math.hypot(a - a0, b - b0)));
+        draw();
+        return;
+      }
+      const dx = (ev.clientX - drag.sx) * (vb.w / svg.clientWidth);
+      const dy = (ev.clientY - drag.sy) * (vb.h / svg.clientHeight);
       zoomState[key] = { k: drag.z.k, cx: drag.z.cx - dx, cy: drag.z.cy - dy };
       draw();
       return;
     }
     const sa = snap(a), sbv = snap(b);
-    const load = app.project.load;
     if (drag.kind === 'pt') {
-      const p = load.liftPoints[drag.i];
+      const p = load().liftPoints[drag.i];
       p[A] = sa;
       p[B] = sbv;
       if (p.picks) p.picks[key] = [sa, sbv];
+      drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
     } else if (drag.kind === 'cog') {
-      load.cog_mm[A] = sa;
-      load.cog_mm[B] = sbv;
-      if (load.cogPicks) load.cogPicks[key] = [sa, sbv];
-      load.cogBasis = load.cogBasis || 'estimated';
+      const c = load().cog_mm;
+      c[A] = sa;
+      c[B] = sbv;
+      if (load().cogPicks) load().cogPicks[key] = [sa, sbv];
+      if (load().cogBasis === 'shape') load().cogBasis = 'estimated';
+      drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
+    } else if (drag.kind === 'shape' || drag.kind === 'shandle') {
+      const sh = (load().shapes || []).find((q) => q.id === drag.id);
+      if (!sh) return;
+      const da = snap(a - drag.m0[0]), db = snap(b - drag.m0[1]);
+      const o = drag.orig;
+      if (drag.kind === 'shape') {
+        if (sh.type === 'box') { sh[`${A}0`] = o[`${A}0`] + da; sh[`${A}1`] = o[`${A}1`] + da; sh[`${B}0`] = o[`${B}0`] + db; sh[`${B}1`] = o[`${B}1`] + db; }
+        else { sh[`c${A}`] = o[`c${A}`] + da; sh[`c${B}`] = o[`c${B}`] + db; }
+      } else if (sh.type === 'box') { sh[`${A}1`] = Math.max(o[`${A}0`] + 1, o[`${A}1`] + da); sh[`${B}1`] = Math.max(o[`${B}0`] + 1, o[`${B}1`] + db); }
+      else {
+        const ax = sh.axis || 'z';
+        if (ax !== A && ax !== B) sh.r = Math.max(1, snap(Math.hypot(a - o[`c${A}`], b - o[`c${B}`])));
+        else {
+          const other = ax === A ? B : A;
+          sh.L = Math.max(1, (o.L || 0) + (ax === A ? da : db));
+          sh.r = Math.max(1, (o.r || 0) + (other === A ? da : db));
+        }
+      }
+      opts.shapes?.onChange?.(false);
+      draw();
     }
-    drag.moved = true;
-    drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
   });
   svg.addEventListener('pointerdown', (ev) => {
-    const g = ev.target.closest('[data-drag]');
+    if (ev.button === 1 || ev.button === 2) ev.preventDefault();
     const [a, b] = toModel(ev);
-    if (opts.editable && lvState.mode === 'pick' && !g) {
-      opts.onPick?.(key, snap(a), snap(b));
-      return;
-    }
-    if (opts.editable && lvState.mode === 'add' && !g) {
-      opts.onAdd?.(key, snap(a), snap(b));
-      return;
-    }
-    if (opts.editable && lvState.mode === 'cog' && !g) {
-      const c = app.project.load.cog_mm;
-      c[A] = snap(a);
-      c[B] = snap(b);
-      lvState.mode = 'select';
-      opts.onChange?.();
-      app.recompute();
-      return;
-    }
-    if (g && opts.editable) {
-      const kind = g.dataset.drag;
-      const i = Number(g.dataset.i);
-      if (kind === 'pt') {
-        lvState.selected = app.project.load.liftPoints[i]?.id || null;
-        opts.onSelect?.(lvState.selected);
+    const tgt = ev.target;
+    const base = { sx: ev.clientX, sy: ev.clientY, m0: [a, b], moved: false };
+    const hnd = tgt.closest('[data-shandle]');
+    const shp = tgt.closest('[data-shape]');
+    const mk = tgt.closest('[data-drag]');
+    if (hnd && opts.shapes?.editable) {
+      const sh = (load().shapes || []).find((q) => q.id === opts.shapes.selected());
+      if (sh) drag = { ...base, kind: 'shandle', id: sh.id, orig: { ...sh } };
+    } else if (mk && opts.editable && !lvState.tool) {
+      const kind = mk.dataset.drag;
+      const i = Number(mk.dataset.i);
+      drag = { ...base, kind, i, g: mk };
+    } else if (shp && opts.shapes?.editable && !lvState.tool) {
+      const sh = (load().shapes || []).find((q) => q.id === shp.dataset.shape);
+      opts.shapes.onSelect?.(sh.id);
+      drag = { ...base, kind: 'shape', id: sh.id, orig: { ...sh } };
+      draw();
+    } else {
+      drag = { ...base, kind: 'bg', z: curZoom() };
+      if (lvState.tool && opts.shapes?.editable) {
+        const sh = opts.shapes.onCreate?.(lvState.tool, key, snap(a), snap(b));
+        if (sh) drag.create = sh;
       }
-      drag = { kind, i, g, moved: false };
-      svg.setPointerCapture(ev.pointerId);
-      ev.preventDefault();
-      return;
     }
-    if (g && !opts.editable && g.dataset.drag === 'pt') {
-      lvState.selected = app.project.load.liftPoints[Number(g.dataset.i)]?.id || null;
-      opts.onSelect?.(lvState.selected);
-      return;
-    }
-    // pan
-    const z = zoomState[key] || { k: 1, cx: vb.x + vb.w / 2, cy: vb.y + vb.h / 2 };
-    drag = { kind: 'pan', x0: ev.clientX, y0: ev.clientY, z };
-    svg.setPointerCapture(ev.pointerId);
+    if (drag) svg.setPointerCapture(ev.pointerId);
   });
-  const end = () => {
+  const end = (ev) => {
     if (!drag) return;
     const d = drag;
     drag = null;
-    if (d.kind !== 'pan' && d.moved) {
-      opts.onChange?.();
+    const [a, b] = ev ? toModel(ev) : d.m0;
+    if (d.kind === 'bg' && d.create) {
+      opts.shapes?.onChange?.(true);
+      lvState.tool = null;
       app.recompute();
-    } else if (d.kind === 'pt') {
-      opts.onChange?.();
-      draw();
+      return;
     }
+    if (!d.moved) {
+      // a click: place with the current mode (also when clicking on a marker)
+      if (d.kind === 'pt' && lvState.mode !== 'pick') { lvState.selected = load().liftPoints[d.i]?.id || null; opts.onSelect?.(lvState.selected); draw(); return; }
+      if (lvState.mode === 'pick' && opts.onPick) { opts.onPick(key, snap(a), snap(b)); return; }
+      if (lvState.mode === 'add' && opts.onAdd) { opts.onAdd(key, snap(a), snap(b)); return; }
+      if (lvState.mode === 'cog' && opts.editable) { const c = load().cog_mm; c[A] = snap(a); c[B] = snap(b); lvState.mode = 'select'; app.recompute(); return; }
+      if (d.kind === 'bg' && opts.shapes?.editable) { opts.shapes.onSelect?.(null); draw(); }
+      return;
+    }
+    if (d.kind === 'pt' || d.kind === 'cog') { opts.onChange?.(); app.recompute(); }
+    else if (d.kind === 'shape' || d.kind === 'shandle') { opts.shapes?.onChange?.(true); app.recompute(); }
   };
   svg.addEventListener('pointerup', end);
-  svg.addEventListener('pointercancel', end);
+  svg.addEventListener('pointercancel', () => { drag = null; });
+  svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('wheel', (ev) => {
     ev.preventDefault();
-    const [a, b] = toModel(ev);
-    const cur = zoomState[key] || { k: 1, cx: vb.x + vb.w / 2, cy: vb.y + vb.h / 2 };
-    const f = ev.deltaY > 0 ? 1.15 : 1 / 1.15;
-    const k = Math.min(4, Math.max(0.05, cur.k * f));
-    const r = k / cur.k;
-    // keep the point under the cursor fixed
-    zoomState[key] = { k, cx: a + (cur.cx - a) * r, cy: -b + (cur.cy + b) * r };
-    draw();
+    zoomBy(ev.deltaY > 0 ? 1.15 : 1 / 1.15, toModel(ev));
   }, { passive: false });
   svg.addEventListener('dblclick', (ev) => {
-    if (ev.target.closest('[data-drag]')) return;
+    if (ev.target.closest('[data-drag],[data-shape]')) return;
     delete zoomState[key];
     draw();
   });
-
   box.refresh = () => {
     if (drag) return;
     draw();
   };
-  // first draw once in the DOM (needs the element size)
   requestAnimationFrame(draw);
   return box;
 }

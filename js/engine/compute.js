@@ -4,6 +4,7 @@ import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks
 import { isLengthPart } from './rigging.js';
 import { setUserCatalog, itemWeight_t, niceName } from '../catalog/index.js';
 import { chartRange } from './crane.js';
+import { shapesCog } from './shape.js';
 
 export function buildBOM(rig, project) {
   const lines = new Map();
@@ -46,10 +47,10 @@ export function buildBOM(rig, project) {
   }
   const h = rig.head;
   if (h) {
-    add(h.masterlink, 1, { where: 'Head', config: h.integrated ? 'on crane hook, with sub-links' : 'on crane hook' });
-    if (h.useSub && h.subLink && !h.integrated)
+    if (h.unknownSWL) lines.set('masterlink-unknown', { key: 'masterlink-unknown', item: { type: 'masterlink', unknown: true, id: 'masterlink-unknown' }, name: 'Masterlink (existing, SWL not known)', qty: 1, wll_t: null, unitWeight_t: 0, where: ['Head'], config: 'on crane hook', unknown: true });
+    else add(h.masterlink, 1, { where: 'Head', config: h.integrated ? 'on crane hook, with sub-links' : 'on crane hook' });
+    if (!h.unknownSWL && h.useSub && h.subLink && !h.integrated)
       add({ ...h.subLink, id: `${h.subLink.id}#sub`, integrated: true }, h.pairs.length, { where: 'Head', config: 'under the master link' });
-    add(h.topShackle, 1, { where: 'Head', config: 'crane hook ↔ master link' });
   }
   const out = [...lines.values()];
   if (rig.spreader) {
@@ -78,6 +79,12 @@ export function worstStatus(checks) {
 /** Computes the whole project. */
 export function computeProject(project) {
   setUserCatalog(project.inventory || []);
+  // COG from the simple shape model (uniform weight)
+  const ld = project.load || {};
+  if (ld.cogBasis === 'shape' && (ld.shapes || []).length) {
+    const g = shapesCog(ld.shapes);
+    if (g) ld.cog_mm = { x: Math.round(g.x), y: Math.round(g.y), z: Math.round(g.z) };
+  }
   const rules = { ...DEFAULT_RULES, ...(project.rules || {}), ...(project.load?.padeyeRules || {}) };
   const rig = solveRigging(project, rules);
   const checks = riggingChecks(rig, project, rules);
@@ -95,14 +102,6 @@ export function computeProject(project) {
   const zMin = (Number(project.load?.origin_mm?.z) || 0) / 1000;
   const hookAboveBottom = rig.hook.z - zMin; // hook height above the underside of the load
   res.hookAboveBottom = hookAboveBottom;
-  // steps placed on the site map: radius and slew from the crane position
-  const cr = project.storyboard?.crane || { x: 0, y: 0 };
-  (project.storyboard?.steps || []).forEach((st) => {
-    if (st.pos && isFinite(st.pos.x) && isFinite(st.pos.y)) {
-      st.radius_m = Math.round(Math.hypot(st.pos.x - cr.x, st.pos.y - cr.y) * 100) / 100;
-      st.slew_deg = Math.round((Math.atan2(st.pos.y - cr.y, st.pos.x - cr.x) * 180) / Math.PI * 10) / 10;
-    }
-  });
   const steps = project.storyboard?.steps?.length
     ? project.storyboard.steps
     : [{ name: 'Max radius', radius_m: crane.radius_m, loadElevation_m: null }];
@@ -115,6 +114,7 @@ export function computeProject(project) {
     }
     const cc = craneCheck(crane, res.shlCrane, R, label);
     const requiredHook = st.loadElevation_m != null && st.loadElevation_m !== '' ? Number(st.loadElevation_m) + hookAboveBottom : null;
+    cc.checks.forEach((c) => (c.ref = { tab: 'crane' }));
     checks.push(...cc.checks);
     res.steps.push({ step: st, label, checks: cc.checks, capacity: cc.capacity, requiredHook });
   });

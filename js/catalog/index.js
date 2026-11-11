@@ -53,6 +53,8 @@ export function niceName(item, { length_m = null, links = null } = {}) {
     case 'glink': return `G-Link ${w}`;
     case 'masterlink': return item.sub ? `Quad masterlink ${w}` : String(item.id).endsWith('#sub') || item.integrated ? `Sub-link ${w}` : `Masterlink ${w}`;
     case 'padeye': return `Pad eye ${w}`;
+    case 'hook': return `Safety hook ${w}`;
+    case 'ring': return item.family === 'EYEBOLT' ? `Eye bolt ${item.dims?.thread} ${w}` : `Anchor point ${w}`;
     default: return item.short || item.name || '—';
   }
 }
@@ -72,6 +74,16 @@ export function listChainFamily(family = 'CH-G80') {
 export function selectChain(requiredWll_t, mode = 'direct', family = 'CH-G80') {
   const f = slingModeFactor(mode);
   return listChainFamily(family).sort(byWll).find((c) => c.wll_t * f >= requiredWll_t) || null;
+}
+
+/** Self-locking eye hook: for the chain size when there is one, otherwise by WLL. */
+export function selectHook(requiredWll_t, chain = null) {
+  const cands = listByType('hook').sort(byWll);
+  if (chain?.dims?.dia) {
+    const exact = cands.find((c) => (c.chainDias || []).includes(chain.dims.dia) && c.wll_t >= requiredWll_t);
+    if (exact) return exact;
+  }
+  return cands.find((c) => c.wll_t >= requiredWll_t) || null;
 }
 
 /** Connecting link: same grade and size as the chain when there is one, otherwise by WLL. */
@@ -212,6 +224,8 @@ export function selectShackle(requiredWll_t, ctx = {}, rules = {}, ranges = null
   let firstOk = null;
   for (const s of cands) {
     if (s.wll_t < requiredWll_t) continue;
+    if (ctx.minJaw && s.dims?.jawWidth < ctx.minJaw) continue; // the ring / master link bar must fit in the jaw
+    if (ctx.maxPin && s.dims?.pinDia > ctx.maxPin) continue; // the pin must pass through the ring
     const issues = shackleCompatibility(s, ctx, rules);
     if (issues.some((i) => i.level === 'fail')) continue;
     if (!firstOk) firstOk = s;

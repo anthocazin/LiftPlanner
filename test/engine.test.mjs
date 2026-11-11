@@ -127,7 +127,6 @@ test('full calculation of the example project', () => {
   assert.ok(!res.rig.error, res.rig.error);
   assert.ok(res.checks.length > 5);
   assert.ok(res.bom.length >= 3);
-  assert.ok(getItem('CR-A342-1in'));
 });
 
 import { estimateTilt } from '../js/engine/equilibrium.js';
@@ -158,14 +157,17 @@ test('offshore: DNV DAF applied to the legs, not to the crane', () => {
 
 import { selectSling, bendingRatio, listSlingFamily } from '../js/catalog/index.js';
 
-test('DS Levage catalogue: sling families and wide body shackles', () => {
+test('catalogue limited to the supplied tables', () => {
   const wire = selectSling(5, 'direct', 'WIRE');
   assert.equal(wire.type, 'wiresling');
   assert.ok(wire.wll_t >= 5 && wire.wll_t < 6.5, `wire sling ${wire.wll_t}`);
-  assert.ok(listSlingFamily('RS-UHMWPE').every((s) => s.type === 'roundsling'));
-  assert.equal(selectSling(30, 'direct', 'GROMMET').type, 'grommet');
-  const wb = selectShackle(10, {}, { ...DEFAULT_RULES, shackleRanges: ['WIDE'] });
-  assert.equal(wb.wll_t, 12.5);
+  assert.ok(listSlingFamily('RS-PES').every((s) => s.wll_t <= 30));
+  assert.ok(listSlingFamily('WEB').some((s) => s.wll_t === 30));
+  assert.equal(selectSling(31, 'direct', 'WIRE'), null);
+  const sh = listByType('shackle');
+  assert.equal(sh.length, 18);
+  assert.equal(Math.max(...sh.map((x) => x.wll_t)), 85);
+  assert.equal(selectShackle(10, {}, DEFAULT_RULES).wll_t, 12);
   near(bendingRatio({ type: 'wiresling', dims: { ropeDia: 24 } }, 48), 2);
 });
 
@@ -187,7 +189,7 @@ test('quad master link assembly from the catalogue carries the sub-links', () =>
   if (h.integrated) assert.ok(h.subLink && h.masterlink.sub);
 });
 
-import { chainLinks, selectChain, selectConnlink, enModeFactor, connectorLength } from '../js/catalog/index.js';
+import { chainLinks, selectChain, selectConnlink, enModeFactor, connectorLength, listByType } from '../js/catalog/index.js';
 import { migrate } from '../js/state.js';
 
 test('chain assembly: shackle → connecting link → chain → connecting link → shackle', () => {
@@ -273,7 +275,7 @@ test('v2 project file migrates to leg assemblies', () => {
     load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
   };
   const p = migrate(v2);
-  assert.equal(p.schema, 3);
+  assert.equal(p.schema, 4);
   assert.equal(p.rigging.design.targetAngleV_deg, 30);
   assert.equal(p.rigging.head.type, 'masterlink');
   assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);
@@ -286,7 +288,7 @@ test('v2 project file migrates to leg assemblies', () => {
 
 import { niceName, listPadeyes, shackleCompatibility as compat } from '../js/catalog/index.js';
 import { draw3d } from '../js/draw/view3d.js';
-import { shapesSvg, defaultShape, dragHandle } from '../js/draw/shapes.js';
+import { schematicSvg } from '../js/draw/schematic.js';
 
 test('standard pad eyes type S and the H ≤ 106 % pin rule', () => {
   const pe = listPadeyes().find((p) => p.wll_t === 8.5);
@@ -317,16 +319,38 @@ test('simple equipment names', () => {
   assert.match(niceName(selectSling(8, 'direct', 'RS-PES'), { length_m: 6 }), /^Roundsling 8t — 6 m$/);
 });
 
-test('3D view and storyboard shapes render', () => {
+test('3D view and rigging schematic render', () => {
   const p = defaultProject();
-  const svg = draw3d(p, computeProject(p), { width: 500, height: 400 });
+  const res = computeProject(p);
+  const svg = draw3d(p, res, { width: 500, height: 400 });
   assert.ok(svg.startsWith('<svg') && svg.includes('COG') && svg.includes('Hook'));
-  const r = defaultShape('rect', 0, 0);
-  dragHandle(r, 'size', 3, 2);
-  near(r.w, 6);
-  near(r.h, 4);
-  const s = shapesSvg([r, defaultShape('arc', 0, 0), { ...defaultShape('text', 1, 1), text: '<b>x</b>' }]);
-  assert.ok(s.includes('<polygon') && s.includes(' A ') && s.includes('&lt;b&gt;'));
+  const sch = schematicSvg(p, res, { width: 800 });
+  assert.ok(sch.svg.includes('Shackle') && sch.svg.includes('Crane hook') && !sch.drops.some((d) => d.level !== 'head'));
+  const live = schematicSvg(p, res, { width: 800, interactive: true });
+  assert.ok(live.drops.length > 4 && live.svg.includes('data-pop'));
+});
+
+test('unknown masterlink SWL: assumed OK, shape only in the report', () => {
+  const p = defaultProject();
+  p.rigging.head = { ...p.rigging.head, unknownSWL: true };
+  const res = computeProject(p);
+  assert.ok(!res.checks.some((c) => c.cat === 'Master link' && (c.status === 'fail' || c.status === 'warn')));
+  assert.ok(res.checks.some((c) => c.hideInReport));
+  assert.ok(res.bom.some((b) => b.unknown));
+  const sch = schematicSvg(p, res, { width: 800 });
+  assert.ok(sch.svg.includes('>Masterlink<'));
+});
+
+import { buildTable } from '../js/ui/chartreader.js';
+
+test('load chart reader: rows and columns from PDF text positions', () => {
+  const toks = [];
+  const rows = [[3, 50, 40], [4, 42.5, 35], [5, 36, 30.2], [6, 31, 26]];
+  rows.forEach((r, i) => r.forEach((v, j) => toks.push({ u: 20 + j * 80 + (String(v).length * 2), v: 100 + i * 20, h: 10, val: v })));
+  toks.push({ u: 300, v: 40, h: 10, val: 1 }); // page number / title noise
+  const t = buildTable(toks);
+  assert.equal(t.cols.length, 3);
+  assert.deepEqual(t.rows, rows);
 });
 
 import { combinePicks } from '../js/ui/loadsetup.js';

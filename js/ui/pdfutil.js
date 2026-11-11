@@ -69,7 +69,7 @@ export async function openSource(file) {
           .filter((it) => it.str && it.str.trim())
           .map((it) => {
             const [u, v] = vp.convertToViewportPoint(it.transform[4], it.transform[5]);
-            return { str: it.str, u, v, h: Math.hypot(it.transform[2], it.transform[3]) || 8 };
+            return { str: it.str, u, v, h: Math.hypot(it.transform[2], it.transform[3]) || 8, w: it.width || 0 };
           });
       },
     };

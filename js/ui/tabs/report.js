@@ -4,19 +4,17 @@
 import { app } from '../app.js';
 import { el, fmt, badge } from '../dom.js';
 import { checksTable, legsTable } from './results.js';
-import { drawRiggingView } from '../../draw/rigging.js';
 import { drawRiggingDetail, drawPadeyeFit } from '../../draw/detail.js';
-import { drawStoryPlan, drawStoryElevation } from '../../draw/story.js';
+import { schematicSvg } from '../../draw/schematic.js';
 import { drawCapacityChart } from '../../draw/chart.js';
 import { staticViewSvg, safeImg } from '../loadview.js';
 import { draw3d } from '../../draw/view3d.js';
 import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
-import { worstStatus } from '../../engine/compute.js';
+import { pointKind } from '../../engine/rigging.js';
 import { SAFETY_MEASURES, CHECKLIFT } from '../../state.js';
-import { sanitizeSvg } from './drawings.js';
 
-const opts = { calc: true, sketches: true, checksAll: false };
+const opts = { calc: true, checksAll: false };
 
 export function render(root) {
   const tog = (k, t) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: opts[k], onchange: (e) => { opts[k] = e.target.checked; update(); } }), t);
@@ -24,8 +22,9 @@ export function render(root) {
     el('div', { class: 'row no-print', style: { marginBottom: '12px', gap: '14px' } },
       el('button', { class: 'primary', onclick: () => window.__printReport?.() }, 'Print / Save as PDF'),
       el('span', { class: 'muted' }, 'In the print dialog choose "Save as PDF", A4 portrait, margins "default".'),
-      tog('sketches', 'Sequence sketches'), tog('calc', 'Calculation summary'), tog('checksAll', 'All checks (not only issues)'),
+      tog('calc', 'Calculation summary'), tog('checksAll', 'All checks (not only issues)'),
     ),
+    ownDrawingsPanel(),
     el('div', { id: 'report-preview' }),
   );
   update();
@@ -147,7 +146,7 @@ export function buildReport() {
   add(el('table', { class: 'tb eq avoid-break' },
     el('tr', {}, el('th', { colspan: 6, class: 'sec' }, 'Lifting equipment and accessories to be used', el('span', {}, ' (specify type, SWL and configuration)'))),
     el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration', 'Cert. no.'].map((h) => el('td', {}, h))),
-    res.bom.map((b) => el('tr', {},
+    res.bom.filter((b) => !b.unknown).map((b) => el('tr', {},
       el('td', { class: 'c' }, String(b.qty)),
       el('td', {}, b.name),
       el('td', { class: 'c' }, b.ewl_m != null ? (b.links ? `${b.links} links (${fmt(b.ewl_m, 3)} m)` : `${fmt(b.ewl_m)} m`) : 'n/a'),
@@ -167,31 +166,30 @@ export function buildReport() {
     el('tr', {}, el('td', { colspan: 2 }, 'Has a technical review been conducted'), el('td', {}, box(rv.done), ` Yes ${rv.ref ? `(${rv.ref})` : ''}  `, box(!rv.done), ' No')),
   ));
 
-  // ---- Sketches
+  // ---- Rigging: arrangement, detail, then the views
   add(el('div', { class: 'page-break' }));
   add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
-  const hasImg = ld.views?.xy?.image || ld.views?.xz?.image;
+  const sch = schematicSvg(p, res, { width: 760 });
+  if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
+  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
+  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging on the load'), el('div', { class: 'figs' },
+    fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
+    fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
+  )));
   add(el('div', { class: 'figs avoid-break' },
-    hasImg ? fig(staticViewSvg('xy', p, res, { width: 520, height: 330, title: 'Plan XY — rigging on the drawing' })) : fig(drawRiggingView(p, res, 'plan', { width: 520, height: 330 })),
-    hasImg ? fig(staticViewSvg('xz', p, res, { width: 520, height: 330, title: 'Elevation XZ — rigging on the drawing' })) : fig(drawRiggingView(p, res, 'front', { width: 520, height: 330 })),
+    fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
+    fig(draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view' })),
   ));
-  add(el('div', { class: 'figs avoid-break' }, fig(draw3d(p, res, { width: 520, height: 380, title: 'Rigging — 3D view' })), fig(drawCapacityChart(p, res, { width: 520, height: 300 }))));
-  add(el('div', { class: 'avoid-break' }, fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  if (opts.sketches) {
-    let lastCrane = null;
-    steps.forEach((st, i) => {
-      if (Number(st.radius_m) > 0) lastCrane = i;
-      if (!st.sketch) return;
-      const ref = Number(st.radius_m) > 0 ? i : lastCrane;
-      const sr = res.steps?.[i];
-      const ai = st.aiSketch ? sanitizeSvg(st.aiSketch) : null;
-      add(el('div', { class: 'avoid-break seq' },
-        el('div', { class: 'seqt' }, `Step ${i + 1} — ${st.name || ''}`, sr?.checks?.length ? el('span', { style: { marginLeft: '6px' } }, badge(worstStatus(sr.checks))) : null),
-        ref != null ? el('div', { class: 'figs' }, fig(drawStoryPlan(p, res, ref, { width: 520, height: 340 })), fig(drawStoryElevation(p, res, ref, { width: 520, height: 340 }))) : null,
-        ai ? fig(ai) : null,
-      ));
-    });
-  }
+  // ---- half page kept for the user's own drawings
+  const own = (p.report?.drawings || []).filter((d) => safeImg(d.image));
+  add(el('div', { class: 'avoid-break own-dwg' },
+    el('div', { class: 'sub-t' }, 'Additional drawings'),
+    own.length
+      ? own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null))
+      : el('div', { class: 'own-blank' }, ''),
+  ));
+  const capFig = () => el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 })));
+  if (!opts.calc) add(capFig());
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
@@ -203,16 +201,18 @@ export function buildReport() {
       el('tr', {}, el('th', {}, 'DAF'), el('td', {}, f.dafOn ? fmt(f.daf) : 'not applied'), el('th', {}, 'SKL · COG factor'), el('td', {}, `${fmt(f.skl)} · ${fmt(f.cog)}`), el('th', {}, 'Leg factor'), el('td', {}, fmt(r.fac, 3))),
       el('tr', {}, el('th', {}, 'Rig height'), el('td', {}, `${fmt(r.riggingHeight)} m above the lift points`), el('th', {}, 'Max crane util.'), el('td', {}, res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'), el('th', {}, 'Est. tilt'), el('td', {}, r.tilt ? `${fmt(r.tilt.tilt_deg)}°` : '—')),
     ));
+    add(capFig());
     add(el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), legsTable(res));
-    const pts = ld.liftPoints.filter((q) => q.used !== false && q.padeye !== false);
+    const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
     const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
     if (pts.length) {
       const pq = pts[0], lg = legOf(pq.id);
       const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
       if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));
     }
-    const issues = opts.checksAll ? res.checks : res.checks.filter((c) => c.status === 'fail' || c.status === 'warn');
-    const nOk = res.checks.filter((c) => c.status === 'ok').length;
+    const shownChecks = res.checks.filter((c) => !c.hideInReport);
+    const issues = opts.checksAll ? shownChecks : shownChecks.filter((c) => c.status === 'fail' || c.status === 'warn');
+    const nOk = shownChecks.filter((c) => c.status === 'ok').length;
     add(el('div', { class: 'sub-t' }, opts.checksAll ? 'Checks' : `Checks — issues only (${nOk} other checks OK)`), issues.length ? checksTable(issues, { compact: true }) : el('div', { class: 'note ok' }, 'All checks passed.'));
   }
 
@@ -227,4 +227,60 @@ export function buildReport() {
   ));
   add(el('div', { class: 'disclaimer' }, 'Lift plan prepared with LiftPlanner (planning aid). Equipment data from manufacturer / distributor catalogues (DS Levage 2025): check every item against its certificate. The plan must be reviewed by a competent person before the lift.'));
   return rep;
+}
+
+// ---------- the user's own drawings (half page of the report)
+function ownDrawingsPanel() {
+  const p = app.project;
+  p.report = p.report || {};
+  p.report.drawings = p.report.drawings || [];
+  const list = el('div', { class: 'row', style: { gap: '10px' } });
+  const inp = el('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', class: 'hide', onchange: async (e) => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    const url = await shrink(f);
+    if (!url) return alert('Unreadable image');
+    p.report.drawings.push({ image: url, caption: f.name.replace(/\.[a-z0-9]+$/i, '') });
+    app.recompute();
+    draw();
+  } });
+  const draw = () => {
+    list.innerHTML = '';
+    p.report.drawings.forEach((d, i) => list.append(el('div', { class: 'own-thumb' },
+      el('img', { src: safeImg(d.image) || '', alt: '' }),
+      el('input', { type: 'text', value: d.caption || '', placeholder: 'Caption', onchange: (e) => { d.caption = e.target.value; app.recompute(); } }),
+      el('button', { class: 'small danger', onclick: () => { p.report.drawings.splice(i, 1); app.recompute(); draw(); } }, '✕'))));
+  };
+  draw();
+  return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
+    el('div', { class: 'panel-head' }, el('h2', {}, 'My drawings in the report'),
+      el('button', { class: 'small primary', onclick: () => inp.click() }, '+ Add a drawing (PNG / JPG)'), inp),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Half a page is kept in the report after the rigging views. With no drawing it stays as an empty frame to sketch by hand. A PDF page can be added as a screenshot (PNG).'),
+    list);
+}
+
+/** Reads an image and reduces it to 1600 px max (keeps the project file small). */
+function shrink(file) {
+  return new Promise((resolve) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(im.naturalWidth * k);
+        c.height = Math.round(im.naturalHeight * k);
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(im, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.88));
+      };
+      im.onerror = () => resolve(null);
+      im.src = fr.result;
+    };
+    fr.onerror = () => resolve(null);
+    fr.readAsDataURL(file);
+  });
 }

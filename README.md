@@ -1,6 +1,6 @@
 # LiftPlanner
 
-Lift planning tool for **offshore and onshore lifts**: import the drawing of the part, click the lift points and the COG on it, build each leg from **real rigging hardware** (Green Pin shackles, connecting links, G80 / G100 chain, roundslings, wire rope slings, grommets, webbing, master links, G-Links — DS Levage 2025 catalogue), get the length of every leg and the minimum WLL, check everything, draw the rigging and the sequence, print the lifting plan in your company template.
+Lift planning tool for **offshore and onshore lifts**: import the drawing of the part, click the lift points and the COG on it, build each leg from **standard rigging hardware** (Green Pin bow shackles 0.5–85 t, G80 master links, G80 chain, connecting links and safety hooks, round slings, flat webbing slings and steel wire rope slings up to 30 t, G-Links), get the length of every leg and the minimum WLL, check everything, draw the rigging, print the lifting plan in your company template.
 
 **No installation**: a single HTML file that also works **offline** (on board, on site).
 
@@ -16,7 +16,16 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 | Local (development) | `python3 -m http.server 8080` in the repository root, then open <http://localhost:8080> |
 | Online | GitHub Pages workflow provided (`.github/workflows/pages.yml`): enable *Settings → Pages → Source = GitHub Actions*. |
 
-The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, site map and logos included). Three examples are in [`examples/`](examples/).
+The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
+
+## What's new in v0.5
+
+- **Simpler flow**: every page starts with a one-line explanation and ends with *Next →*; the Storyboard page is gone (the crane radius of each step stays on the Project page).
+- **Load**: draw the part with **simple shapes** (boxes, cylinders, voids) — uniform weight → **COG computed**; views pan with a drag, zoom with the wheel or the + / − / Fit buttons, full screen; view mismatch warnings only above max(40 mm, 1.5 % of the size). Lift point type: pad eye (drawing as per the type S datasheet, cheeks included), **anchor point / eye bolt G80**, or none.
+- **Crane**: **My cranes** library (save / reuse / export / import) and a **PDF load chart reader** (frame the table, pick the radius and SWL columns, check, import — text PDFs only).
+- **Rigging**: standard ranges only — Green Pin G-4163 bow shackles 0.5–85 t, G80 single / quad master links, chain and connecting links G80, safety hooks G80, G-Links, round / webbing / wire rope slings 0.5–30 t in lengths 1–20 m. One flat palette: **drop any item anywhere** in a leg; *Same assembly on every leg* applies the last edited leg to all; master link **"SWL not known"** (assumed OK, shape only in the report); hook shackle removed.
+- **Checks**: click a warning → the page and the item to adjust are opened and highlighted; compatibility rewritten part by part (sling on shackle bow / pin, shackle on master link, links, hooks) with a plain explanation of why.
+- **Drawings / report**: clearer front (XZ) and side (YZ) elevations with merged leg labels; report order = rigging schematic → rigging detail → plan XY, elevations XZ and YZ, 3D → **half page for your own drawings** → calculation summary.
 
 ## What's new in v0.4
 
@@ -25,12 +34,11 @@ The current project and the inventory are saved automatically in the browser. **
 - **Standard pad eyes type S** (1 → 150 t) in a drop-down that fills SWL, hole, plate, cheeks, radius, height and base length; *auto* picks the smallest for the leg force; datasheet rules T ≥ 75 % jaw and H ≤ 106 % pin checked.
 - **Rigging arrangement schematic**: hook → head → **one leg per lift point** (always in step with the Load page), drag shackles / slings / chains / links onto the legs, click an item to change its size; same assembly on every leg or leg by leg.
 - **Load share of every leg** (static share in t and %, tension, design force) and the **leg length needed for the target angle and the minimum length for the maximum angle**, in bearing-to-bearing length and as sling EWL / number of chain links.
-- **Storyboard shape editor to scale**: rectangle, circle, line, arc, triangle and text in metres, snap, move / resize handles, colours, dashed lines; shown in the step drawings and the report.
 - **Plain equipment names**: "Shackle 17t", "Roundsling 8t — 6 m", "Chain Ø13 G80 — 106 links", "Quad masterlink 17t".
 
-## Features (v0.3)
+## Features
 
-**Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (step, details, responsible, sketch on / off, crane radius / slew / load height), design lift conditions, the **safety measures tick list**, further measures, communications and technical review of the template.
+**Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (step, details, responsible, crane radius, load height), design lift conditions, the **safety measures tick list**, further measures, communications and technical review of the template.
 
 **Load** — the page is visual:
 - **Import into LiftPlanner** wizard (PDF or image): choose the page and frame of the **XY plan** and **XZ elevation** views, calibrate in two clicks on the outline of the part (or on a known dimension, or with the drawing scale 1:n), set the origin; the overall dimensions are read from the outline.
@@ -38,21 +46,19 @@ The current project and the inventory are saved automatically in the browser. **
 - Lift points and COG **placed and dragged on the drawing** (XY gives X / Y, XZ gives Z): lengths, angles and forces are recalculated live. White grid when there is no drawing. The load does not need to be a box.
 - **Padeye characteristics** per point (SWL, main plate, cheek plates, hole Ø, outer radius, hole height, orientation) with the **shackle fit** (pin / hole, thickness / jaw, inside length) and a to-scale drawing; untick *padeye* for choked slings / trunnions and the padeye checks are skipped.
 
-**Crane** — just the load chart: SWL versus radius, minimum and maximum radius (outside = fail), paste from Excel, conservative or interpolated reading, critical lift threshold.
+**Crane** — just the load chart: SWL versus radius, minimum and maximum radius (outside = fail), paste from Excel or read a PDF load chart, conservative or interpolated reading, critical lift threshold; *My cranes* library kept in the browser (exportable).
 
 **Rigging**
-- **Leg assembly builder**: drag DS Levage catalogue items (Green Pin shackles, roundslings straight / choked, wire, grommet, webbing, **chain G80 / G100**, **connecting links G80 / G100**, Slingmax G-Link) into the leg, from the load to the hook; one assembly for all legs, override leg by leg. Hook side: master link, master link + sub-links (quad) or directly on the hook, optional hook shackle.
+- **Leg assembly builder**: drag standard items (Green Pin shackles, round slings straight / choked, flat webbing, steel wire rope slings, chain G80, connecting links G80, safety hooks G80, G-Links) anywhere in the leg; one assembly for all legs, override leg by leg. Hook side: master link, quad master link (sub-links) or directly on the hook; master link SWL can be marked *not known*.
 - For each leg, from the COG: **required bearing-to-bearing length, connector lengths, sling EWL or chain length in whole links** (e.g. *shackle → connecting link → chain → connecting link → shackle* gives the number of links), **minimum WLL** of every part, utilisation.
 - Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; matched set / standard / exact lengths.
 - Object views with the drawing and the rigging overlaid, 3D isometric view; spreader bar (top + bottom assemblies).
 
 **Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), D/d of wire slings, connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at every step.
 
-**Drawings** — rigging on the imported drawing (XY / XZ), isometric / front / side views, rigging detail to scale (chains drawn link by link), **one plan + elevation sketch per sequence step** ticked "Sketch"; optional **sketch drawn by Claude** from the step text (your Anthropic API key, kept in the browser). SVG / PNG export.
+**Drawings** — rigging schematic, rigging on the load in plan XY and elevations XZ / YZ (on the imported drawing when there is one), 3D view, rigging detail to scale (chains drawn link by link). SVG / PNG export.
 
-**Storyboard** — **import a site / deck map** (PDF or image), **set its scale with two points and the real distance**, place the crane and the pick-up / set-down positions by clicking (radius and slew measured on the map), obstacles; white background scaled to the load and the crane when there is no map.
-
-**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, sketches, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
+**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, rigging schematic and detail, views XY / XZ / YZ / 3D, half page for your drawings, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
 
 **Inventory** — **equipment for this lift with exact quantities**, an *on hand* tick and the certificate number per line (CSV export); your own certified fleet; browser of the built-in catalogue.
 
@@ -75,23 +81,15 @@ Main source: **DS Levage general catalogue 2025** (supplied by the user), cross-
 | Family | Source | Range |
 |---|---|---|
 | Green Pin® G-4163 bow shackle, safety bolt (grade 6, 6:1) | DS Levage p.93 / Green Pin sheet | 0.5 → 85 t |
-| Green Pin® G-5263 Super bow shackle, safety bolt (grade 8, 5:1) | DS Levage p.95 | 3.3 → 175 t |
-| Green Pin® P-6036 heavy duty bow shackle (grade 8, 5:1) | DS Levage p.94 / distributor sheet | 120 → 1500 t |
-| Green Pin® Wide Body shackle, safety bolt | DS Levage p.95 | 7 → 1550 t |
-| Green Pin® G-4161 bow shackle, screw pin (not auto-selected) | DS Levage p.92 | 0.33 → 55 t |
-| Master links 1–2 legs, quad assemblies (3–4 legs), large links for DIN 15401 hooks no. 25 / 50 / 100 | DS Levage p.38–39 / 46–47 | 2.4 → 67 t |
-| Crosby® A-342 master links | Unirope / Crosby table | 1/2" → 4" |
-| Polyester roundslings EN 1492-2 (7:1) | DS Levage p.64 (WLL, width); weight per metre typical | 1 → 150 t |
-| UHMWPE roundslings | DS Levage p.66 | 15 → 170 t |
-| Wire rope slings 6x36 IWRC, eye–eye | DS Levage p.18 (WLL) / p.13 (weight) | Ø8 → Ø90 mm |
-| Endless sleeved wire rope slings | DS Levage p.20 | Ø8 → Ø36 mm |
-| Cable-laid grommets | DS Levage p.20 | 12.7 → 1000 t |
-| Polyester webbing slings EN 1492-1 | DS Levage p.64 (weight not stated) | 1 → 40 t |
-| Chain grade 80 (EN 818-2) | DS Levage p.20 (WLL, pitch, width, kg/m) | Ø6 → Ø32 mm |
-| Chain grade 100 | DS Levage p.24 | Ø6 → Ø32 mm |
-| Connecting links G80 | DS Levage p.22; effective length **estimated** A − 2C | Ø6 → Ø32 mm |
-| Connecting links G100 | WLL DS Levage p.26; dimensions **indicative** (G80 table) | Ø6 → Ø32 mm |
+| Master links G80, single (1–2 legs) and quad assemblies (3–4 legs) | supplied tables | 2.4 → 67 t |
+| Chain grade 80 (EN 818-2) | supplied table / DS Levage p.20 | Ø6 → Ø32 mm |
+| Connecting links G80 | supplied table; effective length **estimated** | Ø6 → Ø32 mm |
+| Self-locking eye hooks G80 | supplied table; effective length **estimated** | Ø6 → Ø32 mm |
+| Polyester round slings EN 1492-2 (7:1) | DS Levage p.64 | 0.5 → 30 t, 1 → 20 m |
+| Polyester flat webbing slings EN 1492-1 | supplied table | 0.5 → 30 t, 1 → 20 m |
+| Steel wire rope slings eye–eye | DS Levage p.18 / supplied table | → 30 t, 1 → 20 m |
 | Slingmax® G-Link | Unirope table; effective length **estimated** | 2" → 6" |
+| Pad eyes type S, weld-on anchor points, eye bolts G80 (lift points) | supplied datasheets | 0.3 → 150 t |
 
 The *Source* column of the catalogue browser (Inventory tab) states for each item whether values are published, typical or estimated.
 
@@ -108,10 +106,12 @@ js/engine/            pure calculation code (testable under Node)
   factors.js          DAF, WCF, SKL
   crane.js            load chart (SWL vs radius, range)
   checks.js           checks
+  compat.js           part-to-part compatibility (with the explanation)
+  shape.js            simple shapes → volume and COG
   compute.js          orchestration, equipment list, lift category
 js/catalog/           equipment data + selection rules
-js/draw/              SVG generators (views, detail, storyboard, capacity curve)
-js/ui/                user interface: tabs, load views (loadview.js), import wizard, site plan, PDF tools
+js/draw/              SVG generators (schematic, 3D, detail, capacity curve)
+js/ui/                user interface: tabs, load views (loadview.js), load set-up, PDF tools, load chart reader
 vendor/pdfjs/         pdf.js (Apache-2.0)
 tools/                standalone build, example generator
 test/                 engine tests (node --test)
@@ -127,8 +127,8 @@ npm run build     # rebuilds dist/LiftPlanner.html (standalone version)
 - Tandem lifts (2 cranes), 4-lug spreader frames, lifting beams, Modulift spreader bar load tables.
 - Full DNV-ST-N001 mode: safety factors on MBL, consequence factors, padeye calculation.
 - Wind loads, vessel-to-vessel transfer, splash zone crossing (DNV-RP-N103).
-- Crane library (reusable load charts), import of PDF load charts.
-- Drag lift points with the mouse on the drawing, DXF export.
+- Reading scanned (image) load charts.
+- DXF export.
 
 ## Licence
 

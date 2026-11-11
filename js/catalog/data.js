@@ -1,7 +1,7 @@
 // Lifting equipment catalogue.
 //
 // IMPORTANT: data taken from public manufacturer / distributor literature (main source: DS Levage
-// general catalogue 2025; Crosby A-342 and Slingmax G-Link from Unirope tables). It is meant for
+// general catalogue 2025 and the tables supplied by the user; Slingmax G-Link from Unirope). It is meant for
 // pre-selection only. The final lift plan must ALWAYS be checked against the certificates of the
 // equipment actually used (WLL, dimensions, weights).
 // Dimensions in mm, weights in kg, WLL in tonnes (t).
@@ -18,6 +18,7 @@ const fmtT = (w) => String(w);
 // g bow width (inside) | h overall length | weight
 //
 // G-4163 Standard bow shackle, safety bolt — grade 6, MBL = 6 × WLL (DS p.93, Green Pin datasheet)
+const G4163_IJ = { 0.5: [42, 34, 4], 0.75: [50, 40, 5], 1: [60, 46, 8], 1.5: [67, 51, 11], 2: [82, 58, 13], 3.25: [98, 75, 17], 4.75: [114, 89, 19], 6.5: [130, 102, 22], 8.5: [150, 118, 25], 9.5: [166, 131, 27], 12: [178, 147, 30], 13.5: [197, 162, 33], 17: [202, 175, 19], 25: [249, 216, 23], 35: [269, 238, 26], 42.5: [301, 274, 29], 55: [330, 310, 32], 85: [380, 340, 39] };
 const G4163 = [
   // wll, a, b, c, d, e, f, g, h, kg
   [0.5, 7, 8, 16.5, 7, 12, 29, 20, 48.5, 0.06],
@@ -40,93 +41,9 @@ const G4163 = [
   [85, 75, 83, 162, 73, 127, 329, 190, 527, 62],
 ];
 
-// G-4161 Standard bow shackle, screw collar pin — grade 6 (DS p.92). Not for long-term use or
-// where the pin may rotate: excluded from auto-selection by default.
-const G4161 = [
-  [0.33, 5, 6, 12, 5, 9.5, 22, 16, 36, 0.02],
-  [0.5, 7, 8, 16.5, 7, 12, 29, 20, 45.5, 0.05],
-  [0.75, 9, 10, 20, 9, 13.5, 32, 22, 56, 0.1],
-  [1, 10, 11, 22.5, 10, 17, 36.5, 26, 63.5, 0.14],
-  [1.5, 11, 13, 26.5, 11, 19, 43, 29, 74, 0.19],
-  [2, 13.5, 16, 34, 13, 22, 51, 32, 89, 0.36],
-  [3.25, 16, 19, 40, 16, 27, 64, 43, 110, 0.63],
-  [4.75, 19, 22, 46, 19, 31, 76, 51, 129, 1.01],
-  [6.5, 22, 25, 52, 22, 36, 83, 58, 144, 1.5],
-  [8.5, 25, 28, 59, 25, 43, 95, 68, 164, 2.21],
-  [9.5, 28, 32, 66, 28, 47, 108, 75, 185, 3.16],
-  [12, 32, 35, 72, 32, 51, 115, 83, 201, 4.31],
-  [13.5, 35, 38, 80, 35, 57, 133, 92, 227, 5.55],
-  [17, 38, 42, 88, 38, 60, 146, 99, 249, 7.43],
-  [25, 45, 50, 103, 45, 74, 178, 126, 300, 12.84],
-  [35, 50, 57, 111, 50, 83, 197, 138, 331, 18.15],
-  [42.5, 57, 65, 130, 57, 95, 222, 160, 377, 26.29],
-  [55, 65, 70, 145, 65, 105, 260, 180, 433, 37.6],
-];
 
-// G-5263 Super bow shackle, safety bolt — grade 8, MBL = 5 × WLL (DS p.95)
-const G5263 = [
-  [3.3, 13.5, 16, 34, 13, 22, 51, 32, 89, 0.4],
-  [5, 16, 19, 40, 16, 27, 64, 43, 110, 0.73],
-  [7, 19, 22, 46, 19, 31, 76, 51, 129, 1.19],
-  [9.5, 22, 25, 52, 22, 36, 83, 58, 144, 1.73],
-  [12.5, 25, 28, 59, 25, 43, 95, 68, 164, 2.56],
-  [15, 28, 32, 66, 28, 47, 108, 75, 185, 3.6],
-  [18, 32, 35, 72, 32, 51, 115, 83, 201, 4.95],
-  [21, 35, 38, 80, 35, 57, 133, 92, 227, 6.62],
-  [30, 38, 42, 88, 38, 60, 146, 99, 249, 8.11],
-  [40, 45, 50, 103, 45, 74, 178, 126, 300, 15],
-  [55, 57, 57, 117, 57, 83, 197, 138, 341, 23],
-  [85, 70, 70, 143, 70, 105, 260, 180, 437, 44],
-  [120, 83, 83, 162, 83, 127, 329, 190, 535, 72],
-  [150, 95, 95, 208, 91, 147, 400, 238, 647, 112],
-  [175, 105, 108, 238, 102, 169, 410, 275, 688, 160],
-];
 
-// P-6036 Heavy Duty bow shackle, safety bolt — grade 8, MBL = 5 × WLL (DS p.94)
-const P6036 = [
-  [120, 95, 95, 208, 95, 147, 400, 238, 647, 110],
-  [150, 105, 108, 238, 105, 169, 410, 275, 688, 160],
-  [200, 120, 130, 279, 120, 179, 513, 290, 838, 235],
-  [250, 130, 140, 299, 130, 205, 554, 305, 904, 295],
-  [300, 140, 150, 325, 140, 205, 618, 305, 996, 368],
-  [400, 170, 175, 376, 164, 231, 668, 325, 1114, 560],
-  [500, 180, 185, 398, 164, 256, 718, 350, 1190, 685],
-  [600, 200, 205, 444, 189, 282, 718, 375, 1243, 880],
-  [700, 210, 215, 454, 204, 308, 718, 400, 1263, 980],
-  [800, 210, 220, 464, 204, 308, 718, 400, 1270, 1100],
-  [900, 220, 230, 485, 215, 328, 718, 420, 1296, 1280],
-  [1000, 240, 240, 515, 215, 349, 718, 420, 1336, 1460],
-  [1250, 260, 270, 585, 230, 369, 768, 450, 1456, 1990],
-  [1500, 280, 290, 625, 230, 369, 818, 450, 1556, 2400],
-];
 
-// Green Pin Wide Body bow shackle, safety bolt (DS p.95). Extra column l = width of the wide bow
-// (sling bearing width). Larger bearing radius = longer sling life: well suited to roundslings
-// and grommets.
-const WIDE = [
-  // wll, a, b, c, d, e, f, g, h, l, kg
-  [7, 22, 22, 46, 19, 32, 96, 64, 153, 41, 2],
-  [12.5, 28, 28, 61, 25, 44, 121, 82, 197, 54, 4],
-  [18, 35, 35, 69, 30, 54, 148, 102, 239, 64, 7],
-  [30, 40, 42, 90, 35, 69, 165, 126, 279, 79, 13],
-  [40, 55, 51, 109, 45, 84, 199, 140, 331, 97, 21],
-  [55, 60, 57, 115, 55, 90, 240, 160, 389, 100, 30],
-  [75, 68, 70, 125, 54, 110, 290, 185, 473, 120, 48],
-  [125, 85, 80, 154, 85, 137, 366, 220, 583, 150, 92],
-  [150, 94, 95, 179, 89, 147, 391, 253, 645, 170, 140],
-  [200, 110, 105, 199, 100, 158, 481, 280, 759, 205, 205],
-  [250, 126, 120, 227, 110, 179, 542, 300, 859, 240, 264],
-  [300, 135, 134, 245, 122, 195, 601, 350, 947, 265, 360],
-  [400, 160, 160, 293, 145, 231, 576, 370, 985, 320, 580],
-  [500, 170, 180, 328, 160, 263, 681, 450, 1131, 339, 780],
-  [600, 190, 200, 348, 170, 289, 741, 490, 1234, 370, 980],
-  [700, 200, 215, 392, 190, 315, 751, 540, 1284, 400, 1360],
-  [800, 218, 230, 420, 200, 342, 851, 554, 1426, 420, 1430],
-  [900, 242, 255, 466, 220, 368, 851, 580, 1488, 440, 1650],
-  [1000, 260, 270, 490, 240, 399, 851, 614, 1532, 460, 2970],
-  [1250, 285, 300, 510, 260, 452, 931, 650, 1666, 530, 3700],
-  [1550, 285, 320, 550, 280, 483, 950, 680, 1710, 560, 4000],
-];
 
 function shackleRows(rows, { brand, model, family, prefix, mbl, label, source, wide = false }) {
   return rows.map((r) => {
@@ -152,21 +69,14 @@ function shackleRows(rows, { brand, model, family, prefix, mbl, label, source, w
 }
 
 export const SHACKLE_RANGES = {
-  'G-4163': 'Green Pin Standard, safety bolt G-4163 (0.5–85 t, 6:1)',
-  'P-6036': 'Green Pin Heavy Duty, safety bolt P-6036 (120–1500 t, 5:1)',
-  'G-5263': 'Green Pin Super, safety bolt G-5263 (3.3–175 t, 5:1)',
-  WIDE: 'Green Pin Wide Body, safety bolt (7–1550 t)',
-  'G-4161': 'Green Pin Standard, screw pin G-4161 (0.33–55 t) — not for permanent rigging',
+  'G-4163': 'Green Pin bow shackle, safety bolt (0.5–85 t)',
 };
-export const DEFAULT_SHACKLE_RANGES = ['G-4163', 'P-6036'];
+export const DEFAULT_SHACKLE_RANGES = ['G-4163'];
 
-export const SHACKLES = [
-  ...shackleRows(G4163, { brand: 'Green Pin', model: 'G-4163', family: 'G-4163', prefix: 'GP-G4163', mbl: 6, label: 'Green Pin G-4163 bow shackle, safety bolt', source: `${DS} p.93 / Green Pin datasheet` }),
-  ...shackleRows(P6036, { brand: 'Green Pin', model: 'P-6036', family: 'P-6036', prefix: 'GP-P6036', mbl: 5, label: 'Green Pin P-6036 heavy duty bow shackle, safety bolt', source: `${DS} p.94` }),
-  ...shackleRows(G5263, { brand: 'Green Pin', model: 'G-5263', family: 'G-5263', prefix: 'GP-G5263', mbl: 5, label: 'Green Pin G-5263 Super bow shackle, safety bolt', source: `${DS} p.95` }),
-  ...shackleRows(WIDE, { brand: 'Green Pin', model: 'Wide Body', family: 'WIDE', prefix: 'GP-WB', mbl: null, label: 'Green Pin Wide Body shackle, safety bolt', source: `${DS} p.95`, wide: true }),
-  ...shackleRows(G4161, { brand: 'Green Pin', model: 'G-4161', family: 'G-4161', prefix: 'GP-G4161', mbl: 6, label: 'Green Pin G-4161 bow shackle, screw pin', source: `${DS} p.92` }),
-];
+export const SHACKLES = shackleRows(G4163, { brand: 'Green Pin', model: 'G-4163', family: 'G-4163', prefix: 'GP-G4163', mbl: 6, label: 'Green Pin bow shackle, safety bolt', source: 'Green Pin bow shackle with safety bolt (manille lyre à axe boulonné goupillé) — table supplied' }).map((it) => {
+  const [i, j, nut] = G4163_IJ[it.wll_t] || [];
+  return { ...it, dims: { ...it.dims, pinLength: i, width: j, nutThk: nut } };
+});
 
 /** Green Pin side-load reduction curve (% of WLL vs angle from the shackle plane), DS p.90. */
 export const GREEN_PIN_SIDE_LOAD = [
@@ -176,42 +86,6 @@ export const GREEN_PIN_SIDE_LOAD = [
 
 // ---------------------------------------------------------------------------
 // MASTER LINKS
-// Crosby® A-342 alloy master links — Unirope table (lbs → t, in → mm)
-const A342 = [
-  // size, WLL lbs, IL in, IW in, D in, weight lbs
-  ['1/2"W', 7400, 5.0, 2.8, 0.62, 1.3],
-  ['5/8"', 9000, 6.0, 3.0, 0.62, 1.5],
-  ['3/4"', 12300, 6.0, 3.2, 0.73, 2.0],
-  ['7/8"', 15200, 6.38, 3.75, 0.87, 3.3],
-  ['1"', 26000, 7.5, 4.3, 1.1, 6.1],
-  ['1-1/4"', 39100, 9.5, 5.5, 1.33, 12.0],
-  ['1-1/2"', 61100, 10.5, 5.9, 1.61, 18.6],
-  ['1-3/4"', 84900, 12.0, 6.0, 1.75, 25.2],
-  ['2"', 102600, 14.0, 7.0, 2.0, 37.0],
-  ['2-1/4"', 143100, 16.0, 8.0, 2.25, 54.1],
-  ['2-1/2"', 160000, 16.0, 8.38, 2.5, 68.5],
-  ['2-3/4"', 216900, 18.0, 9.88, 2.75, 94.0],
-  ['3"', 228000, 18.0, 9.88, 3.0, 115.0],
-  ['3-1/4"', 262200, 20.0, 10.0, 3.25, 145.0],
-  ['3-1/2"', 279000, 24.0, 12.0, 3.5, 200.0],
-  ['3-3/4"', 336000, 20.0, 10.0, 3.75, 198.0],
-  ['4"', 373000, 24.0, 12.0, 4.0, 264.0],
-];
-
-const CROSBY = A342.map(([size, lbs, il, iw, d, wlbs]) => ({
-  id: `CR-A342-${size.replace(/"/g, 'in')}`,
-  type: 'masterlink',
-  family: 'A-342',
-  brand: 'Crosby',
-  model: 'A-342',
-  name: `Crosby A-342 master link ${size}`,
-  short: `Crosby A-342 ${size}`,
-  wll_t: Math.round((lbs / LBS_PER_T) * 100) / 100,
-  mbl_factor: 4,
-  weight_kg: Math.round((wlbs / 2.20462) * 10) / 10,
-  dims: { stockDia: Math.round(d * IN), insideWidth: Math.round(iw * IN), insideLength: Math.round(il * IN) },
-  source: 'Crosby A-342 — Unirope table (converted lbs→t, in→mm)',
-}));
 
 // G80 master links for 1- and 2-leg slings (DS p.38): stock dia A, inside width B, inside length C
 const G80_SINGLE = [
@@ -229,17 +103,8 @@ const G80_QUAD = [
   ['40/31', 18.68, 28.1, 40, 160, 300, 31, 275, 145], ['45/36', 26.56, 38.3, 45, 180, 340, 36, 285, 155],
   ['51/45', 42.92, 45, 51, 190, 350, 45, 340, 180], ['57/50', 59.7, 67, 57, 203, 406, 50, 380, 200],
 ];
-// Large G80 master links for big crane hooks (DIN 15401 hook no. 25 / 50 / 100) — DS p.39.
-// t = overall link length, w = inside width; inside length taken as t − d (estimate).
-const G80_LARGE = [
-  // hook no, wll t, d, t, w, kg
-  [25, 2.5, 23, 340, 180, 3.4], [25, 4, 27, 340, 180, 4.8], [25, 6.7, 27, 340, 180, 4.4], [25, 10, 33, 340, 180, 6.7],
-  [25, 19, 40, 340, 180, 10], [50, 10, 33, 500, 250, 10], [50, 16, 40, 460, 250, 13.13], [50, 22.4, 45, 500, 250, 17.81],
-  [50, 33.6, 50, 460, 250, 21], [50, 40, 56, 460, 250, 26.1], [100, 40, 60, 800, 320, 48],
-];
 
 export const MASTERLINKS = [
-  ...CROSBY,
   ...G80_SINGLE.map(([d, kg, wll, B, C]) => ({
     id: `DS-G80-ML-${d}`,
     type: 'masterlink',
@@ -269,20 +134,6 @@ export const MASTERLINKS = [
     sub: { stockDia: D, insideLength: E, insideWidth: F, count: 2 },
     source: `${DS} p.38`,
   })),
-  ...G80_LARGE.map(([hook, wll, d, t, w, kg]) => ({
-    id: `DS-G80-LML-${hook}-${wll}`,
-    type: 'masterlink',
-    family: 'G80-LARGE',
-    brand: 'DS Levage',
-    model: `G80 large master link (hook no. ${hook})`,
-    name: `G80 large master link ${wll} t for DIN 15401 hook no. ${hook}`,
-    short: `G80 large link ${wll} t (no. ${hook})`,
-    wll_t: wll,
-    mbl_factor: 4,
-    weight_kg: kg,
-    dims: { stockDia: d, insideWidth: w, insideLength: t - d },
-    source: `${DS} p.39 (inside length estimated as t − d)`,
-  })),
 ];
 
 // ---------------------------------------------------------------------------
@@ -298,14 +149,11 @@ const RS_PES = [
   [50, 'Orange', '#e8822a', 280, 8.4, true], [75, 'Orange', '#e8822a', 330, 12.5, true], [100, 'Orange', '#e8822a', 380, 16.5, true],
   [120, 'Orange', '#e8822a', 410, 19.8, true], [150, 'Orange', '#e8822a', 450, 24.5, true],
 ];
-// UHMWPE roundslings (DS p.66): WLL, MBL, single strand dia, kg per metre EWL. SF 7:1.
-const RS_UHMWPE = [
-  [15, 105, 49, 1.6], [20, 140, 55, 1.9], [50, 350, 82, 4.6], [100, 700, 114, 8.4], [120, 840, 127, 10.3], [170, 1190, 146, 14],
-];
-export const ROUNDSLING_STD_LENGTHS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 18, 20];
+// every length from 1 m to 20 m in 0.5 m steps (all three sling types)
+export const ROUNDSLING_STD_LENGTHS = Array.from({ length: 39 }, (_, i) => 1 + i * 0.5);
 
 const ROUNDSLINGS = [
-  ...RS_PES.map(([wll, colour, hex, width, kgm, est]) => ({
+  ...RS_PES.filter((r) => r[0] <= 30).map(([wll, colour, hex, width, kgm, est]) => ({
     id: `RS-PES-${wll}`,
     type: 'roundsling',
     family: 'RS-PES',
@@ -322,22 +170,6 @@ const ROUNDSLINGS = [
     lengths: ROUNDSLING_STD_LENGTHS,
     source: `${DS} p.64 (width${est ? ' estimated' : ''}; weight typical)`,
   })),
-  ...RS_UHMWPE.map(([wll, mbl, strand, kgm]) => ({
-    id: `RS-UHMWPE-${wll}`,
-    type: 'roundsling',
-    family: 'RS-UHMWPE',
-    brand: 'DS Levage',
-    model: 'UHMWPE',
-    name: `UHMWPE roundsling ${wll} t (MBL ${mbl} t)`,
-    short: `UHMWPE roundsling ${wll} t`,
-    wll_t: wll,
-    mbl_factor: 7,
-    colorHex: '#c9ced4',
-    weight_kg_per_m: kgm,
-    dims: { width: 2 * strand, strandDia: strand },
-    lengths: ROUNDSLING_STD_LENGTHS,
-    source: `${DS} p.66 (bearing width taken as 2 × strand Ø)`,
-  })),
 ];
 
 // Steel wire rope slings, eye–eye, 6x36 IWRC, SF 5:1 — single-leg WLL by rope Ø (DS p.19).
@@ -349,9 +181,9 @@ const WIRE = [
 ];
 const ROPE_KGM = { 8: 0.27, 10: 0.42, 12: 0.6, 14: 0.82, 16: 1.07, 18: 1.36, 20: 1.67, 22: 2.02, 24: 2.41, 26: 2.83, 28: 3.28, 30: 3.76, 32: 4.28, 34: 4.83, 36: 5.42, 38: 6.04, 40: 6.69, 42: 7.38, 44: 8.1, 46: 8.85, 48: 9.64, 50: 10.5, 52: 11.3, 54: 12.2, 56: 13.1, 58: 14.1, 60: 15.1, 62: 16.1, 64: 17.1, 66: 18.2, 68: 19.3 };
 const ropeKgm = (d) => ROPE_KGM[d] ?? Math.round(0.00418 * d * d * 100) / 100;
-export const WIRE_STD_LENGTHS = [1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20];
+export const WIRE_STD_LENGTHS = ROUNDSLING_STD_LENGTHS;
 
-const WIRESLINGS = WIRE.map(([d, wll]) => ({
+const WIRESLINGS = WIRE.filter((r) => r[1] <= 30).map(([d, wll]) => ({
   id: `WR-6x36-${d}`,
   type: 'wiresling',
   family: 'WIRE',
@@ -369,53 +201,9 @@ const WIRESLINGS = WIRE.map(([d, wll]) => ({
 }));
 
 // Endless sleeved wire rope slings (DS p.20): WLL straight (M1), weight per extra metre.
-const ENDLESS = [
-  [8, 1.4, 0.231], [10, 2.1, 0.361], [12, 3.1, 0.52], [14, 4.24, 0.708], [16, 5.4, 0.924], [18, 6.8, 1.17],
-  [20, 8.7, 1.444], [22, 10.4, 1.747], [24, 12.6, 2.079], [26, 14.4, 2.44], [28, 16.8, 2.83], [32, 22, 2.697], [36, 28, 4.679],
-];
-const ENDLESS_SLINGS = ENDLESS.map(([d, wll, kgm]) => ({
-  id: `WR-END-${d}`,
-  type: 'wiresling',
-  family: 'WIRE-ENDLESS',
-  brand: 'DS Levage',
-  model: 'Endless',
-  name: `Endless sleeved wire rope sling Ø${d} mm`,
-  short: `Endless wire sling Ø${d}`,
-  wll_t: wll,
-  mbl_factor: 5,
-  colorHex: '#8d99a6',
-  weight_kg_per_m: kgm,
-  dims: { width: d * 2, ropeDia: d },
-  lengths: WIRE_STD_LENGTHS,
-  source: `${DS} p.20`,
-}));
 
 // Cable-laid grommets 7x6x36 (DS p.20): rope Ø, grommet body Ø, WLL; weight per metre of body,
 // converted here to kg per metre of effective working length (× 2).
-const GROMMET = [
-  ['7x7x19', 9, 27, 12.7, 2.41], ['7x6x36', 10, 30, 15.4, 3.07], ['7x6x36', 12, 36, 22, 4.42], ['7x6x36', 13, 39, 25.9, 5.18],
-  ['7x6x36', 14, 42, 29.7, 6.01], ['7x6x36', 16, 48, 39.1, 7.87], ['7x6x36', 18, 54, 49.5, 9.97], ['7x6x36', 20, 60, 61.1, 12.3],
-  ['7x6x36', 22, 66, 75.9, 14.8], ['7x6x36', 24, 72, 92.4, 17.7], ['7x6x36', 26, 78, 112.2, 20.8], ['7x6x36', 28, 84, 133.1, 24.1],
-  ['7x6x36', 30, 90, 158, 22.6], ['7x6x36', 32, 96, 184.8, 31.4], ['7x6x36', 34, 102, 217, 35.6], ['7x6x36', 36, 108, 249.7, 39.7],
-  ['7x6x36', 38, 114, 262, 42.3], ['7x6x36', 40, 120, 300, 46.8], ['7x6x36', 42, 126, 344, 51.7], ['7x6x36', 44, 132, 392, 56.7],
-  ['7x6x36', 48, 144, 505, 67.5], ['7x6x36', 52, 156, 700, 79.1], ['7x6x36', 56, 168, 800, 95.2], ['7x6x36', 64, 192, 1000, 119.7],
-];
-const GROMMETS = GROMMET.map(([constr, rope, body, wll, kgm]) => ({
-  id: `GR-${body}`,
-  type: 'grommet',
-  family: 'GROMMET',
-  brand: 'DS Levage',
-  model: 'Cable-laid',
-  name: `Cable-laid grommet ${constr} Ø${body} mm (rope Ø${rope}), WLL ${wll} t`,
-  short: `Grommet Ø${body} (${wll} t)`,
-  wll_t: wll,
-  mbl_factor: 5,
-  colorHex: '#6f7b88',
-  weight_kg_per_m: Math.round(kgm * 2 * 100) / 100,
-  dims: { width: body, ropeDia: body },
-  lengths: WIRE_STD_LENGTHS,
-  source: `${DS} p.20 (weight × 2 per metre of EWL)`,
-}));
 
 // Polyester webbing slings EN 1492-1, SF 7:1 (DS p.64). Weight per metre: TYPICAL.
 const WEB = [
@@ -424,7 +212,7 @@ const WEB = [
   [12, 'Orange', '#e8822a', 300], [15, 'Orange', '#e8822a', 300], [16, 'Orange', '#e8822a', 300], [20, 'Orange', '#e8822a', 300],
   [30, 'Orange', '#e8822a', 300], [40, 'Orange', '#e8822a', 300],
 ];
-const WEBBINGS = WEB.map(([wll, colour, hex, width]) => ({
+const WEBBINGS = WEB.filter((r) => r[0] <= 30).map(([wll, colour, hex, width]) => ({
   id: `WEB-PES-${wll}`,
   type: 'webbing',
   family: 'WEB',
@@ -442,16 +230,13 @@ const WEBBINGS = WEB.map(([wll, colour, hex, width]) => ({
   source: `${DS} p.64 (weight typical)`,
 }));
 
-export const SLINGS = [...ROUNDSLINGS, ...WIRESLINGS, ...ENDLESS_SLINGS, ...GROMMETS, ...WEBBINGS];
-export const SLING_TYPES = ['roundsling', 'wiresling', 'grommet', 'webbing'];
+export const SLINGS = [...ROUNDSLINGS, ...WIRESLINGS, ...WEBBINGS];
+export const SLING_TYPES = ['roundsling', 'wiresling', 'webbing'];
 
 export const SLING_FAMILIES = {
-  'RS-PES': 'Roundsling — polyester (EN 1492-2)',
-  'RS-UHMWPE': 'Roundsling — UHMWPE',
-  WIRE: 'Wire rope sling 6x36 IWRC, eye–eye',
-  'WIRE-ENDLESS': 'Endless sleeved wire rope sling',
-  GROMMET: 'Cable-laid grommet',
-  WEB: 'Webbing sling — polyester (EN 1492-1)',
+  'RS-PES': 'Round sling (polyester)',
+  WEB: 'Flat webbing sling (polyester)',
+  WIRE: 'Steel wire rope sling',
 };
 
 // Mode factors (single sling)
@@ -498,11 +283,6 @@ const CH80 = [
   [13, 5.3, 39, 47, 3.74], [16, 8.0, 48, 58, 5.54], [20, 12.5, 60, 72, 8.94], [22, 15.0, 66, 79, 11.57],
   [26, 21.2, 78, 93, 15.26], [32, 31.5, 96, 112, 22.61],
 ];
-const CH100 = [
-  [6, 1.4, 18, 22, 0.96], [7, 1.9, 21, 25, 1.2], [8, 2.5, 24, 29, 1.57], [10, 4.0, 30, 36, 2.46],
-  [13, 6.7, 39, 47, 4.18], [16, 10.0, 48, 58, 6.28], [19, 14.0, 57, 69, 8.92], [22, 19.0, 66, 79, 11.88],
-  [26, 26.5, 78, 94, 16.18], [32, 40.0, 96, 115, 24.1],
-];
 const mkChain = (rows, grade, page) =>
   rows.map(([d, wll, p, w, kgm]) => ({
     id: `DS-CH${grade}-${d}`,
@@ -519,8 +299,8 @@ const mkChain = (rows, grade, page) =>
     dims: { dia: d, pitch: p, width: w },
     source: `${DS} p.${page}`,
   }));
-export const CHAINS = [...mkChain(CH80, 80, 20), ...mkChain(CH100, 100, 24)];
-export const CHAIN_FAMILIES = { 'CH-G80': 'Chain grade 80 (EN 818-2)', 'CH-G100': 'Chain grade 100' };
+export const CHAINS = mkChain(CH80, 80, 20);
+export const CHAIN_FAMILIES = { 'CH-G80': 'Chain grade 80' };
 
 // CONNECTING LINKS (chain coupling links, "maille d'accouplement") — DS Levage G80 p.22.
 // A overall length, B width, C bearing section. Effective length (bearing to bearing) is
@@ -550,25 +330,6 @@ export const CONNLINKS = [
     dims: clDims(A, B, C),
     source: `${DS} p.22 (effective length estimated A − 2C)`,
   })),
-  ...CH100.map(([d, wll]) => {
-    const g = CL80.find((r) => r[0].includes(d)) || CL80.find((r) => r[0][0] >= d) || CL80[CL80.length - 1];
-    return {
-      id: `DS-CL100-${d}`,
-      type: 'connlink',
-      family: 'CL-G100',
-      grade: 100,
-      brand: 'DS Levage',
-      model: 'Connecting link G100 (CW)',
-      name: `Connecting link G100 for chain Ø${d} mm`,
-      short: `Conn. link G100 Ø${d}`,
-      chainDias: [d],
-      wll_t: wll,
-      mbl_factor: 4,
-      weight_kg: g[5] / 100,
-      dims: clDims(g[2], g[3], g[4]),
-      source: `${DS} p.26 (WLL); dimensions indicative from the G80 link — check the certificate`,
-    };
-  }),
 ];
 
 
@@ -611,6 +372,62 @@ export const PADEYES = PE_S.map(([stock, shackle, wll, wireIn, wireMm, L, A, H, 
   source: 'Pad eye type S datasheet (S355J2G3, EN 10204 3.1)',
 }));
 
+
+// ---------------------------------------------------------------------------
+// SELF-LOCKING EYE HOOKS G80 (crochet de sécurité automatique à l'œil) — table supplied.
+// A overall length | B section at the saddle | C eye inside Ø | O opening.
+// Effective length (eye bearing → hook saddle) ESTIMATED as A − 1.5·B.
+const HK80 = [
+  // chain Ø list, wll kg, A, B, C, O, kg/100
+  [[6], 1120, 130, 19.5, 22, 28, 50], [[7, 8], 2000, 160, 24, 25, 34, 80], [[10], 3150, 201, 30, 32, 44, 143],
+  [[13], 5300, 248.5, 40, 40.5, 52, 286], [[16], 8000, 308, 50.5, 56, 60, 564], [[20], 12500, 330, 55, 64.5, 81, 850],
+  [[22], 15000, 387, 67, 70, 82, 1300], [[26], 21200, 498, 75, 80, 110, 1800], [[32], 31500, 570, 97, 105, 168, 4450],
+];
+export const HOOKS = HK80.map(([dias, wll, A, B, C, O, kg]) => ({
+  id: `HK80-${dias.join('-')}`,
+  type: 'hook',
+  family: 'HK-G80',
+  grade: 80,
+  name: `Self-locking eye hook G80 for chain Ø${dias.join('/')}`,
+  short: `Safety hook ${wll / 1000}t`,
+  chainDias: dias,
+  wll_t: wll / 1000,
+  mbl_factor: 4,
+  weight_kg: kg / 100,
+  dims: { length: A, saddle: B, eyeDia: C, opening: O, effLength: Math.round((A - 1.5 * B) * 10) / 10 },
+  source: 'Self-locking eye hook G80 table supplied (effective length estimated A − 1.5 B)',
+}));
+
+// LIFT POINTS WITH A RING — weld-on anchor points and eye bolts G80 (tables supplied).
+// bar = ring bar Ø, inW / inL = inside width / length of the ring.
+const ANCHOR = [
+  // wll, a bar, b inside W, c inside L, d sole L, e sole H, f length, kg
+  [1.2, 13, 40, 42, 35, 28, 83, 0.4], [3.2, 18, 45, 48, 42, 30, 99, 0.77], [5.4, 22, 55, 57, 49, 42, 121, 1.42],
+  [8.2, 26, 70, 64, 60, 50, 143, 2.5], [12.8, 28, 85, 90, 78, 55, 173, 3.7], [15.5, 34, 99, 93, 90, 63, 190, 5.67],
+];
+const EYEBOLT = [
+  // wll, thread, b base Ø, c eye outside Ø, d eye inside Ø, e length, f base thk, g bar Ø, kg
+  [0.2, 'M6', 20, 34, 20, 17, 7, 5, 0.05], [0.4, 'M8', 20, 34, 20, 24, 7, 5, 0.06], [0.7, 'M10', 20, 38, 22, 30, 8, 8, 0.08],
+  [1, 'M12', 25, 47, 26, 36, 23, 10, 0.14], [1.2, 'M14', 30, 57, 29, 40, 28, 14, 0.25], [1.5, 'M16', 30, 65, 35, 55, 30, 14, 0.39],
+  [2, 'M18', 35, 65, 35, 54, 30, 14, 0.38], [2.5, 'M20', 40, 73, 39, 59, 34, 16, 0.58], [3, 'M22', 42, 82, 45, 59, 39, 18, 1.01],
+  [4, 'M24', 55, 95, 54, 84, 40, 20, 1.12], [5, 'M27', 55, 95, 54, 84, 40, 20, 1.18], [6, 'M30', 60, 108, 59, 100, 40, 24, 2.01],
+  [7, 'M33', 60, 108, 59, 100, 49, 24, 2.01], [8, 'M36', 65, 118, 67, 118, 45, 25, 2.44], [9, 'M39', 65, 118, 67, 118, 45, 25, 2.62],
+  [10, 'M42', 70, 139, 79, 135, 56, 31, 5.41], [12, 'M45', 70, 139, 79, 135, 56, 31, 4.16], [15, 'M48', 95, 181, 97, 150, 68, 43, 8.22],
+  [20, 'M52', 95, 181, 97, 150, 68, 43, 8.55], [25, 'M56', 95, 181, 97, 150, 68, 43, 8.85], [30, 'M60', 95, 181, 97, 150, 68, 43, 9.16],
+  [36, 'M64', 95, 181, 97, 150, 68, 43, 9.55],
+];
+export const RINGS = [
+  ...ANCHOR.map(([wll, a, b, c, d, e, f, kg]) => ({
+    id: `ANC-${wll}`, type: 'ring', family: 'ANCHOR', name: `Weld-on anchor point ${wll} t`, short: `Anchor point ${wll}t`,
+    wll_t: wll, weight_kg: kg, dims: { bar: a, inW: b, inL: c, soleL: d, soleH: e, length: f }, source: 'Weld-on anchor point table supplied',
+  })),
+  ...EYEBOLT.map(([wll, th, b, c, d, e, f, g, kg]) => ({
+    id: `EB80-${th}`, type: 'ring', family: 'EYEBOLT', name: `Eye bolt G80 ${th} — ${wll} t (axial)`, short: `Eye bolt ${th} ${wll}t`,
+    wll_t: wll, weight_kg: kg, dims: { bar: g, inW: d, inL: d, thread: th, baseDia: b, outDia: c, length: e, baseThk: f },
+    note: 'WLL for an axial (vertical) pull — reduce for angled pulls as per the manufacturer', source: 'Eye bolt G80 table supplied',
+  })),
+];
+
 export const CATALOG_TYPES = {
   shackle: 'Shackle',
   masterlink: 'Master link',
@@ -622,7 +439,9 @@ export const CATALOG_TYPES = {
   chain: 'Chain',
   connlink: 'Connecting link',
   padeye: 'Pad eye',
+  hook: 'Safety hook',
+  ring: 'Anchor point / eye bolt',
   other: 'Other',
 };
 
-export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS, ...PADEYES];
+export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS, ...HOOKS, ...PADEYES, ...RINGS];

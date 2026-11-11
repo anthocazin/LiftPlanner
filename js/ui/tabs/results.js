@@ -51,27 +51,31 @@ export function summaryCards(res) {
   );
 }
 
-export function checksTable(checks, { compact = false } = {}) {
+export function checksTable(checks, { compact = false, nav = false } = {}) {
   const groups = {};
   checks.forEach((c) => (groups[c.cat] = groups[c.cat] || []).push(c));
   const tb = el('tbody');
   for (const [cat, list] of Object.entries(groups)) {
-    tb.append(el('tr', { class: 'group' }, el('td', { colspan: 7 }, cat)));
-    for (const c of list)
+    tb.append(el('tr', { class: 'group' }, el('td', { colspan: nav ? 7 : 6 }, cat)));
+    for (const c of list) {
+      const go = nav && c.ref ? () => window.__goto?.(c.ref) : null;
       tb.append(
         el(
           'tr',
-          {},
+          go ? { class: 'clk-row', title: 'Click to go to the item to adjust', onclick: go } : {},
           el('td', {}, badge(c.status)),
           el('td', {}, c.item),
           el('td', {}, c.label, c.note ? el('div', { class: 'muted', style: { fontSize: '11px' } }, c.note) : null),
           el('td', { class: 'num' }, c.value != null ? `${fmt(c.value)} ${c.unit || ''}` : ''),
           el('td', { class: 'num' }, c.limit != null ? `${fmt(c.limit)} ${c.unit || ''}` : ''),
           el('td', {}, c.util != null ? utilBar(c.util) : ''),
+          nav ? el('td', {}, go ? el('button', { class: `small ${c.status === 'fail' || c.status === 'warn' ? 'primary' : ''}`, onclick: (e) => { e.stopPropagation(); go(); } }, { rigging: 'Rigging →', load: 'Load →', crane: 'Crane →' }[c.ref.tab] || 'Go →') : '') : null,
         ),
       );
+    }
   }
-  return el('table', { class: `data ${compact ? 'compact' : ''}` }, el('thead', {}, el('tr', {}, ['Status', 'Item', 'Check', 'Value', 'Limit', 'Utilisation'].map((h) => el('th', {}, h)))), tb);
+  const heads = ['Status', 'Item', 'Check', 'Value', 'Limit', 'Utilisation', ...(nav ? [''] : [])];
+  return el('table', { class: `data ${compact ? 'compact' : ''}` }, el('thead', {}, el('tr', {}, heads.map((h) => el('th', {}, h)))), tb);
 }
 
 const nm = (i) => niceName(i);
@@ -101,8 +105,9 @@ export function legsTable(res) {
   );
 }
 
-export function bomTable(res) {
-  const tot = res.bom.reduce((s, b) => s + b.qty * b.unitWeight_t, 0);
+export function bomTable(res, { hideUnknown = false } = {}) {
+  const bom = hideUnknown ? res.bom.filter((b) => !b.unknown) : res.bom;
+  const tot = bom.reduce((s, b) => s + b.qty * b.unitWeight_t, 0);
   return el(
     'table',
     { class: 'data compact' },
@@ -110,15 +115,15 @@ export function bomTable(res) {
     el(
       'tbody',
       {},
-      res.bom.map((b) =>
+      bom.map((b) =>
         el(
           'tr',
           {},
           el('td', {}, b.no),
           el('td', { class: 'num' }, b.qty),
           el('td', {}, b.name, b.ewl_m != null ? ` — ${b.links ? `${b.links} links` : `${fmt(b.ewl_m)} m`}` : ''),
-          el('td', { class: 'num' }, fmt(b.wll_t)),
-          el('td', { class: 'num' }, fmt(b.unitWeight_t * 1000, 1)),
+          el('td', { class: 'num' }, b.unknown ? 'not known' : fmt(b.wll_t)),
+          el('td', { class: 'num' }, b.unknown ? '—' : fmt(b.unitWeight_t * 1000, 1)),
           el('td', {}, [...new Set(b.where)].join(', ')),
           el('td', {}, b.certNo || ''),
         ),
@@ -163,7 +168,8 @@ function update(res) {
     panel(
       null,
       el('div', { class: 'panel-head' }, el('h2', {}, 'Checks'), el('div', { class: 'row' }, fbtn('all', 'All'), fbtn('issues', 'Issues'), fbtn('fail', 'Failed'), fbtn('warn', 'Warnings'))),
-      el('div', { class: 'tbl-wrap' }, checksTable(shown)),
+      el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Click a row (or its button) to open the page and the item to adjust. The grey line under a compatibility check explains why.'),
+      el('div', { class: 'tbl-wrap' }, checksTable(shown, { nav: true })),
     ),
     panel('Leg forces', el('div', { class: 'tbl-wrap' }, legsTable(res))),
     panel(

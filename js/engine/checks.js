@@ -1,8 +1,9 @@
 // Checks: each check yields a row { cat, item, label, value, limit, unit, util, status, note }.
-import { shackleSideLoadFactor, shackleCompatibility, bendingRatio, enModeFactor, niceName } from '../catalog/index.js';
+import { shackleSideLoadFactor, shackleCompatibility, enModeFactor, niceName } from '../catalog/index.js';
 import { DEFAULT_SHACKLE_RANGES } from '../catalog/data.js';
 import { chartCapacity } from './crane.js';
-import { hasPadeye, padeyeCtx, isLengthPart, PART_KINDS } from './rigging.js';
+import { hasPadeye, pointKind, padeyeCtx, isLengthPart, PART_KINDS } from './rigging.js';
+import { legJointChecks } from './compat.js';
 import { offsetFromLine } from './statics.js';
 import { deg } from './vec.js';
 
@@ -50,6 +51,7 @@ export function riggingChecks(rig, project, rules) {
   );
 
   for (const leg of rig.legs) {
+    const startIdx = out.length;
     const F = leg.Fdesign;
     const name = leg.label;
     (leg.errors || []).forEach((e) => push(out, { cat: 'Input', item: name, label: e, status: 'fail', unit: '' }));
@@ -63,51 +65,49 @@ export function riggingChecks(rig, project, rules) {
           ? `${niceName(it)} — ${p.links} links = ${(p.length_m || 0).toFixed(3)} m`
           : `${niceName(it)} — EWL ${(p.length_m || 0).toFixed(2)} m`;
         push(out, {
-          cat: p.kind === 'chain' ? 'Chains' : 'Slings', item: name, label: `${what}${p.hitch === 'choke' ? ' (choked ×0.8)' : ''}`,
-          value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn),
+          cat: p.kind === 'chain' ? 'Chains' : 'Slings', item: name, label: `${what}${p.hitch === 'choke' ? ' (choked ×0.8)' : ''}${p.defaulted ? ' — length not set, 1 m assumed' : ''}`,
+          value: F, limit: wll, util: F / wll, status: p.defaulted ? 'warn' : utilStatus(F / wll, rules.utilWarn), part: i,
+          note: p.defaulted ? 'Several slings / chains in this leg: only the first free one is sized; give the others their length (click it on the Rigging page)' : '',
         });
         return;
       }
       const sf = i === 0 && p.kind === 'shackle' && leg.level !== 'top' ? shackleSideLoadFactor(leg.beta || 0) : 1;
       const wll = it.wll_t * sf;
       const where = i === 0 ? (leg.level === 'top' ? 'at spreader lug' : 'at lift point') : i === leg.parts.length - 1 ? (leg.level === 'bottom' ? 'at spreader lug' : 'at hook side') : 'in line';
-      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : 'G-Link';
+      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : p.kind === 'hook' ? 'Hooks' : 'G-Link';
       push(out, {
         cat, item: name, label: `${niceName(it)} (${where})${sf < 1 ? ` — side load ${leg.beta.toFixed(0)}° → ×${sf.toFixed(2)}` : ''}`,
-        value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn),
+        value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn), part: i,
       });
-      if (p.kind === 'shackle' && it.wideBody && sf < 1)
-        push(out, { cat: 'Shackles', item: name, label: 'Side load on a Wide Body shackle: the Green Pin reduction curve does not apply — consult the manufacturer', status: 'warn', unit: '' });
       if (p.kind === 'connlink' && len?.kind === 'chain' && len.item && it.chainDias && !it.chainDias.includes(len.item.dims?.dia))
-        push(out, { cat: 'Compatibility', item: name, label: `${niceName(it)} does not match chain Ø${len.item.dims?.dia} mm`, status: 'warn', unit: '' });
+        push(out, { cat: 'Compatibility', item: name, label: `${niceName(it)} does not match chain Ø${len.item.dims?.dia} mm`, status: 'warn', unit: '', part: i, note: 'A connecting link must be of the same size as the chain.' });
       if (p.kind === 'connlink' && len?.kind === 'chain' && len.item && (it.grade || 80) < (len.item.grade || 80))
         push(out, { cat: 'Compatibility', item: name, label: `Grade ${it.grade} connecting link on a grade ${len.item.grade} chain`, status: 'warn', unit: '' });
       // padeye / lug fit of the shackle pinned in a hole
       if (p.kind === 'shackle' && p.role === 'hole') {
         const ctx = { ...(p.ctx || {}), slingWidth: len?.kind === 'sling' ? len.item?.dims?.width : null };
-        shackleCompatibility(it, ctx, rules).forEach((iss) => push(out, { cat: 'Compatibility', item: name, label: iss.msg, status: iss.level, unit: '' }));
-      }
-      if (p.kind === 'shackle' && len?.kind === 'sling') {
-        const br = bendingRatio(len.item, it.dims?.bowDia);
-        if (br != null && br < (rules.minBendingRatio ?? 1) && Math.abs(i - leg.li) === 1)
-          push(out, {
-            cat: 'Compatibility', item: name, label: `Bending ratio D/d = ${br.toFixed(2)} over the shackle bow (wire rope / grommet)`,
-            value: br, limit: rules.minBendingRatio ?? 1, unit: '', status: 'warn',
-            note: 'Low D/d reduces the sling capacity: use a larger / wide body shackle or apply the manufacturer reduction',
-          });
+        shackleCompatibility(it, { ...ctx, slingWidth: null }, rules).forEach((iss) => push(out, { cat: 'Compatibility', item: name, label: iss.msg, status: iss.level, unit: '', part: i, note: i === 0 ? 'Shackle pin in the padeye hole: see the padeye on the Load page' : 'Shackle pin in the spreader lug' }));
       }
     });
+    // joints between parts (sling on shackle, shackle on master link, links…)
+    legJointChecks(leg, rig).forEach((x) => push(out, { cat: 'Compatibility', item: name, label: x.label, status: x.status, unit: '', part: x.part, note: x.why }));
     if (len?.hitch === 'choke' && !(Number(len.wrap_m) > 0))
       push(out, { cat: 'Slings', item: name, label: 'Choked hitch: length taken by the choke around the load not entered (assumed 0)', status: 'info', unit: '' });
+    // Lift point with a ring (anchor point, eye bolt): SWL
+    if (leg.point && pointKind(leg.point) === 'ring') {
+      const swl = Number(leg.point.swl_t);
+      if (swl > 0) push(out, { cat: 'Lift points', item: name, label: `Lift point ${leg.point.id} (SWL ${swl} t)`, value: F, limit: swl, util: F / swl, status: utilStatus(F / swl, rules.utilWarn), point: leg.point.id, note: leg.point.ringStd?.startsWith?.('EB80') ? 'Eye bolt: SWL given for an axial pull — reduce it for an angled pull (manufacturer table)' : '' });
+      else push(out, { cat: 'Lift points', item: name, label: `Lift point ${leg.point.id}: SWL not entered`, status: 'warn', unit: '', point: leg.point.id });
+    }
     // Lift point (padeye) — skipped when the point has no padeye
     if (leg.point && hasPadeye(leg.point)) {
       const swl = Number(leg.point.swl_t);
       if (swl > 0)
         push(out, {
           cat: 'Lift points', item: name, label: `Padeye ${leg.point.id} (SWL ${swl} t)`,
-          value: F, limit: swl, util: F / swl, status: utilStatus(F / swl, rules.utilWarn),
+          value: F, limit: swl, util: F / swl, status: utilStatus(F / swl, rules.utilWarn), point: leg.point.id,
         });
-      else push(out, { cat: 'Lift points', item: name, label: `Padeye ${leg.point.id}: SWL not entered`, status: 'warn', unit: '' });
+      else push(out, { cat: 'Lift points', item: name, label: `Padeye ${leg.point.id}: SWL not entered`, status: 'warn', unit: '', point: leg.point.id });
       if (leg.beta != null && leg.beta > rules.maxOutOfPlane_deg)
         push(out, {
           cat: 'Lift points', item: name, label: `Out-of-plane load on padeye: ${leg.beta.toFixed(1)}°`,
@@ -126,6 +126,9 @@ export function riggingChecks(rig, project, rules) {
         value: aV, limit: rules.maxAngleV_deg, unit: '°', status: st,
         note: st === 'warn' ? `Above the ${rules.targetAngleV_deg}° target — allowed up to ${rules.maxAngleV_deg}°` : st === 'fail' ? `Maximum ${rules.maxAngleV_deg}° to vertical` : '',
       });
+    out.slice(startIdx).forEach((c) => {
+      c.ref = c.ref || (c.point && c.cat === 'Lift points' ? { tab: 'load', point: c.point } : { tab: 'rigging', leg: leg.key, part: c.part ?? null });
+    });
     // Length balance (spreader; for a direct hook the load tilt is checked globally)
     if (rig.type === 'spreader' && Math.abs(leg.mismatch_mm) > rules.lengthMismatchWarn_mm)
       push(out, {
@@ -175,7 +178,9 @@ export function riggingChecks(rig, project, rules) {
     if (maxV > rules.maxAngleV_deg)
       push(out, { cat: 'Angles', item: 'Hook', label: `Included angle at hook ${(2 * maxV).toFixed(0)}° > 90°`, status: 'warn', unit: '' });
   }
-  if (h && !h.onHook) {
+  if (h && !h.onHook && h.unknownSWL) push(out, { cat: 'Master link', item: 'Head', label: 'Masterlink SWL not known — assumed suitable (not checked)', status: 'info', unit: '', ref: { tab: 'rigging', head: true }, hideInReport: true });
+  if (h && !h.onHook && !h.unknownSWL) {
+    const headStart = out.length;
     if (!h.masterlink) push(out, { cat: 'Master link', item: 'Head', label: 'No suitable master link', status: 'fail' });
     else {
       push(out, {
@@ -185,8 +190,8 @@ export function riggingChecks(rig, project, rules) {
       const iw = h.masterlink.dims?.insideWidth || 0;
       if (h.fitWidth > iw)
         push(out, {
-          cat: 'Compatibility', item: 'Master link', label: `Space taken by slings ${h.fitWidth.toFixed(0)} mm > inside width ${iw} mm`,
-          status: 'warn', unit: '', note: 'Use a larger master link or sub-links / shackles',
+          cat: 'Compatibility', item: 'Master link', label: `Items on the masterlink need ${h.fitWidth.toFixed(0)} mm along its bottom bar — inside width ${iw} mm`,
+          status: 'warn', unit: '', note: 'Everything hanging on the masterlink sits side by side on its bottom bar (shackle eye Ø, ½ round sling width, webbing width…). Use a larger masterlink, a quad masterlink with sub-links, or shackles.',
         });
     }
     if (h.useSub && h.subLink) {
@@ -200,15 +205,11 @@ export function riggingChecks(rig, project, rules) {
       const siw = h.subLink.dims?.insideWidth || 0;
       if (h.pairWidth > siw)
         push(out, {
-          cat: 'Compatibility', item: 'Sub-links', label: `Space taken per sub-link ${h.pairWidth.toFixed(0)} mm > inside width ${siw} mm`,
-          status: 'warn', unit: '', note: 'Use connecting shackles or larger sub-links',
+          cat: 'Compatibility', item: 'Sub-links', label: `Two legs per sub-link need ${h.pairWidth.toFixed(0)} mm — inside width ${siw} mm`,
+          status: 'warn', unit: '', note: 'The two items hanging on each sub-link sit side by side on its bottom bar. Use shackles or a larger assembly.',
         });
     }
-    if (h.topShackle)
-      push(out, {
-        cat: 'Shackles', item: 'Head', label: `${niceName(h.topShackle)} (hook ↔ master link)`, value: Fv, limit: h.topShackle.wll_t,
-        util: Fv / h.topShackle.wll_t, status: utilStatus(Fv / h.topShackle.wll_t, rules.utilWarn),
-      });
+    out.slice(headStart).forEach((c) => (c.ref = c.ref || { tab: 'rigging', head: true }));
   }
 
   // Spreader bar

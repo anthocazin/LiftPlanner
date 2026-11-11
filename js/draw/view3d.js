@@ -75,29 +75,48 @@ export function draw3d(project, res, opts = {}) {
   const hasBox = e.x1 > e.x0 && e.y1 > e.y0 && e.z1 > e.z0;
   const views = load.views || {};
   const showDw = opts.drawings !== false && Object.values(views).some((v) => v?.image);
-  if (hasBox) {
-    const V = (x, y, z) => P(x ? e.x1 : e.x0, y ? e.y1 : e.y0, z ? e.z1 : e.z0);
-    const faces = [
-      { c: [V(0, 0, 1), V(1, 0, 1), V(1, 1, 1), V(0, 1, 1)], nrm: [0, 0, 1], shade: 0.95 },
-      { c: [V(0, 0, 0), V(1, 0, 0), V(1, 1, 0), V(0, 1, 0)], nrm: [0, 0, -1], shade: 0.6 },
-      { c: [V(0, 0, 0), V(1, 0, 0), V(1, 0, 1), V(0, 0, 1)], nrm: [0, -1, 0], shade: 0.82 },
-      { c: [V(0, 1, 0), V(1, 1, 0), V(1, 1, 1), V(0, 1, 1)], nrm: [0, 1, 0], shade: 0.72 },
-      { c: [V(0, 0, 0), V(0, 1, 0), V(0, 1, 1), V(0, 0, 1)], nrm: [-1, 0, 0], shade: 0.68 },
-      { c: [V(1, 0, 0), V(1, 1, 0), V(1, 1, 1), V(1, 0, 1)], nrm: [1, 0, 0], shade: 0.78 },
-    ];
-    const cy = Math.cos(rad(cam.yaw)), sy = Math.sin(rad(cam.yaw)), cp = Math.cos(rad(cam.pitch)), sp = Math.sin(rad(cam.pitch));
-    const view = [sy * cp * -1, -cy * cp * -1, sp]; // direction towards the viewer in world coords
-    // (derived from d = -y1·cos p + z·sin p with y1 = x·sin y + y·cos y)
-    view[0] = -sy * cp;
-    view[1] = -cy * cp;
-    for (const f of faces) {
-      const facing = f.nrm[0] * view[0] + f.nrm[1] * view[1] + f.nrm[2] * view[2];
-      const sp2 = f.c.map(S);
-      const d = sp2.reduce((s, q) => s + q.d, 0) / 4 - (facing > 0 ? 0 : 1e9);
-      const col = Math.round(200 * f.shade + 30);
-      push(d, poly(sp2, `fill="rgb(${col - 10},${col},${Math.min(255, col + 18)})" fill-opacity="${showDw ? 0.35 : facing > 0 ? 0.9 : 0.25}" stroke="#4a5562" stroke-width="${facing > 0 ? 1.1 : 0.6}" ${facing > 0 ? '' : 'stroke-dasharray="4 3"'}`));
+  const cyw = Math.cos(rad(cam.yaw)), syw = Math.sin(rad(cam.yaw)), cpp = Math.cos(rad(cam.pitch)), spp = Math.sin(rad(cam.pitch));
+  const view = [-syw * cpp, -cyw * cpp, spp]; // direction towards the viewer
+  const face = (corners, nrm, shade, { fillOp = 0.9, isVoid = false } = {}) => {
+    const facing = nrm[0] * view[0] + nrm[1] * view[1] + nrm[2] * view[2];
+    const sp2 = corners.map(S);
+    const d = sp2.reduce((s2, q) => s2 + q.d, 0) / sp2.length - (facing > 0 ? 0 : 1e9);
+    const light = Math.max(0, nrm[0] * -0.3 + nrm[1] * -0.5 + nrm[2] * 0.8);
+    const col = Math.round(150 + 80 * (shade ?? 0.5 + 0.5 * light));
+    if (isVoid) { if (facing > 0) push(d + 2, poly(sp2, 'fill="none" stroke="#7b3fb0" stroke-width="1" stroke-dasharray="4 3"')); return; }
+    push(d, poly(sp2, `fill="rgb(${col - 12},${col},${Math.min(255, col + 20)})" fill-opacity="${facing > 0 ? fillOp : 0.18}" stroke="#4a5562" stroke-width="${facing > 0 ? 1 : 0.5}" stroke-linejoin="round" ${facing > 0 ? '' : 'stroke-dasharray="4 3"'}`));
+  };
+  const boxFaces = (b, o = {}) => {
+    const V = (x, y, z) => P(x ? b.x1 : b.x0, y ? b.y1 : b.y0, z ? b.z1 : b.z0);
+    face([V(0, 0, 1), V(1, 0, 1), V(1, 1, 1), V(0, 1, 1)], [0, 0, 1], 0.95, o);
+    face([V(0, 0, 0), V(1, 0, 0), V(1, 1, 0), V(0, 1, 0)], [0, 0, -1], 0.55, o);
+    face([V(0, 0, 0), V(1, 0, 0), V(1, 0, 1), V(0, 0, 1)], [0, -1, 0], 0.8, o);
+    face([V(0, 1, 0), V(1, 1, 0), V(1, 1, 1), V(0, 1, 1)], [0, 1, 0], 0.7, o);
+    face([V(0, 0, 0), V(0, 1, 0), V(0, 1, 1), V(0, 0, 1)], [-1, 0, 0], 0.66, o);
+    face([V(1, 0, 0), V(1, 1, 0), V(1, 1, 1), V(1, 0, 1)], [1, 0, 0], 0.76, o);
+  };
+  const cylFaces = (sh, o = {}) => {
+    const ax = sh.axis || 'z', r = +sh.r || 0, Lc = +sh.L || 0, N = 24;
+    const c = { x: +sh.cx || 0, y: +sh.cy || 0, z: +sh.cz || 0 };
+    const [u1, u2] = ['x', 'y', 'z'].filter((k) => k !== ax);
+    const pt = (t, along) => { const q = { ...c }; q[u1] += r * Math.cos(t); q[u2] += r * Math.sin(t); q[ax] += along; return P(q.x, q.y, q.z); };
+    const nv = (t) => { const q = { x: 0, y: 0, z: 0 }; q[u1] = Math.cos(t); q[u2] = Math.sin(t); return [q.x, q.y, q.z]; };
+    for (let i = 0; i < N; i++) {
+      const t0 = (i / N) * 2 * Math.PI, t1 = ((i + 1) / N) * 2 * Math.PI;
+      face([pt(t0, 0), pt(t1, 0), pt(t1, Lc), pt(t0, Lc)], nv((t0 + t1) / 2), null, o);
     }
-  }
+    const cap = (along, sign) => { const q = [0, 0, 0]; q['xyz'.indexOf(ax)] = sign; face(Array.from({ length: N }, (_, i) => pt((i / N) * 2 * Math.PI, along)), q, 0.9, o); };
+    cap(0, Lc >= 0 ? -1 : 1);
+    cap(Lc, Lc >= 0 ? 1 : -1);
+  };
+  const shapes = (load.shapes || []).filter(Boolean);
+  if (shapes.length) {
+    for (const sh of shapes) {
+      const o = { isVoid: !!sh.void, fillOp: showDw ? 0.55 : 0.92 };
+      if (sh.type === 'box') boxFaces({ x0: Math.min(sh.x0, sh.x1), x1: Math.max(sh.x0, sh.x1), y0: Math.min(sh.y0, sh.y1), y1: Math.max(sh.y0, sh.y1), z0: Math.min(sh.z0, sh.z1), z1: Math.max(sh.z0, sh.z1) }, o);
+      else cylFaces(sh, o);
+    }
+  } else if (hasBox) boxFaces(e, { fillOp: showDw ? 0.35 : 0.9 });
   // ---- drawing views projected on their planes
   if (showDw) {
     const planes = {

@@ -1,6 +1,6 @@
 // Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const DEFAULT_CHECKLIST = [
   'Lifting equipment inspected, certificates valid and identified (serial numbers)',
@@ -48,7 +48,7 @@ export const CHECKLIFT = [
 ];
 
 // standard pad eye type S 8.5 t (53.008.50.0S): H 29.5, t = T = 35, R 64, A 64, L 180
-const PADEYE_EX = { padeye: true, padeyeStd: 'PE-S-53.008.50.0S', swl_t: 8.5, holeDia_mm: 29.5, thk_mm: 35, cheekThk_mm: 0, radius_mm: 64, height_mm: 64, baseL_mm: 180, azimuth_deg: null };
+const PADEYE_EX = { kind: 'padeye', padeye: true, padeyeStd: 'PE-S-53.008.50.0S', swl_t: 8.5, holeDia_mm: 29.5, thk_mm: 35, cheekThk_mm: 0, radius_mm: 64, height_mm: 64, baseL_mm: 180, azimuth_deg: null };
 
 export function defaultProject() {
   return {
@@ -194,6 +194,9 @@ export function migrate(data) {
   const v = Number(old.schema) || 1;
   const out = merge(base, old);
   if (v < 3) migrateV2(out, old);
+  if (v < 4) migrateV3(out);
+  // the site map (storyboard) is gone: the radius already measured on it is kept
+  (out.storyboard?.steps || []).forEach((st) => { delete st.pos; delete st.aiSketch; });
   out.schema = SCHEMA_VERSION;
   return out;
 }
@@ -266,6 +269,25 @@ function migrateV2(out, old) {
     if (st.sketch == null) st.sketch = Number(st.radius_m) > 0;
     if (st.responsible == null) st.responsible = '';
   });
+}
+
+/** v3 → v4: catalogue limited to the supplied tables, no hook shackle, lift point kinds. */
+function migrateV3(out) {
+  const fam = { 'RS-UHMWPE': 'RS-PES', GROMMET: 'WIRE', 'WIRE-ENDLESS': 'WIRE', 'CH-G100': 'CH-G80', 'CL-G100': 'CL-G80', WIDE: null, 'G-5263': null, 'P-6036': null, 'G-4161': null };
+  const fix = (parts) => (parts || []).forEach((q) => {
+    if (q.family && q.family in fam) { q.family = fam[q.family] || undefined; q.id = 'auto'; }
+    if (q.id && q.id !== 'auto' && /^(GP-(P6036|G5263|WB|G4161)|RS-UHMWPE|GR-|WE-|DS-CH100|DS-CL100|CR-A342)/.test(q.id)) q.id = 'auto';
+  });
+  const r = out.rigging || {};
+  fix(r.assembly);
+  fix(r.assemblyTop);
+  Object.values(r.legs || {}).forEach((l) => fix(l.parts));
+  if (r.head) {
+    r.head.topShackle = false;
+    if (/^(CR-A342|DS-G80-LML)/.test(r.head.itemId || '')) r.head.itemId = 'auto';
+  }
+  if (out.rules?.shackleRanges) out.rules.shackleRanges = ['G-4163'];
+  (out.load?.liftPoints || []).forEach((p) => { if (!p.kind) p.kind = p.padeye === false ? 'none' : 'padeye'; });
 }
 
 /** Path access "a.b.0.c". */

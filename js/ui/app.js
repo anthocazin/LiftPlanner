@@ -76,6 +76,8 @@ export const app = {
       const light = JSON.parse(JSON.stringify(this.project));
       for (const k of ['xy', 'xz']) if (light.load?.views?.[k]) light.load.views[k].image = null;
       if (light.storyboard?.map) light.storyboard.map.image = null;
+      if (light.load?.views?.yz) light.load.views.yz.image = null;
+      if (light.report?.drawings) light.report.drawings = [];
       safeSave(LS_KEY, light);
       this.storageFull = true;
     } else this.storageFull = false;

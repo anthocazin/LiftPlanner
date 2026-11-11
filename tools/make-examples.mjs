@@ -38,7 +38,7 @@ c.load.wcfPreset = 'weighed';
 c.load.wcf = 1.03;
 c.load.dims_mm = { L: 6058, W: 2438, H: 2591 };
 c.load.cog_mm = { x: 3029, y: 1219, z: 1000 };
-const pad = { padeye: true, swl_t: 9.5, holeDia_mm: 30, thk_mm: 30, cheekThk_mm: 3, radius_mm: 50, height_mm: 70, azimuth_deg: null, used: true };
+const pad = { padeye: true, swl_t: 9.5, holeDia_mm: 29.5, thk_mm: 30, cheekThk_mm: 3, radius_mm: 50, height_mm: 70, azimuth_deg: null, used: true };
 c.load.liftPoints = [
   { id: 'A', x: 150, y: 150, z: 2591, ...pad },
   { id: 'B', x: 5908, y: 150, z: 2591, ...pad },

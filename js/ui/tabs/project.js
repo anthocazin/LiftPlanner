@@ -1,5 +1,6 @@
 // Project page: identification (lifting plan header), logos, nature of the lift, detailed
-// sequence (drives the sketches of the Drawings page), weather, safety measures, communications.
+// sequence (crane radius of every step, checked against the load chart), weather, safety
+// measures, communications.
 import { app } from '../app.js';
 import { el, field, panel, badge, toast } from '../dom.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
@@ -60,10 +61,10 @@ export function render(root) {
     null,
     el('div', { class: 'panel-head' },
       el('h2', {}, 'Step-by-step details of the lifting operation'),
-      el('div', { class: 'row' }, el('button', { class: 'small', onclick: () => addStep(false) }, '+ Step'), el('button', { class: 'small', onclick: () => addStep(true) }, '+ Crane step (with sketch)')),
+      el('div', { class: 'row' }, el('button', { class: 'small', onclick: () => addStep(false) }, '+ Step'), el('button', { class: 'small', onclick: () => addStep(true) }, '+ Crane step (radius)')),
     ),
     el('div', { id: 'seq-table', class: 'tbl-wrap' }),
-    el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Steps ticked "Sketch" get a plan + elevation drawing on the Drawings page; radius, slew and load height are checked against the load chart. Positions can also be placed on the Storyboard map.'),
+    el('p', { class: 'muted', style: { fontSize: '12px' } }, 'The steps are printed in the report. Give a crane radius to the steps where the crane holds the load: the SWL of the load chart is checked at every radius (the largest radius governs).'),
   );
 
   const weather = panel(
@@ -185,9 +186,7 @@ function renderSequence() {
       el('td', {}, el('input', { type: 'text', value: st.name || '', onchange: (e) => app.set(`${P}name`, e.target.value) })),
       el('td', { style: { minWidth: '280px' } }, el('textarea', { rows: 2, style: { width: '100%', font: 'inherit', fontSize: '12.5px', border: '1px solid var(--line)', borderRadius: '4px' }, onchange: (e) => app.set(`${P}note`, e.target.value) }, st.note || '')),
       el('td', {}, el('input', { type: 'text', value: st.responsible || '', onchange: (e) => app.set(`${P}responsible`, e.target.value) })),
-      el('td', { style: { textAlign: 'center' } }, el('input', { type: 'checkbox', checked: !!st.sketch, onchange: (e) => { st.sketch = e.target.checked; app.recompute(); } })),
       el('td', {}, num('radius_m')),
-      el('td', {}, num('slew_deg')),
       el('td', {}, num('loadElevation_m')),
       el('td', { style: { whiteSpace: 'nowrap' } },
         el('button', { class: 'small', title: 'Up', onclick: () => { if (i > 0) { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; app.recompute(); renderSequence(); } } }, '↑'),
@@ -197,7 +196,7 @@ function renderSequence() {
   });
   box.innerHTML = '';
   box.append(el('table', { class: 'data compact' },
-    el('thead', {}, el('tr', {}, ['#', 'Step', 'Details', 'Responsible', 'Sketch', 'Radius (m)', 'Slew (°)', 'Load height (m)', ''].map((h) => el('th', {}, h)))), tb));
+    el('thead', {}, el('tr', {}, ['#', 'Step', 'Details', 'Responsible', 'Crane radius (m)', 'Load height (m)', ''].map((h) => el('th', {}, h)))), tb));
 }
 
 function renderChecklist() {

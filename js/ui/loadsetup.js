@@ -6,6 +6,7 @@ import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
 import { viewer3d } from './viewer3d.js';
+import { shapesCog, shapeVolume } from '../engine/shape.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PT_MM = 25.4 / 72;
@@ -14,9 +15,9 @@ export const VIEW_DEF = {
   xz: { name: 'Front view', short: 'Front', axes: 'X → right, Z → up', h: 'X', v: 'Z', look: 'seen from the front (−Y)' },
   yz: { name: 'Side view', short: 'Side', axes: 'Y → right, Z → up', h: 'Y', v: 'Z', look: 'seen from the right (+X)' },
 };
-const STEPS = ['Drawing', 'Scale', 'Views', 'Lift points & COG'];
+const STEPS = ['Drawing', 'Scale', 'Views', 'Shape (optional)', 'Lift points & COG'];
 
-export const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG' };
+export const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG', selShape: null, voidNext: false };
 let viewer = null;
 let pickViews = [];
 let root = null;
@@ -41,6 +42,7 @@ export function refreshSetup() {
 
 function rebuild() {
   build();
+  if (setup.step === 4) setTimeout(renderShapeTable, 0);
 }
 
 function stepDone(i) {
@@ -48,7 +50,8 @@ function stepDone(i) {
   if (i === 1) return !!app.drawSource || Object.values(ld.views || {}).some(Boolean);
   if (i === 2) return scale().mmPerUnit > 0 || Object.values(ld.views || {}).some(Boolean);
   if (i === 3) return Object.values(ld.views || {}).some(Boolean);
-  if (i === 4) return (ld.liftPoints || []).length > 0;
+  if (i === 4) return (ld.shapes || []).length > 0;
+  if (i === 5) return (ld.liftPoints || []).length > 0;
   return false;
 }
 
@@ -65,12 +68,14 @@ function build() {
   if (setup.step === 1) body.append(stepDrawing());
   if (setup.step === 2) body.append(stepScale());
   if (setup.step === 3) body.append(stepViews());
-  if (setup.step === 4) body.append(stepPoints());
-  viewer = viewer3d({ height: setup.step === 4 ? 360 : 420, title: '' });
+  if (setup.step === 4) body.append(stepShape());
+  if (setup.step === 5) body.append(stepPoints());
+  if (setup.step !== 4) lvState.tool = null;
+  viewer = viewer3d({ height: setup.step >= 4 ? 360 : 420, title: '' });
   root.append(head, el('div', { class: 'setup-grid' }, body, el('div', { class: 'setup-3d' }, el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, '3D preview — the drawing views are shown on their planes'), viewer)));
 }
 
-const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(4, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
+const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(5, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
 
 // ---------------- step 1: drawing
 function stepDrawing() {
@@ -192,7 +197,7 @@ function stepViews() {
       pageViewer(),
     );
   }
-  box.append(el('div', { class: 'row', style: { marginTop: '10px' } }, nextBtn('Next: place the points →')));
+  box.append(el('div', { class: 'row', style: { marginTop: '10px' } }, nextBtn('Next: shape (optional) →')));
   return box;
 }
 
@@ -405,8 +410,7 @@ function onPick(key, a, b) {
   it.picks[key] = [a, b];
   const mm = combinePicks(it.t, it.picks);
   if (id === 'COG') L().cogBasis = 'drawing';
-  const worst = Math.max(mm.dx, mm.dy, mm.dz);
-  if (worst > 25) toast(`${id}: views differ by ${Math.round(worst)} mm — check the reference point of each view`);
+
   // advance: next view for this item, else next item
   if (!nextNeeded(id)) {
     const ids = ['COG', ...L().liftPoints.map((p) => p.id)];
@@ -425,6 +429,8 @@ function pickStatus() {
     need ? el('span', {}, 'Click ', el('b', {}, name), ' on the ', el('b', {}, VIEW_DEF[need].name.toUpperCase()), '.') : el('span', {}, el('b', {}, `${id === 'COG' ? 'COG' : `Point ${id}`} placed in every view.`), ' Choose another item, or drag the markers to adjust.'));
 }
 
+const tol = () => { const d = L().dims_mm || {}; return Math.max(40, 0.015 * Math.max(+d.L || 0, +d.W || 0, +d.H || 0)); };
+
 function pickList() {
   const ld = L();
   const items = ['COG', ...ld.liftPoints.map((p) => p.id)];
@@ -437,7 +443,7 @@ function pickList() {
       el('b', {}, id),
       el('span', { class: 'views' }, shownViews().map((k) => el('i', { class: it?.picks?.[k] ? 'ok' : '' }, VIEW_DEF[k].short))),
       el('span', { class: 'xyz' }, `${fmt(t.x, 0)} · ${fmt(t.y, 0)} · ${fmt(t.z, 0)}`),
-      worst > 25 ? el('span', { class: 'warn', title: 'The views do not agree: check their reference point' }, `Δ ${Math.round(worst)} mm`) : null);
+      worst > tol() ? el('span', { class: 'warn', title: 'The two views give a different value for the same coordinate (the mean is used). Normal if you clicked two different features; otherwise check the reference point or the mirror option of the view.' }, `Δ ${Math.round(worst)} mm`) : null);
   };
   return el('div', { id: 'pick-list', class: 'pick-list' },
     items.map(row),
@@ -459,6 +465,94 @@ function addPoint() {
   window.__rerender();
 }
 
+// ---------------- step 4: shape (optional) → COG with a uniform weight
+const third = { xy: 'z', xz: 'y', yz: 'x' };
+function envRange(k) {
+  const ld = L(), o = ld.origin_mm || {}, d = ld.dims_mm || {};
+  const len = { x: +d.L || 0, y: +d.W || 0, z: +d.H || 0 }[k];
+  const o0 = +o[k] || 0;
+  return len > 0 ? [o0, o0 + len] : [0, 1000];
+}
+function createShape(tool, key, a, b) {
+  const ld = L();
+  ld.shapes = ld.shapes || [];
+  const [A, B] = AXES[key];
+  const k = third[key];
+  const [k0, k1] = envRange(k);
+  const id = `S${ld.shapes.length + 1}`;
+  let sh;
+  if (tool === 'box') sh = { id, type: 'box', name: `Box ${ld.shapes.length + 1}`, [`${A}0`]: a, [`${A}1`]: a, [`${B}0`]: b, [`${B}1`]: b, [`${k}0`]: k0, [`${k}1`]: k1 };
+  else sh = { id, type: 'cyl', name: `Cylinder ${ld.shapes.length + 1}`, axis: k, [`c${A}`]: a, [`c${B}`]: b, [`c${k}`]: k0, r: 1, L: k1 - k0 };
+  if (setup.voidNext) { sh.void = true; sh.name = `Void ${ld.shapes.length + 1}`; }
+  ld.shapes.push(sh);
+  setup.selShape = id;
+  return sh;
+}
+
+function stepShape() {
+  lvState.mode = 'select';
+  const ld = L();
+  const vs = shownViews();
+  const shapes = { editable: true, selected: () => setup.selShape, onSelect: (id) => { setup.selShape = id; renderShapeTable(); }, onCreate: createShape, onChange: (end) => { if (end) renderShapeTable(); else updateShapeNumbers(); } };
+  pickViews = vs.map((k) => loadView(k, { editable: false, height: 330, title: VIEW_DEF[k].name, shapes }));
+  const toolBtn = (t, txt, title) => el('button', { class: `small ${lvState.tool === t ? 'active' : ''}`, title, onclick: () => { lvState.tool = lvState.tool === t ? null : t; rebuild(); } }, txt);
+  const g = shapesCog(ld.shapes || []);
+  return el('div', {},
+    el('p', { class: 'muted', style: { fontSize: '12.5px', margin: '0 0 6px' } },
+      'Optional — draw the part with simple shapes; with the weight spread evenly, LiftPlanner finds the COG. ',
+      el('b', {}, 'Box'), ': drag a rectangle in a view. ', el('b', {}, 'Cylinder'), ': drag from its centre (its axis is perpendicular to the view). ',
+      'The third dimension takes the overall size: adjust it in another view by dragging the shape or its orange corner, or type it in the table.'),
+    el('div', { class: 'toolbar' },
+      toolBtn('box', '+ Box', 'Drag a rectangle on a view'), toolBtn('cyl', '+ Cylinder', 'Drag from the centre on a view'),
+      el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: setup.voidNext, onchange: (e) => { setup.voidNext = e.target.checked; } }), 'next shape is a hole / void'),
+      el('span', { class: 'spacer' }),
+      el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: ld.cogBasis === 'shape', disabled: !g, onchange: (e) => { ld.cogBasis = e.target.checked ? 'shape' : 'estimated'; app.recompute(); rebuild(); } }), el('b', {}, 'Use the COG of the shape')),
+    ),
+    el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px' } }, ...pickViews),
+    el('div', { id: 'shape-table', style: { marginTop: '8px' } }),
+    el('div', { class: 'row', style: { marginTop: '8px' } }, nextBtn('Next: lift points & COG →')),
+  );
+}
+
+function shapeRow(sh, i) {
+  const num = (k, w = '74px') => el('input', { type: 'number', step: 'any', 'data-k': k, value: Math.round(Number(sh[k]) || 0), style: { width: w }, onchange: (e) => { sh[k] = Number(e.target.value) || 0; app.recompute(); renderShapeTable(); } });
+  const dims = sh.type === 'box'
+    ? ['x', 'y', 'z'].map((k) => el('span', { class: 'sh-dim' }, `${k.toUpperCase()} `, num(`${k}0`), ' → ', num(`${k}1`)))
+    : [el('span', { class: 'sh-dim' }, 'axis ', el('select', { onchange: (e) => { sh.axis = e.target.value; app.recompute(); renderShapeTable(); } }, ['x', 'y', 'z'].map((a) => el('option', { value: a, selected: (sh.axis || 'z') === a }, a.toUpperCase())))),
+      el('span', { class: 'sh-dim' }, 'base centre ', num('cx', '64px'), num('cy', '64px'), num('cz', '64px')),
+      el('span', { class: 'sh-dim' }, 'Ø ', el('input', { type: 'number', step: 'any', value: Math.round(2 * (Number(sh.r) || 0)), style: { width: '64px' }, onchange: (e) => { sh.r = (Number(e.target.value) || 0) / 2; app.recompute(); renderShapeTable(); } }), ' length ', num('L', '70px'))];
+  return el('div', { class: `sh-row ${setup.selShape === sh.id ? 'on' : ''}`, onclick: (e) => { if (e.target.tagName === 'DIV' || e.target.tagName === 'B') { setup.selShape = sh.id; pickViews.forEach((v) => v.refresh()); renderShapeTable(); } } },
+    el('b', {}, sh.void ? '◌' : '■'),
+    el('input', { type: 'text', value: sh.name || '', style: { width: '110px' }, onchange: (e) => { sh.name = e.target.value; pickViews.forEach((v) => v.refresh()); } }),
+    el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: !!sh.void, onchange: (e) => { sh.void = e.target.checked; app.recompute(); renderShapeTable(); } }), 'void'),
+    ...dims,
+    el('span', { class: 'muted' }, `${fmt(shapeVolume(sh) / 1e9, 3)} m³`),
+    el('button', { class: 'small danger', onclick: () => { L().shapes.splice(i, 1); setup.selShape = null; app.recompute(); renderShapeTable(); } }, '✕'));
+}
+
+function renderShapeTable() {
+  const box = document.getElementById('shape-table');
+  if (!box) return;
+  const ld = L();
+  const list = ld.shapes || [];
+  const g = shapesCog(list);
+  box.innerHTML = '';
+  if (!list.length) { box.append(el('div', { class: 'muted', style: { fontSize: '12px' } }, 'No shape yet. Example: a skid = one box for the frame + one cylinder for a tank.')); pickViews.forEach((v) => v.refresh()); return; }
+  box.append(...list.map(shapeRow));
+  if (g)
+    box.append(el('div', { class: 'note info', style: { marginTop: '6px' } },
+      el('b', {}, `Shape COG: X ${Math.round(g.x)} · Y ${Math.round(g.y)} · Z ${Math.round(g.z)} mm`), ` — volume ${fmt(g.volume_m3, 3)} m³, weight spread evenly. `,
+      ld.cogBasis === 'shape' ? el('span', {}, '(used as the COG)') : el('button', { class: 'small', onclick: () => { ld.cogBasis = 'shape'; app.recompute(); rebuild(); } }, 'Use it'),
+      ' ', el('button', { class: 'small', title: 'Overall envelope = bounding box of the solids', onclick: () => { const b = g.box; ld.origin_mm = { x: Math.round(b.x0), y: Math.round(b.y0), z: Math.round(b.z0) }; ld.dims_mm = { L: Math.round(b.x1 - b.x0), W: Math.round(b.y1 - b.y0), H: Math.round(b.z1 - b.z0) }; app.recompute(); toast('Envelope set from the shapes'); } }, 'Set the envelope from the shapes')));
+  pickViews.forEach((v) => v.refresh());
+}
+function updateShapeNumbers() {
+  const sh = (L().shapes || []).find((q) => q.id === setup.selShape);
+  const row = document.querySelector('.sh-row.on');
+  if (!sh || !row) return;
+  row.querySelectorAll('input[data-k]').forEach((i) => (i.value = Math.round(Number(sh[i.dataset.k]) || 0)));
+}
+
 function stepPoints() {
   lvState.mode = 'pick';
   if (!['COG', ...L().liftPoints.map((p) => p.id)].includes(setup.item)) setup.item = 'COG';
@@ -468,10 +562,11 @@ function stepPoints() {
   return el('div', {},
     el('div', { class: 'pick-head' }, pickList(), el('div', { class: 'pick-side' }, pickStatus(),
       el('div', { class: 'row', style: { fontSize: '12px' } },
-        el('button', { class: `small ${lvState.mode === 'pick' ? 'active' : ''}`, onclick: () => { lvState.mode = 'pick'; rebuild(); } }, 'Click to place'),
-        el('button', { class: `small ${lvState.mode === 'select' ? 'active' : ''}`, onclick: () => { lvState.mode = 'select'; rebuild(); } }, 'Drag markers'),
-        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; refreshSetup(); } }), 'Show rigging'),
-        el('span', { class: 'muted' }, 'wheel = zoom · drag background = pan')))),
+        el('span', { class: 'muted' }, el('b', {}, 'Click'), ' = place the selected item · ', el('b', {}, 'drag'), ' = move the view · drag a marker = move it · ', el('b', {}, 'wheel'), ' = zoom · ⤢ = full screen'),
+        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; refreshSetup(); } }), 'Show rigging')))),
     el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px', marginTop: '8px' } }, ...pickViews),
   );
 }
+
+// table of shapes rendered after the step is in the DOM
+
