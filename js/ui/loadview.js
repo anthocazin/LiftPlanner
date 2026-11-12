@@ -41,7 +41,9 @@ function envelope(load) {
 function bounds(key, load, rig) {
   const [A, B] = AXES[key];
   const e = envelope(load);
-  const pts = [[e[`${A}0`], e[`${B}0`]], [e[`${A}1`], e[`${B}1`]]];
+  const ip0 = imagePlacement(load.views?.[key]);
+  // with a drawing, the view is framed on the drawing (the overall size may be out of date)
+  const pts = ip0 ? [] : [[e[`${A}0`], e[`${B}0`]], [e[`${A}1`], e[`${B}1`]]];
   (load.liftPoints || []).forEach((p) => pts.push([+p[A] || 0, +p[B] || 0]));
   const c = load.cog_mm || {};
   pts.push([+c[A] || 0, +c[B] || 0]);
@@ -98,7 +100,7 @@ function viewContent(key, load, rig, vb, u, editable, extra = {}) {
     // envelope
     const e = envelope(load);
     const ea0 = e[`${A}0`], ea1 = e[`${A}1`], eb0 = e[`${B}0`], eb1 = e[`${B}1`];
-    if (ea1 > ea0 && eb1 > eb0)
+    if (!ip && ea1 > ea0 && eb1 > eb0)
       s += `<rect x="${n(ea0)}" y="${n(-eb1)}" width="${n(ea1 - ea0)}" height="${n(eb1 - eb0)}" fill="${ip ? 'none' : 'rgba(23,58,94,.05)'}" stroke="#173a5e" stroke-width="${n(1.2 * u)}" stroke-dasharray="${n(6 * u)} ${n(4 * u)}"/>`;
     // simple shapes of the load (uniform weight → COG)
     s += shapesContent(key, load, u, extra);

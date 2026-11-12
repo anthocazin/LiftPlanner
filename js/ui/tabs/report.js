@@ -12,9 +12,34 @@ import { draw3d } from '../../draw/view3d.js';
 import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
+import { current3d } from '../viewer3d.js';
 import { SAFETY_MEASURES, CHECKLIFT } from '../../state.js';
 
 const opts = { calc: true, checksAll: false };
+
+// drawings that can be printed (chosen on the Report page, saved with the project)
+const FIGS = [
+  ['schem', 'Rigging arrangement (schematic)'],
+  ['detail', 'Rigging detail (to scale)'],
+  ['xy', 'Plan — XY'],
+  ['xz', 'Front elevation — XZ'],
+  ['yz', 'Side elevation — YZ'],
+  ['v3d', '3D view'],
+  ['padeye', 'Pad eye / shackle fit'],
+  ['capacity', 'Crane capacity chart'],
+];
+const figOn = (k) => app.project.report?.figs?.[k] !== false;
+
+function figsPanel() {
+  const p = app.project;
+  p.report = p.report || {};
+  p.report.figs = p.report.figs || {};
+  return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
+    el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report')),
+    el('div', { class: 'row', style: { gap: '4px 16px' } },
+      FIGS.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); update(); } }), t))),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'The 3D view is printed with the orientation it has on screen (turn it on the Load or Drawings page; "Drawings" ticked or not).'));
+}
 
 export function render(root) {
   const tog = (k, t) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: opts[k], onchange: (e) => { opts[k] = e.target.checked; update(); } }), t);
@@ -24,6 +49,7 @@ export function render(root) {
       el('span', { class: 'muted' }, 'In the print dialog choose "Save as PDF", A4 portrait, margins "default".'),
       tog('calc', 'Calculation summary'), tog('checksAll', 'All checks (not only issues)'),
     ),
+    figsPanel(),
     ownDrawingsPanel(),
     el('div', { id: 'report-preview' }),
   );
@@ -168,28 +194,34 @@ export function buildReport() {
   ));
 
   // ---- Rigging: arrangement, detail, then the views
-  add(el('div', { class: 'page-break' }));
-  add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
-  const sch = schematicSvg(p, res, { width: 760 });
+  const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
+  if (['schem', 'detail', 'xy', 'xz', 'yz', 'v3d'].some(figOn) || ownDw.length) {
+    add(el('div', { class: 'page-break' }));
+    add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
+  }
+  const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
   if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
-  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging on the load'), el('div', { class: 'figs' },
-    fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
-    fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
-  )));
-  add(el('div', { class: 'figs avoid-break' },
-    fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-    fig(draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view' })),
-  ));
+  if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
+  const c3 = current3d();
+  const views = [
+    figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
+    figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
+    figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
+    figOn('v3d') && (() => draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view', cam: c3.cam, drawings: c3.drawings })),
+  ].filter(Boolean);
+  for (let i = 0; i < views.length; i += 2) {
+    const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));
+    add(el('div', { class: 'avoid-break' }, i === 0 ? el('div', { class: 'sub-t' }, 'Rigging on the load') : null, row));
+  }
   // ---- the user's own drawings (only when some were added)
-  const own = (p.report?.drawings || []).filter((d) => safeImg(d.image));
+  const own = ownDw;
   if (own.length)
     add(el('div', { class: 'avoid-break own-dwg' },
       el('div', { class: 'sub-t' }, 'Additional drawings'),
       own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null)),
     ));
-  const capFig = () => el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 })));
-  if (!opts.calc) add(capFig());
+  const capFig = () => (figOn('capacity') ? el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 }))) : null);
+  if (!opts.calc && figOn('capacity')) add(capFig());
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
@@ -201,11 +233,11 @@ export function buildReport() {
       el('tr', {}, el('th', {}, 'DAF'), el('td', {}, f.dafOn ? fmt(f.daf) : 'not applied'), el('th', {}, 'SKL · COG factor'), el('td', {}, `${fmt(f.skl)} · ${fmt(f.cog)}`), el('th', {}, 'Leg factor'), el('td', {}, fmt(r.fac, 3))),
       el('tr', {}, el('th', {}, 'Rig height'), el('td', {}, `${fmt(r.riggingHeight)} m above the lift points`), el('th', {}, 'Max crane util.'), el('td', {}, res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'), el('th', {}, 'Est. tilt'), el('td', {}, r.tilt ? `${fmt(r.tilt.tilt_deg)}°` : '—')),
     ));
-    add(capFig());
+    if (figOn('capacity')) add(capFig());
     add(el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), legsTable(res));
     const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
     const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
-    if (pts.length) {
+    if (pts.length && figOn('padeye')) {
       const pq = pts[0], lg = legOf(pq.id);
       const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
       if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));

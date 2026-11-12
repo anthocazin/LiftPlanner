@@ -6,6 +6,9 @@ import { svgToPng } from '../draw/svg.js';
 
 const shared = { cam: { ...DEFAULT_CAM }, drawings: true };
 
+/** Camera of the 3D views on screen (the report uses the same orientation). */
+export const current3d = () => ({ cam: { ...shared.cam, panX: 0, panY: 0, zoom: 1 }, drawings: shared.drawings });
+
 export function viewer3d(opts = {}) {
   const H = opts.height || 460;
   const box = el('div', { class: 'v3d' });

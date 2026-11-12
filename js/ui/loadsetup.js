@@ -140,6 +140,8 @@ function setRatio(r) {
 function applyScaleToViews() {
   const s = scale();
   for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit) v.s = s.mmPerUnit / v.pxPerUnit;
+  // views framed edge to edge: the size of the part follows the new scale
+  if (Object.values(L().views || {}).some((v) => v?.autoOrigin)) envelopeFromViews();
   app.recompute();
 }
 

@@ -3713,7 +3713,9 @@ function envelope(load) {
 function bounds(key, load, rig) {
   const [A, B] = AXES[key];
   const e = envelope(load);
-  const pts = [[e[`${A}0`], e[`${B}0`]], [e[`${A}1`], e[`${B}1`]]];
+  const ip0 = imagePlacement(load.views?.[key]);
+  // with a drawing, the view is framed on the drawing (the overall size may be out of date)
+  const pts = ip0 ? [] : [[e[`${A}0`], e[`${B}0`]], [e[`${A}1`], e[`${B}1`]]];
   (load.liftPoints || []).forEach((p) => pts.push([+p[A] || 0, +p[B] || 0]));
   const c = load.cog_mm || {};
   pts.push([+c[A] || 0, +c[B] || 0]);
@@ -3770,7 +3772,7 @@ function viewContent(key, load, rig, vb, u, editable, extra = {}) {
     // envelope
     const e = envelope(load);
     const ea0 = e[`${A}0`], ea1 = e[`${A}1`], eb0 = e[`${B}0`], eb1 = e[`${B}1`];
-    if (ea1 > ea0 && eb1 > eb0)
+    if (!ip && ea1 > ea0 && eb1 > eb0)
       s += `<rect x="${n(ea0)}" y="${n(-eb1)}" width="${n(ea1 - ea0)}" height="${n(eb1 - eb0)}" fill="${ip ? 'none' : 'rgba(23,58,94,.05)'}" stroke="#173a5e" stroke-width="${n(1.2 * u)}" stroke-dasharray="${n(6 * u)} ${n(4 * u)}"/>`;
     // simple shapes of the load (uniform weight → COG)
     s += shapesContent(key, load, u, extra);
@@ -5173,12 +5175,31 @@ function camera(cam, c) {
  * opts: { width, height, cam, drawings (bool), labels (bool), forces (bool), title }
  * Returns an SVG string.
  */
+/** Box given by the frames of the drawing views (per axis, the envelope where no view gives it). */
+function viewsBox(load, e) {
+  const vs = load.views || {};
+  const ext = (v) => {
+    if (!v?.image || !(v.s > 0)) return null;
+    const kf = v.flipH ? -1 : 1;
+    const a0 = (0 - v.ou) * v.s * kf, a1 = (v.w - v.ou) * v.s * kf;
+    return { a0: Math.min(a0, a1), a1: Math.max(a0, a1), b0: (v.ov - v.h) * v.s, b1: v.ov * v.s };
+  };
+  const t = ext(vs.xy), f = ext(vs.xz), sd = ext(vs.yz);
+  const pick = (...c) => c.find(Boolean);
+  const rx = pick(t && [t.a0, t.a1], f && [f.a0, f.a1], [e.x0, e.x1]);
+  const ry = pick(t && [t.b0, t.b1], sd && [sd.a0, sd.a1], [e.y0, e.y1]);
+  const rz = pick(f && [f.b0, f.b1], sd && [sd.b0, sd.b1], [e.z0, e.z1]);
+  return { x0: rx[0], x1: rx[1], y0: ry[0], y1: ry[1], z0: rz[0], z1: rz[1], any: !!(t || f || sd) };
+}
+
 function draw3d(project, res, opts = {}) {
   const W = opts.width || 640, H = opts.height || 460;
   const cam = { ...DEFAULT_CAM, ...(opts.cam || {}) };
   const load = project.load || {};
   const rig = res?.rig && !res.rig.error ? res.rig : null;
-  const e = envelope(load);
+  const env = envelope(load);
+  const vb = viewsBox(load, env);
+  const e = vb.any ? vb : env; // with drawings, the planes and extents follow the frames of the views
   const P = (x, y, z) => ({ x, y, z });
   const M = (v) => P(v.x * 1000, v.y * 1000, v.z * 1000); // m → mm
   const pts = (load.liftPoints || []).filter((p) => p.used !== false);
@@ -5259,7 +5280,7 @@ function draw3d(project, res, opts = {}) {
       if (sh.type === 'box') boxFaces({ x0: Math.min(sh.x0, sh.x1), x1: Math.max(sh.x0, sh.x1), y0: Math.min(sh.y0, sh.y1), y1: Math.max(sh.y0, sh.y1), z0: Math.min(sh.z0, sh.z1), z1: Math.max(sh.z0, sh.z1) }, o);
       else cylFaces(sh, o);
     }
-  } else if (hasBox) boxFaces(e, { fillOp: showDw ? 0.35 : 0.9 });
+  } else if (hasBox && !showDw) boxFaces(e, { fillOp: 0.9 }); // with the drawings shown they are the part: no box over them
   // ---- drawing views projected on their planes
   if (showDw) {
     const planes = {
@@ -5288,6 +5309,7 @@ function draw3d(project, res, opts = {}) {
     const hk = S(M(rig.hook));
     const head = rig.head || {};
     const mlLen = ((head.masterlink?.dims?.insideLength || 0) + (head.useSub ? head.subLink?.dims?.insideLength || 0 : 0)) * k;
+    const labels = [];
     for (const leg of rig.legs) {
       const a = S(M(leg.bottom));
       let t = S(M(leg.top));
@@ -5305,9 +5327,18 @@ function draw3d(project, res, opts = {}) {
       push(d, s);
       if (opts.labels !== false) {
         const mx = a.x + (t.x - a.x) * 0.26, my = a.y + (t.y - a.y) * 0.26;
-        const txt = opts.forces !== false ? `${leg.key} · ${leg.Leff.toFixed(2)} m · ${leg.angleV.toFixed(0)}°` : leg.key;
-        push(d + 2e8, `<text x="${n(mx + 7)}" y="${n(my)}" font-size="10.5" font-weight="700" fill="#173a5e" paint-order="stroke" stroke="#fff" stroke-width="3.2">${esc(txt)}</text>`);
+        // legs seen on top of each other share one label
+        const g = labels.find((q) => Math.hypot(q.ax - a.x, q.ay - a.y) < 4 && Math.hypot(q.tx - t.x, q.ty - t.y) < 4);
+        if (g) g.legs.push(leg);
+        else labels.push({ ax: a.x, ay: a.y, tx: t.x, ty: t.y, mx, my, d: d + 2e8, legs: [leg] });
       }
+    }
+    for (const q of labels) {
+      const keys = q.legs.map((l) => l.key).join('/');
+      const same = q.legs.every((l) => Math.abs(l.Leff - q.legs[0].Leff) < 0.005);
+      const len = same ? `${q.legs[0].Leff.toFixed(2)} m` : q.legs.map((l) => `${l.Leff.toFixed(2)}`).join(' / ') + ' m';
+      const txt = opts.forces !== false ? `${keys} · ${len} · ${q.legs[0].angleV.toFixed(0)}°` : keys;
+      push(q.d, `<text x="${n(q.mx + 7)}" y="${n(q.my)}" font-size="10.5" font-weight="700" fill="#173a5e" paint-order="stroke" stroke="#fff" stroke-width="3.2">${esc(txt)}</text>`);
     }
     if (rig.spreader) {
       const sa = S(M(rig.spreader.lugA)), sb = S(M(rig.spreader.lugB));
@@ -5329,10 +5360,16 @@ function draw3d(project, res, opts = {}) {
     push(-5e8, `<line x1="${n(cg.x)}" y1="${n(cg.y)}" x2="${n(cgHook.x)}" y2="${n(cgHook.y)}" stroke="#7a5a10" stroke-width="0.8" stroke-dasharray="5 4" opacity=".7"/>`);
   }
   // ---- lift points
+  const ptLbl = [];
   for (const p of pts) {
     const a = S(P(+p.x || 0, +p.y || 0, +p.z || 0));
-    push(a.d + 4e8, `<circle cx="${n(a.x)}" cy="${n(a.y)}" r="4.2" fill="${p.padeye === false ? '#1f6fb2' : '#c0392b'}" stroke="#fff" stroke-width="1.4"/>${opts.labels !== false ? `<text x="${n(a.x - 6)}" y="${n(a.y + 15)}" font-size="11.5" font-weight="800" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="middle">${esc(p.id)}</text>` : ''}`);
+    push(a.d + 4e8, `<circle cx="${n(a.x)}" cy="${n(a.y)}" r="4.2" fill="${p.padeye === false ? '#1f6fb2' : '#c0392b'}" stroke="#fff" stroke-width="1.4"/>`);
+    const g = ptLbl.find((q) => Math.hypot(q.x - a.x, q.y - a.y) < 6);
+    if (g) g.ids.push(p.id);
+    else ptLbl.push({ x: a.x, y: a.y, d: a.d + 4.5e8, ids: [p.id] });
   }
+  if (opts.labels !== false)
+    for (const q of ptLbl) push(q.d, `<text x="${n(q.x - 6)}" y="${n(q.y + 15)}" font-size="11.5" font-weight="800" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="middle">${esc(q.ids.join('/'))}</text>`);
   items.sort((a, b) => a.d - b.d);
   body += items.map((i) => i.svg).join('');
 
@@ -5367,6 +5404,9 @@ const { svgToPng } = __m["js/draw/svg.js"];
 
 
 const shared = { cam: { ...DEFAULT_CAM }, drawings: true };
+
+/** Camera of the 3D views on screen (the report uses the same orientation). */
+const current3d = () => ({ cam: { ...shared.cam, panX: 0, panY: 0, zoom: 1 }, drawings: shared.drawings });
 
 function viewer3d(opts = {}) {
   const H = opts.height || 460;
@@ -5420,7 +5460,7 @@ function viewer3d(opts = {}) {
   return box;
 }
 
-return { viewer3d };
+return { current3d, viewer3d };
 })();
 
 // ---- js/ui/loadsetup.js
@@ -5573,6 +5613,8 @@ function setRatio(r) {
 function applyScaleToViews() {
   const s = scale();
   for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit) v.s = s.mmPerUnit / v.pxPerUnit;
+  // views framed edge to edge: the size of the part follows the new scale
+  if (Object.values(L().views || {}).some((v) => v?.autoOrigin)) envelopeFromViews();
   app.recompute();
 }
 
@@ -7952,6 +7994,7 @@ const { draw3d } = __m["js/draw/view3d.js"];
 const { figure } = __m["js/ui/figure.js"];
 const { ENVIRONMENTS } = __m["js/engine/factors.js"];
 const { pointKind } = __m["js/engine/rigging.js"];
+const { current3d } = __m["js/ui/viewer3d.js"];
 const { SAFETY_MEASURES, CHECKLIFT } = __m["js/state.js"];
 // Lift plan report, laid out like the company lifting plan template (header with logos, blue
 // section bars, lifting plan block, load / crane details, safety measures, equipment, step-by-step,
@@ -7969,7 +8012,32 @@ const { SAFETY_MEASURES, CHECKLIFT } = __m["js/state.js"];
 
 
 
+
 const opts = { calc: true, checksAll: false };
+
+// drawings that can be printed (chosen on the Report page, saved with the project)
+const FIGS = [
+  ['schem', 'Rigging arrangement (schematic)'],
+  ['detail', 'Rigging detail (to scale)'],
+  ['xy', 'Plan — XY'],
+  ['xz', 'Front elevation — XZ'],
+  ['yz', 'Side elevation — YZ'],
+  ['v3d', '3D view'],
+  ['padeye', 'Pad eye / shackle fit'],
+  ['capacity', 'Crane capacity chart'],
+];
+const figOn = (k) => app.project.report?.figs?.[k] !== false;
+
+function figsPanel() {
+  const p = app.project;
+  p.report = p.report || {};
+  p.report.figs = p.report.figs || {};
+  return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
+    el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report')),
+    el('div', { class: 'row', style: { gap: '4px 16px' } },
+      FIGS.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); update(); } }), t))),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'The 3D view is printed with the orientation it has on screen (turn it on the Load or Drawings page; "Drawings" ticked or not).'));
+}
 
 function render(root) {
   const tog = (k, t) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: opts[k], onchange: (e) => { opts[k] = e.target.checked; update(); } }), t);
@@ -7979,6 +8047,7 @@ function render(root) {
       el('span', { class: 'muted' }, 'In the print dialog choose "Save as PDF", A4 portrait, margins "default".'),
       tog('calc', 'Calculation summary'), tog('checksAll', 'All checks (not only issues)'),
     ),
+    figsPanel(),
     ownDrawingsPanel(),
     el('div', { id: 'report-preview' }),
   );
@@ -8123,28 +8192,34 @@ function buildReport() {
   ));
 
   // ---- Rigging: arrangement, detail, then the views
-  add(el('div', { class: 'page-break' }));
-  add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
-  const sch = schematicSvg(p, res, { width: 760 });
+  const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
+  if (['schem', 'detail', 'xy', 'xz', 'yz', 'v3d'].some(figOn) || ownDw.length) {
+    add(el('div', { class: 'page-break' }));
+    add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
+  }
+  const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
   if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
-  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging on the load'), el('div', { class: 'figs' },
-    fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
-    fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
-  )));
-  add(el('div', { class: 'figs avoid-break' },
-    fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-    fig(draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view' })),
-  ));
+  if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
+  const c3 = current3d();
+  const views = [
+    figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
+    figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
+    figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
+    figOn('v3d') && (() => draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view', cam: c3.cam, drawings: c3.drawings })),
+  ].filter(Boolean);
+  for (let i = 0; i < views.length; i += 2) {
+    const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));
+    add(el('div', { class: 'avoid-break' }, i === 0 ? el('div', { class: 'sub-t' }, 'Rigging on the load') : null, row));
+  }
   // ---- the user's own drawings (only when some were added)
-  const own = (p.report?.drawings || []).filter((d) => safeImg(d.image));
+  const own = ownDw;
   if (own.length)
     add(el('div', { class: 'avoid-break own-dwg' },
       el('div', { class: 'sub-t' }, 'Additional drawings'),
       own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null)),
     ));
-  const capFig = () => el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 })));
-  if (!opts.calc) add(capFig());
+  const capFig = () => (figOn('capacity') ? el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 }))) : null);
+  if (!opts.calc && figOn('capacity')) add(capFig());
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
@@ -8156,11 +8231,11 @@ function buildReport() {
       el('tr', {}, el('th', {}, 'DAF'), el('td', {}, f.dafOn ? fmt(f.daf) : 'not applied'), el('th', {}, 'SKL · COG factor'), el('td', {}, `${fmt(f.skl)} · ${fmt(f.cog)}`), el('th', {}, 'Leg factor'), el('td', {}, fmt(r.fac, 3))),
       el('tr', {}, el('th', {}, 'Rig height'), el('td', {}, `${fmt(r.riggingHeight)} m above the lift points`), el('th', {}, 'Max crane util.'), el('td', {}, res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'), el('th', {}, 'Est. tilt'), el('td', {}, r.tilt ? `${fmt(r.tilt.tilt_deg)}°` : '—')),
     ));
-    add(capFig());
+    if (figOn('capacity')) add(capFig());
     add(el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), legsTable(res));
     const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
     const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
-    if (pts.length) {
+    if (pts.length && figOn('padeye')) {
       const pq = pts[0], lg = legOf(pq.id);
       const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
       if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));

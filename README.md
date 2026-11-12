@@ -24,7 +24,8 @@ The current project and the inventory are saved automatically in the browser. **
 - **Easier picking**: a coordinate given by one view is kept by the next one (dashed orange guide lines show where to click; no more "views disagree"), the view to click is highlighted, a click on a marker selects it. **Mirror X / Mirror Y / 4 symmetric points** from one point, **COG at the geometric centre** of the part. COG envelope removed.
 - **Pad eye drawing**: shackle seen edge-on in the face view (its plane is perpendicular to the plate) and in its plane in the side view.
 - **Rigging**: click a "+" to choose the item to add (drag and drop still works); **master link anywhere** in a leg; G-Link removed; the **sling length of every leg is recalculated with its own hardware** — standard lengths chosen so that the legs agree best (exact length shown when it differs).
-- **Report**: the "Additional drawings" section only appears when drawings were added.
+- **Report**: the "Additional drawings" section only appears when drawings were added; **choose the drawings printed** (schematic, detail, XY, XZ, YZ, 3D, pad eye fit, crane chart); the 3D view is printed as oriented on screen.
+- **3D**: with the drawings shown, no box is drawn over them and they sit on the planes of their frames (no left-over size box); legs and points seen on top of each other share one label.
 
 ## What's new in v0.5
 

@@ -30,12 +30,31 @@ function camera(cam, c) {
  * opts: { width, height, cam, drawings (bool), labels (bool), forces (bool), title }
  * Returns an SVG string.
  */
+/** Box given by the frames of the drawing views (per axis, the envelope where no view gives it). */
+function viewsBox(load, e) {
+  const vs = load.views || {};
+  const ext = (v) => {
+    if (!v?.image || !(v.s > 0)) return null;
+    const kf = v.flipH ? -1 : 1;
+    const a0 = (0 - v.ou) * v.s * kf, a1 = (v.w - v.ou) * v.s * kf;
+    return { a0: Math.min(a0, a1), a1: Math.max(a0, a1), b0: (v.ov - v.h) * v.s, b1: v.ov * v.s };
+  };
+  const t = ext(vs.xy), f = ext(vs.xz), sd = ext(vs.yz);
+  const pick = (...c) => c.find(Boolean);
+  const rx = pick(t && [t.a0, t.a1], f && [f.a0, f.a1], [e.x0, e.x1]);
+  const ry = pick(t && [t.b0, t.b1], sd && [sd.a0, sd.a1], [e.y0, e.y1]);
+  const rz = pick(f && [f.b0, f.b1], sd && [sd.b0, sd.b1], [e.z0, e.z1]);
+  return { x0: rx[0], x1: rx[1], y0: ry[0], y1: ry[1], z0: rz[0], z1: rz[1], any: !!(t || f || sd) };
+}
+
 export function draw3d(project, res, opts = {}) {
   const W = opts.width || 640, H = opts.height || 460;
   const cam = { ...DEFAULT_CAM, ...(opts.cam || {}) };
   const load = project.load || {};
   const rig = res?.rig && !res.rig.error ? res.rig : null;
-  const e = envelope(load);
+  const env = envelope(load);
+  const vb = viewsBox(load, env);
+  const e = vb.any ? vb : env; // with drawings, the planes and extents follow the frames of the views
   const P = (x, y, z) => ({ x, y, z });
   const M = (v) => P(v.x * 1000, v.y * 1000, v.z * 1000); // m → mm
   const pts = (load.liftPoints || []).filter((p) => p.used !== false);
@@ -116,7 +135,7 @@ export function draw3d(project, res, opts = {}) {
       if (sh.type === 'box') boxFaces({ x0: Math.min(sh.x0, sh.x1), x1: Math.max(sh.x0, sh.x1), y0: Math.min(sh.y0, sh.y1), y1: Math.max(sh.y0, sh.y1), z0: Math.min(sh.z0, sh.z1), z1: Math.max(sh.z0, sh.z1) }, o);
       else cylFaces(sh, o);
     }
-  } else if (hasBox) boxFaces(e, { fillOp: showDw ? 0.35 : 0.9 });
+  } else if (hasBox && !showDw) boxFaces(e, { fillOp: 0.9 }); // with the drawings shown they are the part: no box over them
   // ---- drawing views projected on their planes
   if (showDw) {
     const planes = {
@@ -145,6 +164,7 @@ export function draw3d(project, res, opts = {}) {
     const hk = S(M(rig.hook));
     const head = rig.head || {};
     const mlLen = ((head.masterlink?.dims?.insideLength || 0) + (head.useSub ? head.subLink?.dims?.insideLength || 0 : 0)) * k;
+    const labels = [];
     for (const leg of rig.legs) {
       const a = S(M(leg.bottom));
       let t = S(M(leg.top));
@@ -162,9 +182,18 @@ export function draw3d(project, res, opts = {}) {
       push(d, s);
       if (opts.labels !== false) {
         const mx = a.x + (t.x - a.x) * 0.26, my = a.y + (t.y - a.y) * 0.26;
-        const txt = opts.forces !== false ? `${leg.key} · ${leg.Leff.toFixed(2)} m · ${leg.angleV.toFixed(0)}°` : leg.key;
-        push(d + 2e8, `<text x="${n(mx + 7)}" y="${n(my)}" font-size="10.5" font-weight="700" fill="#173a5e" paint-order="stroke" stroke="#fff" stroke-width="3.2">${esc(txt)}</text>`);
+        // legs seen on top of each other share one label
+        const g = labels.find((q) => Math.hypot(q.ax - a.x, q.ay - a.y) < 4 && Math.hypot(q.tx - t.x, q.ty - t.y) < 4);
+        if (g) g.legs.push(leg);
+        else labels.push({ ax: a.x, ay: a.y, tx: t.x, ty: t.y, mx, my, d: d + 2e8, legs: [leg] });
       }
+    }
+    for (const q of labels) {
+      const keys = q.legs.map((l) => l.key).join('/');
+      const same = q.legs.every((l) => Math.abs(l.Leff - q.legs[0].Leff) < 0.005);
+      const len = same ? `${q.legs[0].Leff.toFixed(2)} m` : q.legs.map((l) => `${l.Leff.toFixed(2)}`).join(' / ') + ' m';
+      const txt = opts.forces !== false ? `${keys} · ${len} · ${q.legs[0].angleV.toFixed(0)}°` : keys;
+      push(q.d, `<text x="${n(q.mx + 7)}" y="${n(q.my)}" font-size="10.5" font-weight="700" fill="#173a5e" paint-order="stroke" stroke="#fff" stroke-width="3.2">${esc(txt)}</text>`);
     }
     if (rig.spreader) {
       const sa = S(M(rig.spreader.lugA)), sb = S(M(rig.spreader.lugB));
@@ -186,10 +215,16 @@ export function draw3d(project, res, opts = {}) {
     push(-5e8, `<line x1="${n(cg.x)}" y1="${n(cg.y)}" x2="${n(cgHook.x)}" y2="${n(cgHook.y)}" stroke="#7a5a10" stroke-width="0.8" stroke-dasharray="5 4" opacity=".7"/>`);
   }
   // ---- lift points
+  const ptLbl = [];
   for (const p of pts) {
     const a = S(P(+p.x || 0, +p.y || 0, +p.z || 0));
-    push(a.d + 4e8, `<circle cx="${n(a.x)}" cy="${n(a.y)}" r="4.2" fill="${p.padeye === false ? '#1f6fb2' : '#c0392b'}" stroke="#fff" stroke-width="1.4"/>${opts.labels !== false ? `<text x="${n(a.x - 6)}" y="${n(a.y + 15)}" font-size="11.5" font-weight="800" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="middle">${esc(p.id)}</text>` : ''}`);
+    push(a.d + 4e8, `<circle cx="${n(a.x)}" cy="${n(a.y)}" r="4.2" fill="${p.padeye === false ? '#1f6fb2' : '#c0392b'}" stroke="#fff" stroke-width="1.4"/>`);
+    const g = ptLbl.find((q) => Math.hypot(q.x - a.x, q.y - a.y) < 6);
+    if (g) g.ids.push(p.id);
+    else ptLbl.push({ x: a.x, y: a.y, d: a.d + 4.5e8, ids: [p.id] });
   }
+  if (opts.labels !== false)
+    for (const q of ptLbl) push(q.d, `<text x="${n(q.x - 6)}" y="${n(q.y + 15)}" font-size="11.5" font-weight="800" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="middle">${esc(q.ids.join('/'))}</text>`);
   items.sort((a, b) => a.d - b.d);
   body += items.map((i) => i.svg).join('');
 
