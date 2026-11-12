@@ -19,7 +19,7 @@ const PALETTE = [
   { kind: 'chain', family: 'CH-G80', hitch: 'direct', label: 'Chain G80' },
   { kind: 'connlink', family: 'CL-G80', label: 'Connecting link G80' },
   { kind: 'hook', label: 'Safety hook G80' },
-  { kind: 'glink', label: 'G-Link' },
+  { kind: 'masterlink', label: 'Master link' },
   { head: 'masterlink', label: 'Masterlink (on the hook)' },
   { head: 'assembly', label: 'Quad masterlink (on the hook)' },
   { head: 'hook', label: 'Legs directly on the hook' },
@@ -71,6 +71,7 @@ function itemsFor(part) {
     case 'sling': return listSlingFamily(part.family || 'RS-PES');
     case 'chain': return listChainFamily(part.family || 'CH-G80');
     case 'connlink': return listByType('connlink');
+    case 'masterlink': return listByType('masterlink').filter((m) => !m.sub);
     case 'glink': return listByType('glink');
     case 'hook': return listByType('hook');
     default: return [];
@@ -92,8 +93,9 @@ function insert(key, level, it, index) {
   if (it.hitch) np.hitch = it.hitch;
   // placed exactly where it was dropped (index 0 = on the lift point)
   parts.splice(index ?? parts.length, 0, np);
-  if (isLengthPart(np) && parts.filter(isLengthPart).length > 1) toast('Two slings / chains in this leg: the first one is sized, set the length of the other one (click it)');
   app.recompute();
+  if (isLengthPart(np) && parts.filter(isLengthPart).length > 1) toast('Two slings / chains in this leg: the first one is sized, set the length of the other one (click it)');
+  else toast(`${it.label} added — the sling length of the leg is recalculated`);
 }
 
 // ---------------------------------------------------------------- page
@@ -114,7 +116,7 @@ export function render(root) {
       rig.design?.mode === 'height'
         ? field({ label: 'Hook height above the lift points', path: `${R}design.hookHeight_m`, unit: 'm' })
         : field({ label: 'Target angle to vertical', path: `${R}design.targetAngleV_deg`, unit: '°', hint: `max ${rules.maxAngleV_deg ?? 45}° (Settings)` }),
-      field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['set', 'Matched set (standard, rounded up)'], ['nearest', 'Nearest standard'], ['up', 'Standard rounded up'], ['exact', 'Made to measure']] }),
+      field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['nearest', 'Each leg: nearest standard length'], ['up', 'Each leg: standard length rounded up'], ['set', 'Same length on every leg (matched set)'], ['exact', 'Each leg: made to measure']], hint: 'Standard lengths every 0.5 m. Each leg is sized with its own hardware.' }),
       field({ label: 'Same size on every leg', path: `${R}design.uniformLegs`, type: 'select', options: [['true', 'Yes'], ['false', 'No — each leg on its own force']], onchange: (v) => { rig.design.uniformLegs = v === 'true'; app.recompute(); } }),
     ),
     el('details', { class: 'sub' }, el('summary', {}, 'Shackle ranges used by "auto"'),
@@ -153,7 +155,7 @@ export function render(root) {
       el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg'),
     ),
     palette,
-    el('p', { class: 'muted', style: { fontSize: '11.5px', margin: '4px 0 8px' } }, 'Drag any item onto any "+" of a leg: it is placed exactly there (the bottom "+" is on the lift point). Hook items go on the crane hook. Click an item of the schematic to change its size, type or length, or to remove it — "Auto" sizes it from the force of the leg. One leg is drawn for every lift point.'),
+    el('p', { class: 'muted', style: { fontSize: '11.5px', margin: '4px 0 8px' } }, 'Click a "+" to add an item there (or drag an item of the list onto it); the bottom "+" is on the lift point. Click an item of the schematic to change its size, type or length, or to remove it — "Auto" sizes it from the force of the leg. The sling length of every leg is recalculated with its hardware. One leg is drawn for every lift point.'),
     el('div', { id: 'schem', class: 'schem' }),
   );
   v3 = viewer3d({ height: 420, title: '' });
@@ -217,9 +219,22 @@ function drawSchematic() {
     insert(d.key, d.level, data.add, d.idx);
   });
   svg.addEventListener('click', (ev) => {
+    const sl = ev.target.closest('[data-slot]');
+    if (sl) { const d = drops[Number(sl.dataset.slot)]; if (d) openAddMenu(d, ev); return; }
     const g = ev.target.closest('[data-pop]');
     if (g) openPop(g.dataset.pop, ev);
   });
+}
+
+/** Menu of a "+": the items that can be inserted at that place of the leg. */
+function openAddMenu(d, ev) {
+  closePop();
+  const where = d.idx === 0 ? 'on the lift point' : 'here';
+  const box = el('div', { class: 'pop add-menu' },
+    el('b', {}, `${linked ? 'All legs' : `Leg ${d.key}`} — add ${where}`),
+    ...PALETTE.filter((it) => !it.head).map((it) => el('button', { class: 'menu-item', onclick: () => { closePop(); insert(d.key, d.level, it, d.idx); } }, el('i', { style: { background: COL[it.kind] || COL.head } }), it.label)),
+    el('button', { class: 'small', onclick: closePop }, 'Cancel'));
+  placePop(box, ev);
 }
 
 /** Called from the Checks page: open the rigging page on the part to adjust. */
@@ -238,7 +253,7 @@ function closePop() {
   pop?.remove();
   pop = null;
 }
-document.addEventListener('pointerdown', (e) => { if (pop && !pop.contains(e.target) && !e.target.closest?.('[data-pop]')) closePop(); });
+document.addEventListener('pointerdown', (e) => { if (pop && !pop.contains(e.target) && !e.target.closest?.('[data-pop],[data-slot]')) closePop(); });
 
 function openPop(ref, ev) {
   closePop();
@@ -267,7 +282,7 @@ function openPop(ref, ev) {
     const sel = el('select', { onchange: (e) => { target().id = e.target.value; done(); } });
     sel.append(el('option', { value: 'auto' }, 'Auto size'));
     itemsFor(cur).forEach((it) => sel.append(el('option', { value: it.id, selected: it.id === cur.id }, `${it.user ? '★ ' : ''}${niceName(it)}`)));
-    const kindName = { connlink: 'connecting link', glink: 'G-Link', hook: 'safety hook', sling: 'sling', chain: 'chain G80', shackle: 'shackle' }[cur.kind] || cur.kind;
+    const kindName = { connlink: 'connecting link', masterlink: 'master link', glink: 'G-Link', hook: 'safety hook', sling: 'sling', chain: 'chain G80', shackle: 'shackle' }[cur.kind] || cur.kind;
     box.append(el('b', {}, `${linked ? 'All legs' : `Leg ${key}`} — ${kindName}`), sel);
     if (cur.kind === 'sling') {
       const fam = el('select', { onchange: (e) => { const t = target(); t.family = e.target.value; t.id = 'auto'; done(); } });
@@ -285,10 +300,14 @@ function openPop(ref, ev) {
       el('button', { class: 'small danger', onclick: () => { editable(key, lvl).splice(i, 1); done(); } }, 'Remove'),
       !linked && app.project.rigging.legs?.[key]?.parts ? el('button', { class: 'small', onclick: () => { delete app.project.rigging.legs[key].parts; done(); } }, 'Back to the common assembly') : null));
   }
+  placePop(box, ev);
+}
+
+function placePop(box, ev) {
   document.body.append(box);
   const r = box.getBoundingClientRect();
   box.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 10, ev.clientX + 8))}px`;
-  box.style.top = `${Math.min(window.innerHeight - r.height - 10, ev.clientY + 8) + window.scrollY}px`;
+  box.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 10, ev.clientY + 8)) + window.scrollY}px`;
   pop = box;
 }
 

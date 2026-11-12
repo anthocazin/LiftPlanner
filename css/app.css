@@ -352,3 +352,19 @@ tr.clk-row:hover td { background: #fff6ec; }
 .page-intro { background: #f3f7fb; border: 1px solid #d6e2ee; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 12px; color: #24384d; }
 .page-intro b { color: #173a5e; }
 .v3d.lv-max { position: fixed; inset: 12px; z-index: 70; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); border-radius: 8px; }
+
+/* v0.6 — point picking */
+.lv.need { border: 2px solid var(--accent); box-shadow: 0 0 0 3px rgba(232,130,42,.18); }
+.lv.need .lv-head::after { content: '← click here'; color: #c96a17; font-weight: 700; margin-left: 6px; }
+.pick-item .ok-mark { color: #2e8b3a; font-weight: 800; }
+.pick-item.done:not(.on) { background: #f4fbf5; }
+.pick-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+details.inline-adv { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+details.inline-adv summary { cursor: pointer; color: #3b6ea5; }
+details.inline-adv[open] { display: inline-flex; }
+.pop.add-menu { display: flex; flex-direction: column; gap: 2px; min-width: 210px; }
+.pop .menu-item { display: flex; align-items: center; gap: 8px; text-align: left; border: 0; background: none; padding: 5px 8px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+.pop .menu-item:hover { background: #fff3e6; }
+.pop .menu-item i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+#schem g.slot { cursor: pointer; }
+#schem g.slot:hover rect { fill: #fff3e6; stroke: #e8822a; }

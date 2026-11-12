@@ -76,6 +76,13 @@ export function worstStatus(checks) {
   return checks.reduce((w, c) => (STATUS_ORDER[c.status] > STATUS_ORDER[w] ? c.status : w), 'ok');
 }
 
+/** Centre of the overall size of the part (mm), or null when the size is not known. */
+export function geometricCentre(ld) {
+  const o = ld?.origin_mm || {}, d = ld?.dims_mm || {};
+  if (!(+d.L > 0) || !(+d.W > 0) || !(+d.H > 0)) return null;
+  return { x: Math.round((+o.x || 0) + d.L / 2), y: Math.round((+o.y || 0) + d.W / 2), z: Math.round((+o.z || 0) + d.H / 2) };
+}
+
 /** Computes the whole project. */
 export function computeProject(project) {
   setUserCatalog(project.inventory || []);
@@ -84,6 +91,11 @@ export function computeProject(project) {
   if (ld.cogBasis === 'shape' && (ld.shapes || []).length) {
     const g = shapesCog(ld.shapes);
     if (g) ld.cog_mm = { x: Math.round(g.x), y: Math.round(g.y), z: Math.round(g.z) };
+  }
+  // COG at the geometric centre of the part (overall size)
+  if (ld.cogBasis === 'geometric') {
+    const c = geometricCentre(ld);
+    if (c) ld.cog_mm = c;
   }
   const rules = { ...DEFAULT_RULES, ...(project.rules || {}), ...(project.load?.padeyeRules || {}) };
   const rig = solveRigging(project, rules);

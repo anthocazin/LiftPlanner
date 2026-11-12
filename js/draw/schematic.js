@@ -4,7 +4,7 @@ import { niceName } from '../catalog/index.js';
 import { DEFAULT_ASSEMBLY, DEFAULT_ASSEMBLY_TOP, isLengthPart, pointKind } from '../engine/rigging.js';
 import { fmt } from './fmt.js';
 
-export const SCHEM_COL = { shackle: '#6b7785', sling: '#2a5db0', chain: '#4a5562', connlink: '#9b5a1d', glink: '#7b3fb0', hook: '#b8860b', head: '#4a5562' };
+export const SCHEM_COL = { shackle: '#6b7785', sling: '#2a5db0', chain: '#4a5562', connlink: '#9b5a1d', masterlink: '#4a5562', glink: '#7b3fb0', hook: '#b8860b', head: '#4a5562' };
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -40,6 +40,7 @@ function icon(kind, x, y, part, item) {
   if (kind === 'hook')
     return { h: 36, svg: `<circle cx="${x}" cy="${y + 5}" r="4.5" fill="none" stroke="${c}" stroke-width="3"/><path d="M${x} ${y + 10} L${x} ${y + 16} C ${x - 14} ${y + 16} ${x - 14} ${y + 34} ${x} ${y + 34} C ${x + 9} ${y + 34} ${x + 11} ${y + 27} ${x + 10} ${y + 23}" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round"/><line x1="${x + 10}" y1="${y + 22}" x2="${x + 2}" y2="${y + 15}" stroke="#2e8b3a" stroke-width="2"/>` };
   if (kind === 'glink') return { h: 26, svg: `<path d="M${x - 6} ${y + 2} h12 v8 l-5 3 l5 3 v8 h-12 v-8 l5 -3 l-5 -3z" fill="none" stroke="${c}" stroke-width="3.5" stroke-linejoin="round"/>` };
+  if (kind === 'masterlink') return { h: 40, svg: `<rect x="${x - 10}" y="${y + 2}" width="20" height="36" rx="10" fill="none" stroke="${c}" stroke-width="4.5"/>` };
   if (kind === 'connlink') return { h: 26, svg: `<rect x="${x - 7}" y="${y + 2}" width="14" height="22" rx="7" fill="none" stroke="${c}" stroke-width="4"/><line x1="${x - 7}" y1="${y + 13}" x2="${x + 7}" y2="${y + 13}" stroke="${c}" stroke-width="2"/>` };
   return { h: 20, svg: '' };
 }
@@ -56,7 +57,7 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
   if (!used.length) return { svg: '', W, H: 0, drops: [], empty: true };
   const isSp = proj.type === 'spreader';
   const legOf = (key) => rig?.legs?.find((l) => l.key === key);
-  const pts = [...used].sort((a, b) => (+a.x || 0) - (+b.x || 0) || (+a.y || 0) - (+b.y || 0));
+  const pts = [...used]; // in the order of the list (A, B, C…)
   const nCol = pts.length;
   const colW = Math.min(230, (W - 40) / nCol);
   const x0 = (W - colW * nCol) / 2 + colW / 2;
@@ -100,7 +101,7 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
     const slot = (idx) => {
       if (!interactive) return;
       drops.push({ x: c.x - 30, y: yy, w: 60, h: 16, key: c.key, level: c.level === 'top' ? 'top' : 'main', idx });
-      s += `<g class="slot"><rect x="${c.x - 22}" y="${yy}" width="44" height="14" rx="7" fill="#eef4fa" stroke="#9db6d1" stroke-dasharray="3 2"/><text x="${c.x}" y="${yy + 11}" font-size="12" text-anchor="middle" fill="#6b8bb0">+</text></g>`;
+      s += `<g class="slot" data-slot="${drops.length - 1}"><rect x="${c.x - 22}" y="${yy}" width="44" height="14" rx="7" fill="#eef4fa" stroke="#9db6d1" stroke-dasharray="3 2"/><text x="${c.x}" y="${yy + 11}" font-size="12" text-anchor="middle" fill="#6b8bb0">+</text></g>`;
       yy += 18;
     };
     if (!interactive) yy += 4;
@@ -111,7 +112,8 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
       const ic = icon(p.kind, c.x, yy, p, rp?.item);
       const txt = rp?.item ? niceName(rp.item, isLengthPart(p) ? { length_m: rp.length_m, links: p.kind === 'chain' ? rp.links : null } : {}) : `${p.kind} ?`;
       const util = rp?.item && leg ? Math.round((leg.Fdesign / (rp.item.wll_t * (rp.factor || 1))) * 100) : null;
-      const sub = rp?.item && leg ? (interactive ? `min ${fmt(rp.reqWll)} t · ${util} %` : `${p.hitch === 'choke' ? 'choked · ' : ''}${util} % of WLL`) : 'not found';
+      const need = i === leg?.li && p.kind === 'sling' && leg.slingLengthReq > 0 && Math.abs(leg.slingLengthReq - (rp?.length_m || 0)) > 0.03 ? ` · exact ${fmt(leg.slingLengthReq, 2)} m` : '';
+      const sub = rp?.item && leg ? (interactive ? `min ${fmt(rp.reqWll)} t · ${util} %${need}` : `${p.hitch === 'choke' ? 'choked · ' : ''}${util} % of WLL`) : 'not found';
       const lblW = Math.max(colW - 14, 120);
       if (highlight && highlight.leg === c.key && highlight.part === i) s += ring(c.x - 22, yy - 3, lblW + 10, ic.h + 6);
       s += interactive ? `<g data-pop="${esc(c.key)}:${i}:${c.level}" class="clk">` : '<g>';
@@ -151,6 +153,6 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
     });
   } else columns.forEach((c) => (maxY = Math.max(maxY, drawCol(c, hx, headBottom))));
   const H = maxY + 10;
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="system-ui, Arial, sans-serif">${s}</svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:${W}px;width:100%;height:auto" font-family="system-ui, Arial, sans-serif">${s}</svg>`;
   return { svg, W, H, drops };
 }

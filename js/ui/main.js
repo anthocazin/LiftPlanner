@@ -28,12 +28,12 @@ const TABS = [
 // short help on top of every page, and the order of the pages (Next → buttons)
 const INTRO = {
   project: ['1 / 7', 'Who, where and how: identification printed in the report header, the lift steps (with the crane radius of each one), weather limits and safety measures.'],
-  load: ['2 / 7', 'The object to lift: weight, then its drawing (top / front / side views) or a simple shape, the lift points and the centre of gravity. The 3D view is rebuilt from the views.'],
+  load: ['2 / 7', 'The object to lift: weight, its drawing (a frame around the top, front and side views gives its size), then click the lift points and the COG — or use the symmetry buttons and "COG at the geometric centre". The 3D view is rebuilt from the views.'],
   crane: ['3 / 7', 'The crane and its load chart (SWL against radius). Save a crane in "My cranes" to reuse it; a PDF load chart can be read into the table.'],
-  rigging: ['4 / 7', 'From the crane hook down to the lift points: drag the items onto the legs. Sizes are chosen automatically from the force in every leg, the lengths from the target angle.'],
+  rigging: ['4 / 7', 'From the crane hook down to the lift points: click a "+" to add an item to a leg. Sizes are chosen automatically from the force in every leg; the sling length of every leg from the target angle and its own hardware.'],
   results: ['5 / 7', 'Every check with its result. Click a warning to open the item to adjust; the grey line explains why it matters.'],
   drawings: ['6 / 7', 'The drawings of the plan (schematic, elevations, plan, 3D, components to scale), exportable as SVG / PNG.'],
-  report: ['7 / 7', 'The lift plan as printed. Add your own drawings in the half page kept for them, then print or save as PDF.'],
+  report: ['7 / 7', 'The lift plan as printed. Add your own drawings if needed, then print or save as PDF.'],
 };
 const FLOW = ['project', 'load', 'crane', 'rigging', 'results', 'drawings', 'report'];
 

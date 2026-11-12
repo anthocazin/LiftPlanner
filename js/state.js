@@ -1,6 +1,6 @@
 // Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export const DEFAULT_CHECKLIST = [
   'Lifting equipment inspected, certificates valid and identified (serial numbers)',
@@ -113,7 +113,7 @@ export function defaultProject() {
     },
     rigging: {
       type: 'hook',
-      design: { mode: 'angle', targetAngleV_deg: 30, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'set' },
+      design: { mode: 'angle', targetAngleV_deg: 30, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'nearest' },
       head: { type: 'assembly', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, topShackleId: 'auto' },
       assembly: [
         { kind: 'shackle', id: 'auto' },
@@ -195,6 +195,7 @@ export function migrate(data) {
   const out = merge(base, old);
   if (v < 3) migrateV2(out, old);
   if (v < 4) migrateV3(out);
+  if (v < 5) migrateV4(out);
   // the site map (storyboard) is gone: the radius already measured on it is kept
   (out.storyboard?.steps || []).forEach((st) => { delete st.pos; delete st.aiSketch; });
   out.schema = SCHEMA_VERSION;
@@ -288,6 +289,17 @@ function migrateV3(out) {
   }
   if (out.rules?.shackleRanges) out.rules.shackleRanges = ['G-4163'];
   (out.load?.liftPoints || []).forEach((p) => { if (!p.kind) p.kind = p.padeye === false ? 'none' : 'padeye'; });
+}
+
+/** v4 → v5: sling length of every leg recalculated (no matched set by default), G-Links and the COG envelope removed. */
+function migrateV4(out) {
+  const r = out.rigging || {};
+  if (r.design && (!r.design.roundLengths || r.design.roundLengths === 'set')) r.design.roundLengths = 'nearest';
+  const drop = (parts) => (Array.isArray(parts) ? parts.filter((q) => q.kind !== 'glink') : parts);
+  r.assembly = drop(r.assembly);
+  r.assemblyTop = drop(r.assemblyTop);
+  Object.values(r.legs || {}).forEach((l) => { if (l?.parts) l.parts = drop(l.parts); });
+  if (out.load) out.load.cogEnvelope_mm = { dx: 0, dy: 0 };
 }
 
 /** Path access "a.b.0.c". */

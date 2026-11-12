@@ -107,8 +107,9 @@ export function buildReport() {
     el('tr', {}, el('th', { colspan: 3, class: 'sec' }, 'Load details/crane details', el('span', {}, ' (maximum hook load not to be exceeded)'))),
     el('tr', {},
       el('td', {}, el('b', {}, 'Load identification:'), ul([ld.name, `Overall ${fmt(ld.dims_mm.L, 0)} × ${fmt(ld.dims_mm.W, 0)} × ${fmt(ld.dims_mm.H, 0)} mm`, `${r.pts.length} lift point(s) ${r.pts.map((q) => q.id).join(', ')}`, p.rigging.type === 'spreader' ? `Spreader bar ${fmt(r.spreader.length)} m` : `Direct to hook, ${r.legs.length} legs`])),
-      el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } }, box(ld.cogBasis === 'obvious'), ' Obvious  ', box(ld.cogBasis === 'estimated'), ' Estimated  ', box(ld.cogBasis === 'drawing' || !ld.cogBasis), ' Drawing'),
-        el('div', {}, `X ${fmt(ld.cog_mm.x, 0)} · Y ${fmt(ld.cog_mm.y, 0)} · Z ${fmt(ld.cog_mm.z, 0)} mm`), Number(ld.cogEnvelope_mm?.dx) || Number(ld.cogEnvelope_mm?.dy) ? el('div', {}, `Envelope ±${ld.cogEnvelope_mm.dx || 0} / ±${ld.cogEnvelope_mm.dy || 0} mm`) : null),
+      el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } }, box(ld.cogBasis === 'obvious'), ' Obvious  ', box(['estimated', 'geometric', 'shape'].includes(ld.cogBasis)), ' Estimated  ', box(ld.cogBasis === 'drawing' || !ld.cogBasis), ' Drawing'),
+        el('div', {}, `X ${fmt(ld.cog_mm.x, 0)} · Y ${fmt(ld.cog_mm.y, 0)} · Z ${fmt(ld.cog_mm.z, 0)} mm`),
+        ld.cogBasis === 'geometric' ? el('div', {}, 'Geometric centre of the part (weight assumed evenly spread)') : ld.cogBasis === 'shape' ? el('div', {}, 'Calculated from the shape of the part (weight evenly spread)') : null),
       el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), el('div', { style: { margin: '4px 0' } }, box(ld.weightBasis === 'actual'), ' Actual  ', box(ld.weightBasis !== 'actual'), ' Assessed'),
         ul([`Net weight ${fmt(ld.weight_t)} t × WCF ${fmt(ld.wcf)} = ${fmt(r.W)} t`, `Rigging ${fmt(r.rigWeight)} t`, `Max hook load: ${fmt(res.shlCrane)} t static / ${fmt(res.dynamicHookLoad)} t dynamic`])),
     ),
@@ -180,14 +181,13 @@ export function buildReport() {
     fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
     fig(draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view' })),
   ));
-  // ---- half page kept for the user's own drawings
+  // ---- the user's own drawings (only when some were added)
   const own = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  add(el('div', { class: 'avoid-break own-dwg' },
-    el('div', { class: 'sub-t' }, 'Additional drawings'),
-    own.length
-      ? own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null))
-      : el('div', { class: 'own-blank' }, ''),
-  ));
+  if (own.length)
+    add(el('div', { class: 'avoid-break own-dwg' },
+      el('div', { class: 'sub-t' }, 'Additional drawings'),
+      own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null)),
+    ));
   const capFig = () => el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 })));
   if (!opts.calc) add(capFig());
 
@@ -256,7 +256,7 @@ function ownDrawingsPanel() {
   return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
     el('div', { class: 'panel-head' }, el('h2', {}, 'My drawings in the report'),
       el('button', { class: 'small primary', onclick: () => inp.click() }, '+ Add a drawing (PNG / JPG)'), inp),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Half a page is kept in the report after the rigging views. With no drawing it stays as an empty frame to sketch by hand. A PDF page can be added as a screenshot (PNG).'),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Your drawings are printed after the rigging views (half a page each). With no drawing, the section is left out. A PDF page can be added as a screenshot (PNG).'),
     list);
 }
 

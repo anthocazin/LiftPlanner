@@ -74,7 +74,7 @@ export function riggingChecks(rig, project, rules) {
       const sf = i === 0 && p.kind === 'shackle' && leg.level !== 'top' ? shackleSideLoadFactor(leg.beta || 0) : 1;
       const wll = it.wll_t * sf;
       const where = i === 0 ? (leg.level === 'top' ? 'at spreader lug' : 'at lift point') : i === leg.parts.length - 1 ? (leg.level === 'bottom' ? 'at spreader lug' : 'at hook side') : 'in line';
-      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : p.kind === 'hook' ? 'Hooks' : 'G-Link';
+      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : p.kind === 'hook' ? 'Hooks' : p.kind === 'masterlink' ? 'Master link' : 'G-Link';
       push(out, {
         cat, item: name, label: `${niceName(it)} (${where})${sf < 1 ? ` — side load ${leg.beta.toFixed(0)}° → ×${sf.toFixed(2)}` : ''}`,
         value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn), part: i,

@@ -1,5 +1,6 @@
-// Guided set-up of the load from its drawing, in 4 steps:
-//   1 drawing (PDF / image)  2 scale  3 top / front / side views  4 lift points & COG clicked on each view
+// Guided set-up of the load from its drawing, in 5 steps:
+//   1 drawing (PDF / image)  2 scale  3 top / front / side views (a frame each)  4 simple shapes (optional)
+//   5 lift points & COG clicked on the views
 // The 3D coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
 import { app } from './app.js';
 import { el, fmt, toast } from './dom.js';
@@ -33,7 +34,8 @@ export function loadSetup() {
 
 export function refreshSetup() {
   viewer?.refresh();
-  pickViews.forEach((v) => v.refresh());
+  const need = setup.step === 5 ? nextNeeded(setup.item) : null;
+  pickViews.forEach((v) => { v.classList.toggle('need', !!need && v.dataset.key === need); v.refresh(); });
   const st = document.getElementById('pick-status');
   if (st) st.replaceWith(pickStatus());
   const list = document.getElementById('pick-list');
@@ -180,7 +182,13 @@ function stepViews() {
         v ? el('button', { class: 'small danger', onclick: () => { ld.views[k] = null; app.recompute(); rebuild(); } }, 'Remove') : null),
     );
   })));
-  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Open the drawing (step 1) to select the views. Without views you can still place the points on a white grid (step 4).'));
+  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Open the drawing (step 1) to select the views. Without views you can still place the points on a white grid (step 5).'));
+  const dm = ld.dims_mm || {};
+  if (ld.views.xz || ld.views.yz)
+    box.append(el('div', { class: 'row', style: { marginTop: '8px', fontSize: '12.5px' } },
+      el('span', {}, 'Size of the part: ', el('b', {}, `${fmt(dm.L, 0)} (X) × ${fmt(dm.W, 0)} (Y) × ${fmt(dm.H, 0)} (Z) mm`)),
+      el('span', { class: 'muted' }, 'The front view has the same width as the top view (X), the side view the same width as its height (Y).'),
+      el('button', { class: 'small', title: 'Exchange the front and the side view', onclick: () => { swapFrontSide(); toast('Front and side views exchanged'); rebuild(); } }, 'Swap front ↔ side')));
   if (setup.edit && app.drawSource) {
     const d = VIEW_DEF[setup.edit];
     const dr = setup.draft;
@@ -188,12 +196,17 @@ function stepViews() {
     box.append(
       el('div', { class: 'note info', style: { margin: '10px 0 6px' } },
         el('b', {}, `${d.name} (${d.look}): `),
-        dr.crop ? (dr.origin ? 'frame and reference point set — save the view.' : el('span', {}, el('b', {}, '2. '), 'click the REFERENCE POINT of the part in this view (the origin X = 0, Y = 0, Z = 0 — use the same corner of the part in every view, e.g. bottom-left-front).')) : el('span', {}, el('b', {}, '1. '), `drag a frame around the ${d.name.toLowerCase()} on the drawing.`)),
-      el('div', { class: 'toolbar' }, toolBtn('frame', '1. Frame'), toolBtn('origin', '2. Reference point'),
-        el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: !!dr.flipH, onchange: (e) => { dr.flipH = e.target.checked; drawOverlay(); } }), `${d.h} increases to the LEFT on this view`),
+        dr.crop
+          ? el('span', {}, 'frame set. ', el('b', {}, 'Save the view'), dr.origin ? ' (with your reference point).' : ' — the origin is the bottom-left corner of the frame, the size of the part is read from the frame.')
+          : el('span', {}, 'drag a frame around the part in this view, ', el('b', {}, 'edge to edge'), ' (not around the dimension lines). The frame gives the size of the part and its bottom-left corner is the origin.')),
+      el('div', { class: 'toolbar' }, toolBtn('frame', 'Frame'),
+        el('label', { class: 'check', style: { fontSize: '12px' }, title: 'For a view drawn from the other side (the part appears mirrored)' }, el('input', { type: 'checkbox', checked: !!dr.flipH, onchange: (e) => { dr.flipH = e.target.checked; drawOverlay(); } }), 'Mirrored view'),
+        el('details', { class: 'inline-adv' }, el('summary', {}, 'Other origin…'),
+          el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Only if the origin is not the corner of the frame: '), toolBtn('origin', 'Click the reference point'),
+          dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; rebuild(); } }, 'Use the frame corner') : null),
         el('span', { class: 'spacer' }),
         el('button', { class: 'small', onclick: () => { setup.edit = null; rebuild(); } }, 'Cancel'),
-        el('button', { class: 'primary small', disabled: !(dr.crop && dr.origin), onclick: saveView }, 'Save view')),
+        el('button', { class: 'primary small', disabled: !dr.crop, onclick: saveView }, 'Save view')),
       pageViewer(),
     );
   }
@@ -207,19 +220,77 @@ function cubeIcon(k) {
   return el('span', { html: `<svg viewBox="0 0 110 76" width="110" height="76"><path d="M30 22 L62 14 L86 22 L86 54 L54 62 L30 54 Z M54 30 L54 62 M30 22 L54 30 L86 22" fill="none" stroke="#8a96a3"/><path d="${face}" fill="#e8822a" fill-opacity=".35" stroke="#c96a17"/><circle cx="30" cy="54" r="3.5" fill="#c0392b"/><text x="6" y="70" font-size="9" fill="#c0392b">origin</text></svg>` });
 }
 
+/** Extent of a view in model mm: { a0, a1, b0, b1 } (the frame of the view). */
+function viewExtent(v) {
+  if (!v || !(v.s > 0)) return null;
+  const kf = v.flipH ? -1 : 1;
+  const a0 = (0 - v.ou) * v.s * kf, a1 = (v.w - v.ou) * v.s * kf;
+  return { a0: Math.min(a0, a1), a1: Math.max(a0, a1), b0: (v.ov - v.h) * v.s, b1: v.ov * v.s };
+}
+
+/** Overall size and origin of the part from the frames of the views. */
+function envelopeFromViews() {
+  const ld = L(), vs = ld.views || {};
+  if (!scale().mmPerUnit) return;
+  const e = { xy: viewExtent(vs.xy), xz: viewExtent(vs.xz), yz: viewExtent(vs.yz) };
+  const rx = e.xy ? [e.xy.a0, e.xy.a1] : e.xz ? [e.xz.a0, e.xz.a1] : null;
+  const ry = e.xy ? [e.xy.b0, e.xy.b1] : e.yz ? [e.yz.a0, e.yz.a1] : null;
+  const rz = e.xz ? [e.xz.b0, e.xz.b1] : e.yz ? [e.yz.b0, e.yz.b1] : null;
+  ld.origin_mm = ld.origin_mm || { x: 0, y: 0, z: 0 };
+  ld.dims_mm = ld.dims_mm || { L: 0, W: 0, H: 0 };
+  if (rx) { ld.origin_mm.x = Math.round(rx[0]); ld.dims_mm.L = Math.round(rx[1] - rx[0]); }
+  if (ry) { ld.origin_mm.y = Math.round(ry[0]); ld.dims_mm.W = Math.round(ry[1] - ry[0]); }
+  if (rz) { ld.origin_mm.z = Math.round(rz[0]); ld.dims_mm.H = Math.round(rz[1] - rz[0]); }
+}
+
+/** Exchanges the front and the side view (and what was clicked on them). */
+export function swapFrontSide() {
+  const ld = L(), vs = ld.views || (ld.views = {});
+  [vs.xz, vs.yz] = [vs.yz || null, vs.xz || null];
+  const items = [{ t: ld.cog_mm, picks: ld.cogPicks }, ...ld.liftPoints.map((p) => ({ t: p, picks: p.picks }))];
+  for (const it of items) {
+    if (!it.picks) continue;
+    [it.picks.xz, it.picks.yz] = [it.picks.yz, it.picks.xz];
+    if (!it.picks.xz) delete it.picks.xz;
+    if (!it.picks.yz) delete it.picks.yz;
+    combinePicks(it.t, it.picks);
+  }
+  envelopeFromViews();
+  app.recompute();
+}
+
+/** The front view must be as wide as the top view (X); exchanged automatically when it is clearly the side view. */
+function autoSwap() {
+  const vs = L().views || {};
+  const t = viewExtent(vs.xy), f = viewExtent(vs.xz), sd = viewExtent(vs.yz);
+  if (!t || (!f && !sd)) return false;
+  const tx = t.a1 - t.a0, ty = t.b1 - t.b0;
+  if (Math.abs(tx - ty) < 0.1 * Math.max(tx, ty)) return false; // square part: cannot tell
+  const near = (a, b) => Math.abs(a - b) < 0.08 * b;
+  const fw = f ? f.a1 - f.a0 : null, sw = sd ? sd.a1 - sd.a0 : null;
+  const frontIsSide = fw != null && near(fw, ty) && !near(fw, tx);
+  const sideIsFront = sw != null && near(sw, tx) && !near(sw, ty);
+  if ((frontIsSide && (sw == null || sideIsFront)) || (sideIsFront && fw == null)) { swapFrontSide(); return true; }
+  return false;
+}
+
 async function saveView() {
   const k = setup.edit, dr = setup.draft, src = app.drawSource;
-  if (!k || !dr?.crop || !dr?.origin) return;
+  if (!k || !dr?.crop) return;
   const { canvas, pxPerUnit } = await src.renderRegion(dr.page, dr.crop, 1800);
   const s = scale();
   const mmPerUnit = s.mmPerUnit || null;
+  // origin: the reference point clicked, else the bottom-left corner of the frame (bottom-right if mirrored)
+  const org = dr.origin || { u: dr.crop.x + (dr.flipH ? dr.crop.w : 0), v: dr.crop.y + dr.crop.h };
   L().views[k] = {
     image: canvas.toDataURL('image/jpeg', 0.85), w: canvas.width, h: canvas.height, pxPerUnit,
-    s: mmPerUnit ? mmPerUnit / pxPerUnit : 1 / pxPerUnit, ou: (dr.origin.u - dr.crop.x) * pxPerUnit, ov: (dr.origin.v - dr.crop.y) * pxPerUnit,
-    flipH: !!dr.flipH, file: src.name, page: dr.page, wizard: { ...dr },
+    s: mmPerUnit ? mmPerUnit / pxPerUnit : 1 / pxPerUnit, ou: (org.u - dr.crop.x) * pxPerUnit, ov: (org.v - dr.crop.y) * pxPerUnit,
+    flipH: !!dr.flipH, autoOrigin: !dr.origin, file: src.name, page: dr.page, wizard: { ...dr },
   };
+  const swapped = autoSwap();
+  envelopeFromViews();
   if (!mmPerUnit) toast('View saved — set the scale (step 2) so that it has the right size');
-  else toast(`${VIEW_DEF[k].name} saved`);
+  else toast(swapped ? 'The front and side views were exchanged: the front view is the one as wide as the top view' : `${VIEW_DEF[k].name} saved`);
   const nextK = Object.keys(VIEW_DEF).find((x) => !L().views[x]);
   setup.edit = null;
   if (nextK) setup.draft = null;
@@ -292,6 +363,7 @@ function onDown(ev) {
   if (setup.tool === 'origin' && setup.draft) {
     setup.draft.origin = { u, v };
     setup.draft.page = setup.page;
+    setup.tool = 'frame';
     rebuild();
     return;
   }
@@ -320,9 +392,10 @@ function onMove(ev) {
   const st = document.getElementById('pv-status');
   const dr = setup.draft;
   const s = scale();
-  if (st && dr?.origin && s.mmPerUnit && setup.edit) {
+  const og = dr?.origin || (dr?.crop ? { u: dr.crop.x + (dr.flipH ? dr.crop.w : 0), v: dr.crop.y + dr.crop.h } : null);
+  if (st && og && s.mmPerUnit && setup.edit) {
     const d = VIEW_DEF[setup.edit];
-    st.textContent = `${d.h} ${Math.round((u - dr.origin.u) * s.mmPerUnit * (dr.flipH ? -1 : 1))} · ${d.v} ${Math.round((dr.origin.v - v) * s.mmPerUnit)} mm`;
+    st.textContent = `${d.h} ${Math.round((u - og.u) * s.mmPerUnit * (dr.flipH ? -1 : 1))} · ${d.v} ${Math.round((og.v - v) * s.mmPerUnit)} mm${dr.crop ? ` — frame ${Math.round(dr.crop.w * s.mmPerUnit)} × ${Math.round(dr.crop.h * s.mmPerUnit)} mm` : ''}`;
   }
   if (!setup.drag) return;
   setup.drag.u1 = u;
@@ -338,7 +411,6 @@ function onUp() {
   if (r.w > 4 && r.h > 4) {
     setup.draft.crop = r;
     setup.draft.page = setup.page;
-    setup.tool = 'origin';
   }
   rebuild();
 }
@@ -356,9 +428,10 @@ function drawOverlay() {
   const dr = setup.draft;
   if (dr?.crop && (dr.page || setup.page) === setup.page)
     s += `<rect x="${dr.crop.x}" y="${dr.crop.y}" width="${dr.crop.w}" height="${dr.crop.h}" fill="rgba(232,130,42,.08)" stroke="#e8822a" stroke-width="${2 * u}"/>`;
-  if (dr?.origin) {
+  const og = dr?.origin || (dr?.crop ? { u: dr.crop.x + (dr.flipH ? dr.crop.w : 0), v: dr.crop.y + dr.crop.h } : null);
+  if (og && (dr.page || setup.page) === setup.page) {
     const d = dr.flipH ? -1 : 1, Lx = 50 * u;
-    s += `<g stroke-width="${2 * u}"><line x1="${dr.origin.u}" y1="${dr.origin.v}" x2="${dr.origin.u + d * Lx}" y2="${dr.origin.v}" stroke="#c0392b"/><line x1="${dr.origin.u}" y1="${dr.origin.v}" x2="${dr.origin.u}" y2="${dr.origin.v - Lx}" stroke="#2a5db0"/></g><circle cx="${dr.origin.u}" cy="${dr.origin.v}" r="${5 * u}" fill="#c0392b" stroke="#fff" stroke-width="${u}"/>`;
+    s += `<g stroke-width="${2 * u}"><line x1="${og.u}" y1="${og.v}" x2="${og.u + d * Lx}" y2="${og.v}" stroke="#c0392b"/><line x1="${og.u}" y1="${og.v}" x2="${og.u}" y2="${og.v - Lx}" stroke="#2a5db0"/></g><circle cx="${og.u}" cy="${og.v}" r="${5 * u}" fill="#c0392b" stroke="#fff" stroke-width="${u}"/><text x="${og.u + 6 * u}" y="${og.v + 14 * u}" font-size="${11 * u}" fill="#c0392b" font-weight="700">0</text>`;
   }
   setup.tmp.forEach(([a, b]) => (s += `<circle cx="${a}" cy="${b}" r="${4 * u}" fill="#e8822a" stroke="#fff" stroke-width="${u}"/>`));
   if (setup.tmp.length === 1 && setup.tool === 'cal') s += '';
@@ -369,7 +442,7 @@ function drawOverlay() {
   ov.innerHTML = s;
 }
 
-// ---------------- step 4: lift points & COG
+// ---------------- step 5: lift points & COG
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 function itemTarget(id) {
   const ld = L();
@@ -391,64 +464,119 @@ export function combinePicks(t, picks) {
   return { dx, dy, dz };
 }
 
+/** Axes already given by the views clicked (optionally except one view). */
+export function knownAxes(picks, except) {
+  const s = new Set();
+  for (const k of Object.keys(picks || {})) if (k !== except && picks[k] && AXES[k]) AXES[k].forEach((a) => s.add(a));
+  return s;
+}
+
+/** Rewrites the picks of every view from the coordinates (one value per coordinate, no mismatch). */
+export function syncPicks(t, picks) {
+  for (const k of Object.keys(picks || {})) if (picks[k] && AXES[k]) picks[k] = [Math.round(+t[AXES[k][0]] || 0), Math.round(+t[AXES[k][1]] || 0)];
+}
+
+/**
+ * A click on view `key` at (a, b) for item {t, picks}: a coordinate already given by another view is
+ * kept (the click only adds what is missing), unless the item is already complete (then the click
+ * moves it in this view).
+ */
+export function applyPick(t, picks, key, a, b) {
+  const [A, B] = AXES[key];
+  const known = knownAxes(picks, key);
+  const complete = knownAxes(picks).size === 3;
+  if (complete || !known.has(A)) t[A] = Math.round(a);
+  if (complete || !known.has(B)) t[B] = Math.round(b);
+  picks[key] = [t[A], t[B]];
+  syncPicks(t, picks);
+}
+
 function shownViews() {
   const v = L().views || {};
   const have = Object.keys(VIEW_DEF).filter((k) => v[k]);
   return have.length >= 2 ? have : have.length === 1 ? [...new Set([...have, 'xy', 'xz'])] : ['xy', 'xz', 'yz'];
 }
 
+/** Next view to click for this item (a view that gives a missing coordinate), null when complete. */
 function nextNeeded(id) {
   const it = itemTarget(id);
   if (!it) return null;
-  return shownViews().find((k) => !it.picks[k]) || null;
+  const known = knownAxes(it.picks);
+  if (known.size === 3) return null;
+  return shownViews().find((k) => !it.picks[k] && AXES[k].some((ax) => !known.has(ax))) || null;
 }
+
+const ITEMS = () => ['COG', ...L().liftPoints.map((p) => p.id)];
 
 function onPick(key, a, b) {
   const id = setup.item;
   const it = itemTarget(id);
   if (!it) return;
-  it.picks[key] = [a, b];
-  const mm = combinePicks(it.t, it.picks);
-  if (id === 'COG') L().cogBasis = 'drawing';
-
-  // advance: next view for this item, else next item
+  applyPick(it.t, it.picks, key, a, b);
+  if (id === 'COG' && L().cogBasis !== 'drawing') L().cogBasis = 'drawing';
+  // advance: next item still to place
   if (!nextNeeded(id)) {
-    const ids = ['COG', ...L().liftPoints.map((p) => p.id)];
-    const nxt = ids.slice(ids.indexOf(id) + 1).find((x) => nextNeeded(x));
+    if (id !== 'COG') setup.lastDone = id;
+    const ids = ITEMS();
+    const nxt = [...ids.slice(ids.indexOf(id) + 1), ...ids.slice(0, ids.indexOf(id))].find((x) => nextNeeded(x));
     if (nxt) setup.item = nxt;
   }
   lvState.selected = setup.item;
   app.recompute();
 }
 
+/** Selects an item from a click on its marker (when the selected item does not need this view). */
+function onSelectMarker(key, id) {
+  const need = nextNeeded(setup.item);
+  if (need === key) return false; // the click places the selected item
+  setup.item = id;
+  lvState.selected = id;
+  refreshSetup();
+  return true;
+}
+
+/** Dashed guide lines: where the selected item is, from the other views. */
+function guideFor(key) {
+  if (lvState.mode !== 'pick') return null;
+  const it = itemTarget(setup.item);
+  if (!it || it.picks[key]) return null;
+  const known = knownAxes(it.picks);
+  if (known.size === 3) return null;
+  const [A, B] = AXES[key];
+  if (!known.has(A) && !known.has(B)) return null;
+  return { a: known.has(A) ? +it.t[A] || 0 : null, b: known.has(B) ? +it.t[B] || 0 : null, label: setup.item };
+}
+
 function pickStatus() {
   const id = setup.item;
   const need = nextNeeded(id);
   const name = id === 'COG' ? 'the COG' : `point ${id}`;
-  return el('div', { id: 'pick-status', class: 'note info pick-status' },
-    need ? el('span', {}, 'Click ', el('b', {}, name), ' on the ', el('b', {}, VIEW_DEF[need].name.toUpperCase()), '.') : el('span', {}, el('b', {}, `${id === 'COG' ? 'COG' : `Point ${id}`} placed in every view.`), ' Choose another item, or drag the markers to adjust.'));
+  const it = itemTarget(id);
+  const started = it && Object.keys(it.picks).length > 0;
+  let msg;
+  if (!need) msg = el('span', {}, el('b', {}, `${id === 'COG' ? 'COG' : `Point ${id}`} placed.`), ' Click another item in the list, drag a marker to adjust it, or use the symmetry buttons.');
+  else if (!started) msg = el('span', {}, 'Click ', el('b', {}, name), ' on the ', el('b', {}, VIEW_DEF[need].name.toUpperCase()), ' (or on any view).');
+  else {
+    const known = knownAxes(it.picks);
+    const give = AXES[need].filter((ax) => !known.has(ax)).map((ax) => ax.toUpperCase()).join(' and ');
+    msg = el('span', {}, 'Now click ', el('b', {}, name), ' on the ', el('b', {}, VIEW_DEF[need].name.toUpperCase()), ` — it only gives ${give}: follow the orange dashed line.`);
+  }
+  return el('div', { id: 'pick-status', class: 'note info pick-status' }, msg);
 }
-
-const tol = () => { const d = L().dims_mm || {}; return Math.max(40, 0.015 * Math.max(+d.L || 0, +d.W || 0, +d.H || 0)); };
 
 function pickList() {
   const ld = L();
-  const items = ['COG', ...ld.liftPoints.map((p) => p.id)];
   const row = (id) => {
     const it = itemTarget(id);
-    const mm = it ? combinePicks({ ...it.t }, it.picks) : { dx: 0, dy: 0, dz: 0 };
-    const worst = Math.max(mm.dx, mm.dy, mm.dz);
     const t = it?.t || {};
-    return el('button', { class: `pick-item ${setup.item === id ? 'on' : ''}`, onclick: () => { setup.item = id; lvState.selected = id; lvState.mode = 'pick'; refreshSetup(); } },
+    const done = !nextNeeded(id);
+    return el('button', { class: `pick-item ${setup.item === id ? 'on' : ''} ${done ? 'done' : ''}`, onclick: () => { setup.item = id; lvState.selected = id; lvState.mode = 'pick'; refreshSetup(); } },
       el('b', {}, id),
       el('span', { class: 'views' }, shownViews().map((k) => el('i', { class: it?.picks?.[k] ? 'ok' : '' }, VIEW_DEF[k].short))),
       el('span', { class: 'xyz' }, `${fmt(t.x, 0)} · ${fmt(t.y, 0)} · ${fmt(t.z, 0)}`),
-      worst > tol() ? el('span', { class: 'warn', title: 'The two views give a different value for the same coordinate (the mean is used). Normal if you clicked two different features; otherwise check the reference point or the mirror option of the view.' }, `Δ ${Math.round(worst)} mm`) : null);
+      done ? el('span', { class: 'ok-mark' }, '✓') : null);
   };
-  return el('div', { id: 'pick-list', class: 'pick-list' },
-    items.map(row),
-    el('button', { class: 'small', onclick: addPoint }, '+ Lift point'),
-  );
+  return el('div', { id: 'pick-list', class: 'pick-list' }, ITEMS().map(row));
 }
 
 function addPoint() {
@@ -463,6 +591,85 @@ function addPoint() {
   lvState.mode = 'pick';
   app.recompute();
   window.__rerender();
+}
+
+/** Centre used for the symmetries: geometric centre of the part, else the COG. */
+function symCentre() {
+  const ld = L(), o = ld.origin_mm || {}, d = ld.dims_mm || {};
+  const c = ld.cog_mm || {};
+  return {
+    x: +d.L > 0 ? (+o.x || 0) + d.L / 2 : +c.x || 0,
+    y: +d.W > 0 ? (+o.y || 0) + d.W / 2 : +c.y || 0,
+  };
+}
+
+/** Mirror copies of the selected lift point: mode 'x' (across the centre in X), 'y', or 'xy' (4 points). */
+export function mirrorPoints(ld, srcId, mode, centre) {
+  const src = ld.liftPoints.find((p) => p.id === srcId);
+  if (!src) return [];
+  const mx = (v) => Math.round(2 * centre.x - v), my = (v) => Math.round(2 * centre.y - v);
+  const targets = mode === 'x' ? [[mx(src.x), src.y]] : mode === 'y' ? [[src.x, my(src.y)]] : [[mx(src.x), src.y], [mx(src.x), my(src.y)], [src.x, my(src.y)]];
+  const used = new Set(ld.liftPoints.map((p) => p.id));
+  const nextId = () => { const id = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].find((c) => !used.has(c)) || `P${used.size + 1}`; used.add(id); return id; };
+  const { id: _a, x: _b, y: _c, picks, ...props } = src;
+  const out = [];
+  // 4 points: the other points of the list are reused in order (A → B, C, D)
+  const others = mode === 'xy' ? ld.liftPoints.filter((p) => p.id !== srcId) : [];
+  targets.forEach(([x, y], i) => {
+    const near = ld.liftPoints.find((p) => p.id !== srcId && Math.hypot((+p.x || 0) - x, (+p.y || 0) - y) < 30 && Math.abs((+p.z || 0) - (+src.z || 0)) < 30);
+    let p = mode === 'xy' ? others[i] : near;
+    if (!p) { p = { ...props, id: nextId(), used: true }; ld.liftPoints.push(p); }
+    else Object.assign(p, { ...props, id: p.id, used: p.used !== false });
+    Object.assign(p, { x, y, z: src.z });
+    p.picks = {};
+    for (const k of Object.keys(picks || {})) p.picks[k] = [0, 0];
+    syncPicks(p, p.picks);
+    out.push(p.id);
+  });
+  return out;
+}
+
+function mirror(mode) {
+  // the selected point when it is placed, else the last point placed
+  let id = setup.item;
+  if (id === 'COG' || nextNeeded(id)) id = setup.lastDone && itemTarget(setup.lastDone) && !nextNeeded(setup.lastDone) ? setup.lastDone : null;
+  if (!id) return toast('Place a lift point in two views first, then use the symmetry');
+  const ids = mirrorPoints(L(), id, mode, symCentre());
+  setup.item = id;
+  lvState.selected = id;
+  app.recompute();
+  window.__rerender();
+  toast(`Point${ids.length > 1 ? 's' : ''} ${ids.join(', ')} placed symmetrically to ${id}`);
+}
+
+function stepPoints() {
+  lvState.mode = 'pick';
+  if (!ITEMS().includes(setup.item)) setup.item = 'COG';
+  lvState.selected = setup.item;
+  const vs = shownViews();
+  const need = nextNeeded(setup.item);
+  pickViews = vs.map((k) => {
+    const v = loadView(k, { editable: true, height: 330, onPick, onMarker: onSelectMarker, guide: () => guideFor(k), title: VIEW_DEF[k].name });
+    if (k === need) v.classList.add('need');
+    return v;
+  });
+  const ld = L();
+  const hasSize = +ld.dims_mm?.L > 0 && +ld.dims_mm?.W > 0 && +ld.dims_mm?.H > 0;
+  return el('div', {},
+    el('div', { class: 'pick-head' },
+      el('div', {}, pickList(),
+        el('div', { class: 'pick-tools' },
+          el('button', { class: 'small', onclick: addPoint }, '+ Lift point'),
+          el('button', { class: 'small', title: 'Copy of the selected point on the other side in X (about the centre of the part)', onclick: () => mirror('x') }, '⇆ Mirror X'),
+          el('button', { class: 'small', title: 'Copy of the selected point on the other side in Y', onclick: () => mirror('y') }, '⇅ Mirror Y'),
+          el('button', { class: 'small', title: 'The 3 other corners from the selected point (replaces the next points of the list)', onclick: () => mirror('xy') }, '4 symmetric points'),
+          el('button', { class: 'small', disabled: !hasSize, title: hasSize ? 'COG at the centre of the overall size (weight evenly spread)' : 'Needs the size of the part (frames of the views)', onclick: () => { ld.cogBasis = 'geometric'; ld.cogPicks = { xy: [0, 0], xz: [0, 0], yz: [0, 0] }; app.recompute(); syncPicks(ld.cog_mm, ld.cogPicks); toast('COG at the geometric centre of the part'); window.__rerender(); } }, 'COG at the geometric centre'))),
+      el('div', { class: 'pick-side' }, pickStatus(),
+        el('div', { class: 'row', style: { fontSize: '12px' } },
+          el('span', { class: 'muted' }, el('b', {}, 'Click'), ' = place the selected item · click a marker = select it · ', el('b', {}, 'drag'), ' = move the view or a marker · ', el('b', {}, 'wheel'), ' = zoom · ⤢ = full screen'),
+          el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; refreshSetup(); } }), 'Show rigging')))),
+    el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px', marginTop: '8px' } }, ...pickViews),
+  );
 }
 
 // ---------------- step 4: shape (optional) → COG with a uniform weight
@@ -551,21 +758,6 @@ function updateShapeNumbers() {
   const row = document.querySelector('.sh-row.on');
   if (!sh || !row) return;
   row.querySelectorAll('input[data-k]').forEach((i) => (i.value = Math.round(Number(sh[i.dataset.k]) || 0)));
-}
-
-function stepPoints() {
-  lvState.mode = 'pick';
-  if (!['COG', ...L().liftPoints.map((p) => p.id)].includes(setup.item)) setup.item = 'COG';
-  lvState.selected = setup.item;
-  const vs = shownViews();
-  pickViews = vs.map((k) => loadView(k, { editable: true, height: 330, onPick, title: VIEW_DEF[k].name }));
-  return el('div', {},
-    el('div', { class: 'pick-head' }, pickList(), el('div', { class: 'pick-side' }, pickStatus(),
-      el('div', { class: 'row', style: { fontSize: '12px' } },
-        el('span', { class: 'muted' }, el('b', {}, 'Click'), ' = place the selected item · ', el('b', {}, 'drag'), ' = move the view · drag a marker = move it · ', el('b', {}, 'wheel'), ' = zoom · ⤢ = full screen'),
-        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; refreshSetup(); } }), 'Show rigging')))),
-    el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px', marginTop: '8px' } }, ...pickViews),
-  );
 }
 
 // table of shapes rendered after the step is in the DOM

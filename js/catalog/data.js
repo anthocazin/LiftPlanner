@@ -444,4 +444,4 @@ export const CATALOG_TYPES = {
   other: 'Other',
 };
 
-export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...GLINKS, ...CHAINS, ...CONNLINKS, ...HOOKS, ...PADEYES, ...RINGS];
+export const BUILTIN_CATALOG = [...SHACKLES, ...MASTERLINKS, ...SLINGS, ...CHAINS, ...CONNLINKS, ...HOOKS, ...PADEYES, ...RINGS];

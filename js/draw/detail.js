@@ -241,9 +241,10 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       y = c.end; bar = c.nextBar; barA = c.a;
       continue;
     }
-    if (p.kind === 'connlink' || p.kind === 'glink') {
-      const L = it.dims.effLength || 60, t = it.dims.barThk || 15;
-      const W = p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
+    if (p.kind === 'connlink' || p.kind === 'glink' || p.kind === 'masterlink') {
+      const ml = p.kind === 'masterlink';
+      const L = ml ? it.dims.insideLength || 120 : it.dims.effLength || 60, t = ml ? it.dims.stockDia || 15 : it.dims.barThk || 15;
+      const W = ml ? it.dims.insideWidth || 60 : p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
       parts.push(bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
       labels.push({ y: y + L / 2, x: W / 2 + t, t: [niceName(it), util(F, it.wll_t)] });
       ext(W / 2 + t);
@@ -370,7 +371,7 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   };
   let body = '';
   // ---------------- FACE view (left)
-  const fx = W * 0.25, fy = H - 46; // base centre on screen
+  const fx = W * 0.28, fy = H - 46; // base centre on screen
   const X = (x) => fx + x * k, Y = (y) => fy - y * k;
   // tangent points from the base corners to the circle (centre (0, A), radius R)
   const tan = (sx) => {
@@ -384,14 +385,18 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   body += path(`M ${X(-L / 2)} ${Y(0)} L ${X(tlx)} ${Y(tly)} A ${R * k} ${R * k} 0 1 1 ${X(trx)} ${Y(try_)} L ${X(L / 2)} ${Y(0)} Z`, { fill: '#c6ced6', stroke: STEEL_EDGE, 'stroke-width': 1.2 });
   body += line(X(-L / 2) - 8, Y(0), X(L / 2) + 8, Y(0), { stroke: '#5d6b7a', 'stroke-width': 2 });
   body += circle(X(0), Y(A), (hole / 2) * k, { fill: '#fff', stroke: STEEL_EDGE, 'stroke-width': 1 });
-  // shackle bow in front of the padeye (face view): pin at the top of the hole, bow above
+  // shackle seen along its pin (face view): its plane is perpendicular to the plate, so the shackle is
+  // seen edge-on — a band as wide as the bow material, from the eyes up to the crown; pin end-on
   const pinY = A + hole / 2 - pin / 2;
-  const inner = (d.bowWidth || d.jawWidth) / 2, bow = d.bowDia;
-  const crownY = pinY + pin / 2 + d.insideLength;
-  const bowPath = (r) => `M ${X(-r)} ${Y(pinY)} L ${X(-r)} ${Y(crownY - r)} A ${r * k} ${r * k} 0 0 1 ${X(r)} ${Y(crownY - r)} L ${X(r)} ${Y(pinY)}`;
-  body += path(bowPath(inner + bow / 2), { fill: 'none', stroke: '#6b7785', 'stroke-width': Math.max(2, bow * k), 'stroke-opacity': 0.55, 'stroke-linecap': 'round' });
-  body += circle(X(0), Y(pinY), (d.eyeDia / 2) * k, { fill: 'rgba(107,119,133,.35)', stroke: '#4a5562', 'stroke-width': 1 });
+  const bow = d.bowDia;
+  const crownY = pinY + pin / 2 + d.insideLength; // inside of the crown
+  const bandTop = crownY + bow;
+  body += path(`M ${X(-bow / 2)} ${Y(pinY)} L ${X(-bow / 2)} ${Y(bandTop - bow / 2)} A ${(bow / 2) * k} ${(bow / 2) * k} 0 0 1 ${X(bow / 2)} ${Y(bandTop - bow / 2)} L ${X(bow / 2)} ${Y(pinY)} Z`, { fill: 'rgba(107,119,133,.55)', stroke: '#4a5562', 'stroke-width': 1 });
+  body += line(X(0), Y(pinY), X(0), Y(bandTop), { stroke: '#4a5562', 'stroke-width': 0.6, 'stroke-dasharray': '6 3' });
+  body += circle(X(0), Y(pinY), (d.eyeDia / 2) * k, { fill: 'rgba(107,119,133,.45)', stroke: '#4a5562', 'stroke-width': 1 });
+  body += circle(X(0), Y(A), (hole / 2) * k, { fill: 'none', stroke: STEEL_EDGE, 'stroke-width': 0.9, 'stroke-dasharray': '3 2' });
   body += circle(X(0), Y(pinY), (pin / 2) * k, { fill: '#2e8b3a', stroke: '#1d5c25', 'stroke-width': 1 });
+  body += text(X(bow / 2) + 6, Y(bandTop) + 10, 'shackle (edge-on)', { 'font-size': 9.5, fill: '#5d6b7a' });
   // dimensions
   body += dimLine(X(-L / 2), fy + 14, X(L / 2), fy + 14, `L ${L}`, { dy: 13 });
   body += dimLine(X(-L / 2) - 18, Y(0), X(-L / 2) - 18, Y(A), `A ${A}`, { dx: -6, anchor: 'end', dy: 4 });
@@ -414,21 +419,30 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   // hole (hidden lines)
   body += line(XS(-T / 2), Y(A + hole / 2), XS(T / 2), Y(A + hole / 2), { stroke: STEEL_EDGE, 'stroke-dasharray': '3 2', 'stroke-width': 0.8 });
   body += line(XS(-T / 2), Y(A - hole / 2), XS(T / 2), Y(A - hole / 2), { stroke: STEEL_EDGE, 'stroke-dasharray': '3 2', 'stroke-width': 0.8 });
-  // shackle seen from the front: pin across, two eyes, bow above
+  // shackle in its own plane: pin across the plate, an eye on each side (jaw), bow above, wider than the jaw
   const e = d.jawWidth, ew = d.eyeWidth || d.bowDia;
-  body += text(fx, H - 6, '', {});
   const jawCol = T > 0 && T >= e ? '#c0392b' : '#4a5562';
-  body += rect(XS(-e / 2 - ew), Y(pinY + d.eyeDia / 2), ew * k, d.eyeDia * k, { fill: 'rgba(107,119,133,.55)', stroke: jawCol, 'stroke-width': 1 });
-  body += rect(XS(e / 2), Y(pinY + d.eyeDia / 2), ew * k, d.eyeDia * k, { fill: 'rgba(107,119,133,.55)', stroke: jawCol, 'stroke-width': 1 });
-  body += rect(XS(-(d.pinLength || e + 2 * ew + 20) / 2), Y(pinY + pin / 2), (d.pinLength || e + 2 * ew + 20) * k, pin * k, { fill: '#2e8b3a', stroke: '#1d5c25', 'stroke-width': 1 });
-  body += path(`M ${XS(-e / 2 - ew / 2)} ${Y(pinY + d.eyeDia / 2)} L ${XS(-e / 2 - ew / 2)} ${Y(crownY - e / 2)} A ${(e / 2 + ew / 2) * k} ${(e / 2 + ew / 2) * k} 0 0 1 ${XS(e / 2 + ew / 2)} ${Y(crownY - e / 2)} L ${XS(e / 2 + ew / 2)} ${Y(pinY + d.eyeDia / 2)}`, { fill: 'none', stroke: '#6b7785', 'stroke-width': Math.max(2, bow * k), 'stroke-opacity': 0.55 });
+  const xl = e / 2 + ew / 2; // centreline of the legs at the eyes
+  const rC = Math.max(xl, (d.bowWidth || e) / 2 + bow / 2); // centreline radius of the bow
+  const yC = crownY + bow / 2 - rC; // centre of the crown arc
+  const y1 = pinY + d.eyeDia / 2;
+  const yF = Math.max(y1 + 1, yC);
+  const leg = (sgn) => `C ${XS(sgn * xl)} ${Y(y1 + (yF - y1) * 0.55)} ${XS(sgn * rC)} ${Y(yF - (yF - y1) * 0.35)} ${XS(sgn * rC)} ${Y(yF)}`;
+  const bowD = `M ${XS(-xl)} ${Y(pinY)} L ${XS(-xl)} ${Y(y1)} ${leg(-1)} A ${rC * k} ${rC * k} 0 0 1 ${XS(rC)} ${Y(yF)} C ${XS(rC)} ${Y(yF - (yF - y1) * 0.35)} ${XS(xl)} ${Y(y1 + (yF - y1) * 0.55)} ${XS(xl)} ${Y(y1)} L ${XS(xl)} ${Y(pinY)}`;
+  body += path(bowD, { fill: 'none', stroke: '#8a96a3', 'stroke-width': Math.max(2, bow * k), 'stroke-opacity': 0.75 });
+  body += path(bowD, { fill: 'none', stroke: '#4a5562', 'stroke-width': 0.6, 'stroke-dasharray': '6 3' });
+  body += rect(XS(-e / 2 - ew), Y(pinY + d.eyeDia / 2), ew * k, d.eyeDia * k, { fill: 'rgba(107,119,133,.75)', stroke: jawCol, 'stroke-width': 1 });
+  body += rect(XS(e / 2), Y(pinY + d.eyeDia / 2), ew * k, d.eyeDia * k, { fill: 'rgba(107,119,133,.75)', stroke: jawCol, 'stroke-width': 1 });
+  const pl = d.pinLength || e + 2 * ew + 20;
+  body += rect(XS(-pl / 2), Y(pinY + pin / 2), pl * k, pin * k, { fill: '#2e8b3a', stroke: '#1d5c25', 'stroke-width': 1 });
+  if (d.nutThk) body += rect(XS(e / 2 + ew), Y(pinY + pin * 0.85), d.nutThk * k, pin * 1.7 * k, { fill: '#5d6b7a', stroke: '#2b333c', 'stroke-width': 0.8 });
   // dimensions t, T, jaw
   const yd = Y(topPad) - 14;
   const ty = Math.max(bev + 6, Math.min(A - R - 8, A * 0.35));
   body += dimLine(XS(-t / 2) - 26, Y(ty), XS(-t / 2), Y(ty), '', {}) + dimLine(XS(t / 2), Y(ty), XS(t / 2) + 26, Y(ty), '', {}) + text(XS(t / 2) + 30, Y(ty) + 4, `t ${t}`, { 'font-size': 10.5, fill: '#3b6ea5', 'font-weight': 600 });
   if (tc > 0) body += dimLine(XS(-T / 2), yd, XS(T / 2), yd, `T ${T}`, { dy: -4 });
-  body += dimLine(XS(-e / 2), Y(pinY) + d.eyeDia / 2 * k + 16, XS(e / 2), Y(pinY) + d.eyeDia / 2 * k + 16, `jaw ${e}`, { dy: 12, color: jawCol });
-  body += text(sx, 16, 'Side view', { 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
+  body += dimLine(XS(-e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, XS(e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, '', { color: jawCol }) + text(XS(-e / 2 - ew) - 4, Y(pinY) + d.eyeDia / 2 * k + 14, `jaw ${e}`, { 'text-anchor': 'end', 'font-size': 10.5, fill: jawCol, 'font-weight': 600 });
+  body += text(sx, 16, 'Side view — shackle in its plane', { 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
   const clr = Dh ? Dh - pin : null;
   body += text(W / 2, H - 6, `pin Ø${pin} in hole Ø${Dh || '?'}${clr != null ? ` (clearance ${clr.toFixed(1)} mm)` : ''} · padeye T ${T || '?'} mm in jaw ${e} mm (${T ? Math.round((T / e) * 100) : '?'} %) · inside length ${d.insideLength} mm`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
   return svgDoc(W, H, body, { title: 'Padeye / shackle fit' });

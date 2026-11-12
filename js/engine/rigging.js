@@ -40,6 +40,7 @@ const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 export const PART_KINDS = {
   hook: 'Safety hook',
   shackle: 'Shackle',
+  masterlink: 'Master link',
   connlink: 'Connecting link',
   glink: 'G-Link (Slingmax)',
   sling: 'Sling',
@@ -226,6 +227,11 @@ function resolveParts(partsIn, F, ctx) {
     } else if (p.kind === 'hook') {
       p.item = isAuto(p.id) ? selectHook(F, nearestChain(i)) : getItem(p.id);
       p.role = 'link';
+    } else if (p.kind === 'masterlink') {
+      // master link in the leg (e.g. two slings joined, or a sling eye and a shackle)
+      const w = nearSlingWidth(i);
+      p.item = isAuto(p.id) ? selectMasterlink(F, w * 0.6, 3, { assembly: false }) : getItem(p.id);
+      p.role = 'link';
     } else if (p.kind === 'glink') {
       p.item = isAuto(p.id) ? selectGlink(F, nearSlingWidth(i) || slingWidth) : getItem(p.id);
       p.role = 'link';
@@ -270,6 +276,50 @@ function sizeLengthElement(leg, Lreq, roundMode) {
   }
   leg.wrap = wrap;
   leg.Leff = leg.slingLength + leg.hwLength - wrap;
+}
+
+/** Length of the length element for Lreq without changing the leg (dry run of sizeLengthElement). */
+function trialLeff(leg, Lreq, roundMode) {
+  const p = leg.parts[leg.li];
+  if (!p?.item) return null;
+  const wrap = p.hitch === 'choke' ? Math.max(0, Number(p.wrap_m) || 0) : 0;
+  const need = Lreq - leg.hwLength + wrap;
+  let L;
+  if (p.kind === 'chain') L = chainLinks(p.item, need, roundMode === 'exact' ? 'nearest' : 'up').length_m;
+  else if (p.lock && Number(p.length_m) > 0) L = Number(p.length_m);
+  else if (p.item?.length_m) L = Number(p.item.length_m);
+  else L = roundSlingLength(need, roundMode, stdLengths(p.item));
+  return L + leg.hwLength - wrap;
+}
+
+/**
+ * Hook height used to choose the standard lengths: the one (at or above the design height, legs not
+ * steeper than the target angle) for which the rounded lengths of the legs agree best, so that the
+ * load hangs level. Returns zDesign when nothing better is found.
+ */
+function bestSizingHeight(legs, cog, zDesign, roundMode, angleMaxDeg) {
+  if (!legs.length || legs.some((l) => !l.parts[l.li]?.item)) return zDesign;
+  let best = null;
+  for (let dz = 0; dz <= 1.5 + 1e-9; dz += 0.01) {
+    const z = zDesign + dz;
+    const top = v3(cog.x, cog.y, z);
+    const zl = [];
+    let ok = true;
+    for (const leg of legs) {
+      const Le = trialLeff(leg, vlen(vsub(top, leg.bottom)), roundMode);
+      const d = hdist(cog, leg.bottom);
+      if (Le == null || Le <= d) { ok = false; break; }
+      zl.push(leg.bottom.z + Math.sqrt(Le * Le - d * d));
+    }
+    if (!ok) continue;
+    const zh = mean(zl);
+    const ang = Math.max(...legs.map((l) => deg(Math.atan2(hdist(cog, l.bottom), zh - l.bottom.z))));
+    if (ang > angleMaxDeg + 0.25) continue;
+    const spread = Math.max(...zl) - Math.min(...zl);
+    const score = spread + 0.01 * dz;
+    if (!best || score < best.score - 1e-9) best = { z, score };
+  }
+  return best ? best.z : zDesign;
 }
 
 /** "Matched set" mode: one standard sling length (rounded up from the longest requirement) for a group. */
@@ -452,7 +502,7 @@ function solveHook(project, ctx) {
   const { pts, W, cog, fac, rules } = ctx;
   const rig = project.rigging;
   const design = rig.design || {};
-  const roundMode = design.roundLengths || 'set';
+  const roundMode = design.roundLengths || 'nearest';
   const env = project.load.cogEnvelope_mm;
   const n = pts.length;
   const zPadMax = Math.max(...pts.map((p) => p.pos.z));
@@ -488,11 +538,13 @@ function solveHook(project, ctx) {
     });
     const head = pickHead(rig, legs, W * ctx.facHead, rules);
     fitHeadShackles(legs, head, rules);
-    // 3) lengths
+    // 3) lengths: every leg with its own hardware; standard lengths chosen so that the legs agree
     legs.forEach((leg) => {
       leg.hwLength = connectorsLength(leg.parts) + head.headLen + (head.useSub ? head.subLen : 0);
-      sizeLengthElement(leg, vlen(vsub(topD, leg.bottom)), roundMode);
     });
+    const zSize = (roundMode === 'nearest' || roundMode === 'up') && design.mode !== 'height' ? bestSizingHeight(legs, cog, zDesign, roundMode, designAngleV(design)) : zDesign;
+    const topS = v3(cog.x, cog.y, zSize);
+    legs.forEach((leg) => sizeLengthElement(leg, vlen(vsub(topS, leg.bottom)), roundMode));
     applyLengthSet(legs, roundMode);
     // 4) actual geometry: hook height given by each leg
     const zLeg = legs.map((leg) => {
@@ -530,7 +582,7 @@ function solveSpreader(project, ctx) {
   const rig = project.rigging;
   const sp = rig.spreader || {};
   const design = rig.design || {};
-  const roundMode = design.roundLengths || 'set';
+  const roundMode = design.roundLengths || 'nearest';
   const env = project.load.cogEnvelope_mm;
   const axis = sp.axis === 'y' ? 'y' : 'x';
   const other = axis === 'x' ? 'y' : 'x';
@@ -667,10 +719,10 @@ function solveSpreader(project, ctx) {
   });
   const head = pickHead(rig, topLegs, (VAm + VBm) * ctx.facHead, rules);
   fitHeadShackles(topLegs, head, rules);
-  topLegs.forEach((leg) => {
-    leg.hwLength = connectorsLength(leg.parts) + head.headLen;
-    sizeLengthElement(leg, vlen(vsub(topPtD, leg.bottom)), roundMode);
-  });
+  topLegs.forEach((leg) => { leg.hwLength = connectorsLength(leg.parts) + head.headLen; });
+  const zSizeTop = (roundMode === 'nearest' || roundMode === 'up') && design.mode !== 'height' ? bestSizingHeight(topLegs, hookPlan, zHookDesign, roundMode, designAngleV(design)) : zHookDesign;
+  const topPtS = v3(hookPlan.x, hookPlan.y, zSizeTop);
+  topLegs.forEach((leg) => sizeLengthElement(leg, vlen(vsub(topPtS, leg.bottom)), roundMode));
   applyLengthSet(topLegs, roundMode);
   const zTopLeg = topLegs.map((leg) => {
     const d = hdist(hookPlan, leg.bottom);

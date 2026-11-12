@@ -275,7 +275,7 @@ test('v2 project file migrates to leg assemblies', () => {
     load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
   };
   const p = migrate(v2);
-  assert.equal(p.schema, 4);
+  assert.equal(p.schema, 5);
   assert.equal(p.rigging.design.targetAngleV_deg, 30);
   assert.equal(p.rigging.head.type, 'masterlink');
   assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);
@@ -360,4 +360,42 @@ test('lift point 3D coordinates combined from the top, front and side views', ()
   const d = combinePicks(t, { xy: [400, 350], xz: [410, 2200], yz: [340, 2190] });
   assert.deepEqual([t.x, t.y, t.z], [405, 345, 2195]);
   assert.equal(d.dx, 10);
+});
+
+import { applyPick, mirrorPoints, knownAxes } from '../js/ui/loadsetup.js';
+import { geometricCentre } from '../js/engine/compute.js';
+
+test('picking: a coordinate given by one view is kept by the next view', () => {
+  const t = { x: 0, y: 0, z: 0 }, picks = {};
+  applyPick(t, picks, 'xy', 150, 150);
+  applyPick(t, picks, 'xz', 350, 2591); // X clicked 200 mm off: kept from the top view
+  assert.deepEqual([t.x, t.y, t.z], [150, 150, 2591]);
+  assert.equal(knownAxes(picks).size, 3);
+  applyPick(t, picks, 'xz', 180, 2600); // complete: the click moves it in this view
+  assert.deepEqual([t.x, t.y, t.z], [180, 150, 2600]);
+  assert.deepEqual(picks.xy, [180, 150]);
+});
+
+test('symmetric lift points and geometric COG of a container', () => {
+  const p = defaultProject();
+  const ld = p.load;
+  ld.origin_mm = { x: 0, y: 0, z: 0 };
+  ld.dims_mm = { L: 6058, W: 2438, H: 2591 };
+  ld.liftPoints = [{ ...ld.liftPoints[0], id: 'A', x: 150, y: 150, z: 2591, picks: { xy: [150, 150], xz: [150, 2591] } }];
+  mirrorPoints(ld, 'A', 'xy', { x: 3029, y: 1219 });
+  assert.deepEqual(ld.liftPoints.map((q) => [q.id, q.x, q.y, q.z]), [['A', 150, 150, 2591], ['B', 5908, 150, 2591], ['C', 5908, 2288, 2591], ['D', 150, 2288, 2591]]);
+  ld.cogBasis = 'geometric';
+  assert.deepEqual(geometricCentre(ld), { x: 3029, y: 1219, z: 1296 });
+  p.rigging.head = { ...p.rigging.head, type: 'hook' };
+  p.rigging.legs = {};
+  p.rigging.assembly = [{ kind: 'shackle', id: 'auto' }, { kind: 'sling', family: 'RS-PES', hitch: 'direct', id: 'auto' }];
+  const r = computeProject(p);
+  assert.deepEqual(r.rig.legs.map((l) => l.slingLength), [r.rig.legs[0].slingLength, r.rig.legs[0].slingLength, r.rig.legs[0].slingLength, r.rig.legs[0].slingLength]);
+  assert.ok(r.rig.legs.every((l) => Math.abs(l.angleV - r.rig.legs[0].angleV) < 0.01));
+  // extra hardware on leg A: its sling is recalculated (shorter), the others keep theirs
+  p.rigging.legs = { A: { parts: [{ kind: 'shackle', id: 'auto' }, { kind: 'connlink', id: 'auto' }, { kind: 'masterlink', id: 'auto' }, { kind: 'shackle', id: 'auto' }, { kind: 'sling', family: 'RS-PES', hitch: 'direct', id: 'auto' }] } };
+  const r2 = computeProject(p);
+  const A = r2.rig.legs.find((l) => l.key === 'A'), B = r2.rig.legs.find((l) => l.key === 'B');
+  assert.ok(A.slingLength < B.slingLength, `${A.slingLength} < ${B.slingLength}`);
+  assert.ok(A.parts.some((q) => q.kind === 'masterlink' && q.item?.type === 'masterlink'));
 });

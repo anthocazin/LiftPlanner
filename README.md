@@ -1,6 +1,6 @@
 # LiftPlanner
 
-Lift planning tool for **offshore and onshore lifts**: import the drawing of the part, click the lift points and the COG on it, build each leg from **standard rigging hardware** (Green Pin bow shackles 0.5–85 t, G80 master links, G80 chain, connecting links and safety hooks, round slings, flat webbing slings and steel wire rope slings up to 30 t, G-Links), get the length of every leg and the minimum WLL, check everything, draw the rigging, print the lifting plan in your company template.
+Lift planning tool for **offshore and onshore lifts**: import the drawing of the part, click the lift points and the COG on it, build each leg from **standard rigging hardware** (Green Pin bow shackles 0.5–85 t, G80 master links, G80 chain, connecting links and safety hooks, round slings, flat webbing slings and steel wire rope slings up to 30 t), get the length of every leg and the minimum WLL, check everything, draw the rigging, print the lifting plan in your company template.
 
 **No installation**: a single HTML file that also works **offline** (on board, on site).
 
@@ -17,6 +17,14 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 | Online | GitHub Pages workflow provided (`.github/workflows/pages.yml`): enable *Settings → Pages → Source = GitHub Actions*. |
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
+
+## What's new in v0.6
+
+- **Views by a simple frame**: frame each view edge to edge — the frame gives the size of the part and its bottom-left corner is the origin (another reference point stays possible). A front view that is clearly the side view (same width as the depth of the top view) is exchanged automatically; *Swap front ↔ side* button.
+- **Easier picking**: a coordinate given by one view is kept by the next one (dashed orange guide lines show where to click; no more "views disagree"), the view to click is highlighted, a click on a marker selects it. **Mirror X / Mirror Y / 4 symmetric points** from one point, **COG at the geometric centre** of the part. COG envelope removed.
+- **Pad eye drawing**: shackle seen edge-on in the face view (its plane is perpendicular to the plate) and in its plane in the side view.
+- **Rigging**: click a "+" to choose the item to add (drag and drop still works); **master link anywhere** in a leg; G-Link removed; the **sling length of every leg is recalculated with its own hardware** — standard lengths chosen so that the legs agree best (exact length shown when it differs).
+- **Report**: the "Additional drawings" section only appears when drawings were added.
 
 ## What's new in v0.5
 
@@ -51,7 +59,7 @@ The current project and the inventory are saved automatically in the browser. **
 **Rigging**
 - **Leg assembly builder**: drag standard items (Green Pin shackles, round slings straight / choked, flat webbing, steel wire rope slings, chain G80, connecting links G80, safety hooks G80, G-Links) anywhere in the leg; one assembly for all legs, override leg by leg. Hook side: master link, quad master link (sub-links) or directly on the hook; master link SWL can be marked *not known*.
 - For each leg, from the COG: **required bearing-to-bearing length, connector lengths, sling EWL or chain length in whole links** (e.g. *shackle → connecting link → chain → connecting link → shackle* gives the number of links), **minimum WLL** of every part, utilisation.
-- Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; matched set / standard / exact lengths.
+- Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; sling length of each leg (nearest standard, rounded up, made to measure) or matched set.
 - Object views with the drawing and the rigging overlaid, 3D isometric view; spreader bar (top + bottom assemblies).
 
 **Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), D/d of wire slings, connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at every step.
@@ -88,7 +96,6 @@ Main source: **DS Levage general catalogue 2025** (supplied by the user), cross-
 | Polyester round slings EN 1492-2 (7:1) | DS Levage p.64 | 0.5 → 30 t, 1 → 20 m |
 | Polyester flat webbing slings EN 1492-1 | supplied table | 0.5 → 30 t, 1 → 20 m |
 | Steel wire rope slings eye–eye | DS Levage p.18 / supplied table | → 30 t, 1 → 20 m |
-| Slingmax® G-Link | Unirope table; effective length **estimated** | 2" → 6" |
 | Pad eyes type S, weld-on anchor points, eye bolts G80 (lift points) | supplied datasheets | 0.3 → 150 t |
 
 The *Source* column of the catalogue browser (Inventory tab) states for each item whether values are published, typical or estimated.

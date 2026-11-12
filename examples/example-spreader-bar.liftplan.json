@@ -1,5 +1,5 @@
 {
-  "schema": 4,
+  "schema": 5,
   "project": {
     "name": "Example — skid lift with spreader bar",
     "liftId": "LP-002",
@@ -236,7 +236,7 @@
       "targetAngleV_deg": 30,
       "hookHeight_m": 4,
       "minHeight_m": 1,
-      "roundLengths": "set"
+      "roundLengths": "nearest"
     },
     "head": {
       "type": "masterlink",

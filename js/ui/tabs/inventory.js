@@ -13,6 +13,7 @@ const DIMS = {
   glink: [['maxSlingWidth', 'Max sling W'], ['effLength', 'Eff. length'], ['barThk', 'Bar thk.']],
   chain: [['dia', 'Chain Ø'], ['pitch', 'Pitch'], ['width', 'Outside W']],
   connlink: [['length', 'Length A'], ['width', 'Width B'], ['barThk', 'Section C'], ['effLength', 'Eff. length']],
+  hook: [['opening', 'Opening'], ['eyeDia', 'Eye Ø'], ['effLength', 'Eff. length']],
   other: [['effLength', 'Eff. length']],
 };
 const SLINGS = ['roundsling', 'wiresling', 'grommet', 'webbing'];
@@ -170,7 +171,7 @@ function renderCatalog() {
       el(
         'div',
         { class: 'row' },
-        ...['shackle', 'masterlink', 'roundsling', 'wiresling', 'grommet', 'webbing', 'chain', 'connlink', 'glink'].map((t) =>
+        ...['shackle', 'masterlink', 'roundsling', 'wiresling', 'webbing', 'chain', 'connlink', 'hook'].map((t) =>
           el('button', { class: `small ${catFilter === t ? 'active' : ''}`, onclick: () => { catFilter = t; renderCatalog(); } }, CATALOG_TYPES[t]),
         ),
         el('input', { type: 'search', placeholder: 'Filter…', value: catSearch, oninput: (e) => { catSearch = e.target.value; renderCatalog(); }, style: { padding: '4px 8px', border: '1px solid var(--line)', borderRadius: '6px' } }),

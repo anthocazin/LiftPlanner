@@ -135,6 +135,15 @@ function viewContent(key, load, rig, vb, u, editable, extra = {}) {
       if (key !== 'xy') rg += `<text x="${n(hk[0] + 9 * u)}" y="${n(-hk[1] - 6 * u)}" font-size="${n(10 * u)}" fill="#7a5a10" font-weight="700">Hook +${(rig.riggingHeight).toFixed(2)} m</text>`;
       s += `<g pointer-events="none">${rg}</g>`;
     }
+    // guide lines of the selected item (from the other views)
+    const gd = extra.guide;
+    if (gd) {
+      const gs = `stroke="#e8822a" stroke-width="${n(1.6 * u)}" stroke-dasharray="${n(8 * u)} ${n(5 * u)}" pointer-events="none"`;
+      if (gd.a != null) s += `<line x1="${n(gd.a)}" y1="${n(vb.y)}" x2="${n(gd.a)}" y2="${n(vb.y + vb.h)}" ${gs}/>`;
+      if (gd.b != null) s += `<line x1="${n(vb.x)}" y1="${n(-gd.b)}" x2="${n(vb.x + vb.w)}" y2="${n(-gd.b)}" ${gs}/>`;
+      const ga = gd.a ?? vb.x + 20 * u, gb = gd.b ?? -(vb.y + 30 * u);
+      s += `<text x="${n(ga + 5 * u)}" y="${n(-gb - 6 * u)}" font-size="${n(11 * u)}" font-weight="800" fill="#c96a17" paint-order="stroke" stroke="#fff" stroke-width="${n(3 * u)}" pointer-events="none">${esc(gd.label)} here</text>`;
+    }
     // COG
     const c = load.cog_mm || {};
     const ca = +c[A] || 0, cb = +c[B] || 0, r = 9 * u;
@@ -228,7 +237,7 @@ function shapesContent(key, load, u, extra) {
  */
 export function loadView(key, opts = {}) {
   const [A, B] = AXES[key];
-  const box = el('div', { class: 'lv' });
+  const box = el('div', { class: 'lv', 'data-key': key });
   const zoomBtn = (t, f, title) => el('button', { class: 'lv-btn', title, onclick: (e) => { e.stopPropagation(); f(); } }, t);
   const head = el('div', { class: 'lv-head' }, el('b', {}, opts.title || VIEW_NAMES[key]), el('span', { class: 'muted lv-coord' }, ''),
     el('span', { class: 'lv-tools' },
@@ -272,7 +281,7 @@ export function loadView(key, opts = {}) {
     const cw = svg.clientWidth || 600, ch = svg.clientHeight || opts.height || 420;
     vb = fitBox(key, load, rig, cw, ch, zoomState[key]);
     svg.setAttribute('viewBox', `${n(vb.x)} ${n(vb.y)} ${n(vb.w)} ${n(vb.h)}`);
-    svg.innerHTML = viewContent(key, load, rig, vb, vb.w / cw, !!opts.editable, { shapesEditable: !!opts.shapes?.editable, selShape: opts.shapes?.selected?.() });
+    svg.innerHTML = viewContent(key, load, rig, vb, vb.w / cw, !!opts.editable, { shapesEditable: !!opts.shapes?.editable, selShape: opts.shapes?.selected?.(), guide: opts.guide?.() });
     svg.style.cursor = lvState.tool ? 'crosshair' : 'grab';
   }
 
@@ -305,14 +314,14 @@ export function loadView(key, opts = {}) {
       const p = load().liftPoints[drag.i];
       p[A] = sa;
       p[B] = sbv;
-      if (p.picks) p.picks[key] = [sa, sbv];
+      if (p.picks) { p.picks[key] = [sa, sbv]; syncPicks(p, p.picks); }
       drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
     } else if (drag.kind === 'cog') {
       const c = load().cog_mm;
       c[A] = sa;
       c[B] = sbv;
-      if (load().cogPicks) load().cogPicks[key] = [sa, sbv];
-      if (load().cogBasis === 'shape') load().cogBasis = 'estimated';
+      if (load().cogPicks) { load().cogPicks[key] = [sa, sbv]; syncPicks(c, load().cogPicks); }
+      if (['shape', 'geometric'].includes(load().cogBasis)) load().cogBasis = 'drawing';
       drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
     } else if (drag.kind === 'shape' || drag.kind === 'shandle') {
       const sh = (load().shapes || []).find((q) => q.id === drag.id);
@@ -379,6 +388,7 @@ export function loadView(key, opts = {}) {
     if (!d.moved) {
       // a click: place with the current mode (also when clicking on a marker)
       if (d.kind === 'pt' && lvState.mode !== 'pick') { lvState.selected = load().liftPoints[d.i]?.id || null; opts.onSelect?.(lvState.selected); draw(); return; }
+      if ((d.kind === 'pt' || d.kind === 'cog') && lvState.mode === 'pick' && opts.onMarker?.(key, d.kind === 'cog' ? 'COG' : load().liftPoints[d.i]?.id)) return;
       if (lvState.mode === 'pick' && opts.onPick) { opts.onPick(key, snap(a), snap(b)); return; }
       if (lvState.mode === 'add' && opts.onAdd) { opts.onAdd(key, snap(a), snap(b)); return; }
       if (lvState.mode === 'cog' && opts.editable) { const c = load().cog_mm; c[A] = snap(a); c[B] = snap(b); lvState.mode = 'select'; app.recompute(); return; }
@@ -406,6 +416,11 @@ export function loadView(key, opts = {}) {
   };
   requestAnimationFrame(draw);
   return box;
+}
+
+/** Same value of a coordinate in every view clicked. */
+function syncPicks(t, picks) {
+  for (const k of Object.keys(picks || {})) if (picks[k] && AXES[k]) picks[k] = [Math.round(+t[AXES[k][0]] || 0), Math.round(+t[AXES[k][1]] || 0)];
 }
 
 export function resetZoom() {
