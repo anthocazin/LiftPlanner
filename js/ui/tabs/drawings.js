@@ -1,11 +1,10 @@
-// Drawings: rigging schematic, rigging on the load (plan XY, elevations XZ and YZ, 3D) and the
+// Drawings: rigging schematic, rigging on the load (plan XY, elevations XZ and YZ) and the
 // components to scale. Every drawing exports as SVG or PNG.
 import { app } from '../app.js';
 import { el, panel } from '../dom.js';
 import { drawRiggingDetail } from '../../draw/detail.js';
 import { schematicSvg } from '../../draw/schematic.js';
 import { staticViewSvg } from '../loadview.js';
-import { viewer3d } from '../viewer3d.js';
 import { figure } from '../figure.js';
 
 export function render(root) {
@@ -33,7 +32,6 @@ function update(res) {
         figure(staticViewSvg('xz', p, res, { width: 720, height: 460, title: 'Front elevation — XZ' }), 'rigging-elevation-xz'),
         figure(staticViewSvg('yz', p, res, { width: 720, height: 460, title: 'Side elevation — YZ' }), 'rigging-elevation-yz'),
         figure(staticViewSvg('xy', p, res, { width: 720, height: 460, title: 'Plan — XY' }), 'rigging-plan-xy'),
-        viewer3d({ height: 482, title: '' }),
       ),
       el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Each leg is labelled with its name, bearing-to-bearing length and angle to the vertical; legs seen on top of each other share one label (e.g. A/D).'),
     ),

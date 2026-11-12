@@ -8,11 +8,9 @@ import { drawRiggingDetail, drawPadeyeFit } from '../../draw/detail.js';
 import { schematicSvg } from '../../draw/schematic.js';
 import { drawCapacityChart } from '../../draw/chart.js';
 import { staticViewSvg, safeImg } from '../loadview.js';
-import { draw3d } from '../../draw/view3d.js';
 import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
-import { current3d } from '../viewer3d.js';
 import { SAFETY_MEASURES, CHECKLIFT } from '../../state.js';
 
 const opts = { calc: true, checksAll: false };
@@ -24,7 +22,6 @@ const FIGS = [
   ['xy', 'Plan — XY'],
   ['xz', 'Front elevation — XZ'],
   ['yz', 'Side elevation — YZ'],
-  ['v3d', '3D view'],
   ['padeye', 'Pad eye / shackle fit'],
   ['capacity', 'Crane capacity chart'],
 ];
@@ -38,7 +35,7 @@ function figsPanel() {
     el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report')),
     el('div', { class: 'row', style: { gap: '4px 16px' } },
       FIGS.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); update(); } }), t))),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'The 3D view is printed with the orientation it has on screen (turn it on the Load or Drawings page; "Drawings" ticked or not).'));
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'Saved with the project. The views are printed two per row.'));
 }
 
 export function render(root) {
@@ -195,19 +192,17 @@ export function buildReport() {
 
   // ---- Rigging: arrangement, detail, then the views
   const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  if (['schem', 'detail', 'xy', 'xz', 'yz', 'v3d'].some(figOn) || ownDw.length) {
+  if (['schem', 'detail', 'xy', 'xz', 'yz'].some(figOn) || ownDw.length) {
     add(el('div', { class: 'page-break' }));
     add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
   }
   const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
   if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
   if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  const c3 = current3d();
   const views = [
     figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
     figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
     figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-    figOn('v3d') && (() => draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view', cam: c3.cam, drawings: c3.drawings })),
   ].filter(Boolean);
   for (let i = 0; i < views.length; i += 2) {
     const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));

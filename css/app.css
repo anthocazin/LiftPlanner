@@ -309,11 +309,6 @@ table.data tbody tr { cursor: default; }
 .pick-item .xyz { color: var(--muted); font-variant-numeric: tabular-nums; }
 .pick-item .warn { color: var(--warn); font-weight: 700; font-size: 11.5px; }
 .pick-status { font-size: 14px; margin-bottom: 6px; }
-.v3d { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; }
-.v3d-bar { display: flex; gap: 4px; align-items: center; padding: 4px 6px; background: #f6f8fa; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.v3d-stage { cursor: grab; touch-action: none; user-select: none; }
-.v3d-stage:active { cursor: grabbing; }
-.v3d-stage svg { display: block; width: 100%; height: 100%; }
 .schem-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
 .schem { background: #fafbfc; border: 1px dashed var(--line); border-radius: 8px; overflow-x: auto; min-height: 300px; }
 .schem svg { display: block; margin: 0 auto; }
@@ -351,7 +346,6 @@ tr.clk-row:hover td { background: #fff6ec; }
 .next-row { display: flex; justify-content: flex-end; gap: 10px; align-items: center; margin-top: 14px; }
 .page-intro { background: #f3f7fb; border: 1px solid #d6e2ee; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 12px; color: #24384d; }
 .page-intro b { color: #173a5e; }
-.v3d.lv-max { position: fixed; inset: 12px; z-index: 70; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); border-radius: 8px; }
 
 /* v0.6 — point picking */
 .lv.need { border: 2px solid var(--accent); box-shadow: 0 0 0 3px rgba(232,130,42,.18); }

@@ -287,7 +287,6 @@ test('v2 project file migrates to leg assemblies', () => {
 });
 
 import { niceName, listPadeyes, shackleCompatibility as compat } from '../js/catalog/index.js';
-import { draw3d } from '../js/draw/view3d.js';
 import { schematicSvg } from '../js/draw/schematic.js';
 
 test('standard pad eyes type S and the H ≤ 106 % pin rule', () => {
@@ -319,11 +318,9 @@ test('simple equipment names', () => {
   assert.match(niceName(selectSling(8, 'direct', 'RS-PES'), { length_m: 6 }), /^Roundsling 8t — 6 m$/);
 });
 
-test('3D view and rigging schematic render', () => {
+test('rigging schematic renders', () => {
   const p = defaultProject();
   const res = computeProject(p);
-  const svg = draw3d(p, res, { width: 500, height: 400 });
-  assert.ok(svg.startsWith('<svg') && svg.includes('COG') && svg.includes('Hook'));
   const sch = schematicSvg(p, res, { width: 800 });
   assert.ok(sch.svg.includes('Shackle') && sch.svg.includes('Crane hook') && !sch.drops.some((d) => d.level !== 'head'));
   const live = schematicSvg(p, res, { width: 800, interactive: true });

@@ -316,11 +316,6 @@ table.data tbody tr { cursor: default; }
 .pick-item .xyz { color: var(--muted); font-variant-numeric: tabular-nums; }
 .pick-item .warn { color: var(--warn); font-weight: 700; font-size: 11.5px; }
 .pick-status { font-size: 14px; margin-bottom: 6px; }
-.v3d { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #fff; }
-.v3d-bar { display: flex; gap: 4px; align-items: center; padding: 4px 6px; background: #f6f8fa; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-.v3d-stage { cursor: grab; touch-action: none; user-select: none; }
-.v3d-stage:active { cursor: grabbing; }
-.v3d-stage svg { display: block; width: 100%; height: 100%; }
 .schem-grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 14px; }
 .schem { background: #fafbfc; border: 1px dashed var(--line); border-radius: 8px; overflow-x: auto; min-height: 300px; }
 .schem svg { display: block; margin: 0 auto; }
@@ -358,7 +353,6 @@ tr.clk-row:hover td { background: #fff6ec; }
 .next-row { display: flex; justify-content: flex-end; gap: 10px; align-items: center; margin-top: 14px; }
 .page-intro { background: #f3f7fb; border: 1px solid #d6e2ee; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; margin-bottom: 12px; color: #24384d; }
 .page-intro b { color: #173a5e; }
-.v3d.lv-max { position: fixed; inset: 12px; z-index: 70; background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.4); border-radius: 8px; }
 
 /* v0.6 — point picking */
 .lv.need { border: 2px solid var(--accent); box-shadow: 0 0 0 3px rgba(232,130,42,.18); }
@@ -5140,342 +5134,17 @@ async function scanText(src, maxPages = 20) {
 return { loadPdfJs, openSource, textLines, parseWeight, parseCog, scanText };
 })();
 
-// ---- js/draw/view3d.js
-__m["js/draw/view3d.js"] = (() => {
-const { esc } = __m["js/draw/svg.js"];
-// 3D view of the load and its rigging (orthographic, orbitable). Pure SVG string generator.
-// The drawing views imported on the Load page are projected on their planes (top on the top face,
-// front on the front face, side on the right face), so the part can be "seen" in 3D.
-
-
-const rad = (d) => (d * Math.PI) / 180;
-const n = (v) => (Math.round(v * 100) / 100).toString();
-const SAFE_IMG = /^data:image\/(png|jpe?g|gif|webp);base64,[a-z0-9+/=\s]+$/i;
-
-const DEFAULT_CAM = { yaw: -35, pitch: 24, zoom: 1, panX: 0, panY: 0 };
-
-function envelope(load) {
-  const o = load.origin_mm || {}, d = load.dims_mm || {};
-  const x0 = +o.x || 0, y0 = +o.y || 0, z0 = +o.z || 0;
-  return { x0, y0, z0, x1: x0 + (+d.L || 0), y1: y0 + (+d.W || 0), z1: z0 + (+d.H || 0) };
-}
-
-/** Camera transform: world mm → { sx, sy (up), d (towards the viewer) } before fitting. */
-function camera(cam, c) {
-  const cy = Math.cos(rad(cam.yaw)), sy = Math.sin(rad(cam.yaw));
-  const cp = Math.cos(rad(cam.pitch)), sp = Math.sin(rad(cam.pitch));
-  return (p) => {
-    const x = p.x - c.x, y = p.y - c.y, z = p.z - c.z;
-    const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
-    return { sx: x1, sy: z * cp + y1 * sp, d: -y1 * cp + z * sp };
-  };
-}
-
-/**
- * opts: { width, height, cam, drawings (bool), labels (bool), forces (bool), title }
- * Returns an SVG string.
- */
-/** Box given by the frames of the drawing views (per axis, the envelope where no view gives it). */
-function viewsBox(load, e) {
-  const vs = load.views || {};
-  const ext = (v) => {
-    if (!v?.image || !(v.s > 0)) return null;
-    const kf = v.flipH ? -1 : 1;
-    const a0 = (0 - v.ou) * v.s * kf, a1 = (v.w - v.ou) * v.s * kf;
-    return { a0: Math.min(a0, a1), a1: Math.max(a0, a1), b0: (v.ov - v.h) * v.s, b1: v.ov * v.s };
-  };
-  const t = ext(vs.xy), f = ext(vs.xz), sd = ext(vs.yz);
-  const pick = (...c) => c.find(Boolean);
-  const rx = pick(t && [t.a0, t.a1], f && [f.a0, f.a1], [e.x0, e.x1]);
-  const ry = pick(t && [t.b0, t.b1], sd && [sd.a0, sd.a1], [e.y0, e.y1]);
-  const rz = pick(f && [f.b0, f.b1], sd && [sd.b0, sd.b1], [e.z0, e.z1]);
-  return { x0: rx[0], x1: rx[1], y0: ry[0], y1: ry[1], z0: rz[0], z1: rz[1], any: !!(t || f || sd) };
-}
-
-function draw3d(project, res, opts = {}) {
-  const W = opts.width || 640, H = opts.height || 460;
-  const cam = { ...DEFAULT_CAM, ...(opts.cam || {}) };
-  const load = project.load || {};
-  const rig = res?.rig && !res.rig.error ? res.rig : null;
-  const env = envelope(load);
-  const vb = viewsBox(load, env);
-  const e = vb.any ? vb : env; // with drawings, the planes and extents follow the frames of the views
-  const P = (x, y, z) => ({ x, y, z });
-  const M = (v) => P(v.x * 1000, v.y * 1000, v.z * 1000); // m → mm
-  const pts = (load.liftPoints || []).filter((p) => p.used !== false);
-  const cog = load.cog_mm || {};
-  // scene extents
-  const all = [P(e.x0, e.y0, e.z0), P(e.x1, e.y1, e.z1)];
-  pts.forEach((p) => all.push(P(+p.x || 0, +p.y || 0, +p.z || 0)));
-  if (rig) all.push(M(rig.hook), M({ ...rig.hook, z: rig.hook.z + 0.6 }));
-  const c = { x: (Math.min(...all.map((q) => q.x)) + Math.max(...all.map((q) => q.x))) / 2, y: (Math.min(...all.map((q) => q.y)) + Math.max(...all.map((q) => q.y))) / 2, z: (Math.min(...all.map((q) => q.z)) + Math.max(...all.map((q) => q.z))) / 2 };
-  const pr = camera(cam, c);
-  // fit (independent of the yaw so that orbiting does not "breathe")
-  const span = Math.max(...all.map((q) => Math.hypot(q.x - c.x, q.y - c.y, q.z - c.z))) * 2 || 1000;
-  const k = (Math.min(W, H - 30) / span) * 0.95 * cam.zoom;
-  const ox = W / 2 + (cam.panX || 0), oy = (H + 18) / 2 + (cam.panY || 0);
-  const S = (p) => {
-    const q = pr(p);
-    return { x: ox + q.sx * k, y: oy - q.sy * k, d: q.d };
-  };
-  const items = []; // { d, svg }
-  const push = (d, svg) => items.push({ d, svg });
-  const u = 1; // px
-  const poly = (ps, a) => `<polygon points="${ps.map((q) => `${n(q.x)},${n(q.y)}`).join(' ')}" ${a}/>`;
-
-  // ground grid at the underside of the load
-  const g0 = Math.max(e.x1 - e.x0, e.y1 - e.y0, 2000);
-  const step = g0 > 8000 ? 2000 : g0 > 3000 ? 1000 : 500;
-  let grid = '';
-  const gx0 = Math.floor((e.x0 - g0 * 0.4) / step) * step, gx1 = e.x1 + g0 * 0.4, gy0 = Math.floor((e.y0 - g0 * 0.4) / step) * step, gy1 = e.y1 + g0 * 0.4;
-  for (let x = gx0; x <= gx1; x += step) { const a = S(P(x, gy0, e.z0)), b = S(P(x, gy1, e.z0)); grid += `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}"/>`; }
-  for (let y = gy0; y <= gy1; y += step) { const a = S(P(gx0, y, e.z0)), b = S(P(gx1, y, e.z0)); grid += `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(b.x)}" y2="${n(b.y)}"/>`; }
-  let body = `<g stroke="#e4e9ef" stroke-width="${u}">${grid}</g>`;
-  // shadow
-  const sh = [P(e.x0, e.y0, e.z0), P(e.x1, e.y0, e.z0), P(e.x1, e.y1, e.z0), P(e.x0, e.y1, e.z0)].map(S);
-  body += poly(sh, 'fill="#1c2733" fill-opacity=".08"');
-
-  // ---- load envelope: faces with flat shading
-  const hasBox = e.x1 > e.x0 && e.y1 > e.y0 && e.z1 > e.z0;
-  const views = load.views || {};
-  const showDw = opts.drawings !== false && Object.values(views).some((v) => v?.image);
-  const cyw = Math.cos(rad(cam.yaw)), syw = Math.sin(rad(cam.yaw)), cpp = Math.cos(rad(cam.pitch)), spp = Math.sin(rad(cam.pitch));
-  const view = [-syw * cpp, -cyw * cpp, spp]; // direction towards the viewer
-  const face = (corners, nrm, shade, { fillOp = 0.9, isVoid = false } = {}) => {
-    const facing = nrm[0] * view[0] + nrm[1] * view[1] + nrm[2] * view[2];
-    const sp2 = corners.map(S);
-    const d = sp2.reduce((s2, q) => s2 + q.d, 0) / sp2.length - (facing > 0 ? 0 : 1e9);
-    const light = Math.max(0, nrm[0] * -0.3 + nrm[1] * -0.5 + nrm[2] * 0.8);
-    const col = Math.round(150 + 80 * (shade ?? 0.5 + 0.5 * light));
-    if (isVoid) { if (facing > 0) push(d + 2, poly(sp2, 'fill="none" stroke="#7b3fb0" stroke-width="1" stroke-dasharray="4 3"')); return; }
-    push(d, poly(sp2, `fill="rgb(${col - 12},${col},${Math.min(255, col + 20)})" fill-opacity="${facing > 0 ? fillOp : 0.18}" stroke="#4a5562" stroke-width="${facing > 0 ? 1 : 0.5}" stroke-linejoin="round" ${facing > 0 ? '' : 'stroke-dasharray="4 3"'}`));
-  };
-  const boxFaces = (b, o = {}) => {
-    const V = (x, y, z) => P(x ? b.x1 : b.x0, y ? b.y1 : b.y0, z ? b.z1 : b.z0);
-    face([V(0, 0, 1), V(1, 0, 1), V(1, 1, 1), V(0, 1, 1)], [0, 0, 1], 0.95, o);
-    face([V(0, 0, 0), V(1, 0, 0), V(1, 1, 0), V(0, 1, 0)], [0, 0, -1], 0.55, o);
-    face([V(0, 0, 0), V(1, 0, 0), V(1, 0, 1), V(0, 0, 1)], [0, -1, 0], 0.8, o);
-    face([V(0, 1, 0), V(1, 1, 0), V(1, 1, 1), V(0, 1, 1)], [0, 1, 0], 0.7, o);
-    face([V(0, 0, 0), V(0, 1, 0), V(0, 1, 1), V(0, 0, 1)], [-1, 0, 0], 0.66, o);
-    face([V(1, 0, 0), V(1, 1, 0), V(1, 1, 1), V(1, 0, 1)], [1, 0, 0], 0.76, o);
-  };
-  const cylFaces = (sh, o = {}) => {
-    const ax = sh.axis || 'z', r = +sh.r || 0, Lc = +sh.L || 0, N = 24;
-    const c = { x: +sh.cx || 0, y: +sh.cy || 0, z: +sh.cz || 0 };
-    const [u1, u2] = ['x', 'y', 'z'].filter((k) => k !== ax);
-    const pt = (t, along) => { const q = { ...c }; q[u1] += r * Math.cos(t); q[u2] += r * Math.sin(t); q[ax] += along; return P(q.x, q.y, q.z); };
-    const nv = (t) => { const q = { x: 0, y: 0, z: 0 }; q[u1] = Math.cos(t); q[u2] = Math.sin(t); return [q.x, q.y, q.z]; };
-    for (let i = 0; i < N; i++) {
-      const t0 = (i / N) * 2 * Math.PI, t1 = ((i + 1) / N) * 2 * Math.PI;
-      face([pt(t0, 0), pt(t1, 0), pt(t1, Lc), pt(t0, Lc)], nv((t0 + t1) / 2), null, o);
-    }
-    const cap = (along, sign) => { const q = [0, 0, 0]; q['xyz'.indexOf(ax)] = sign; face(Array.from({ length: N }, (_, i) => pt((i / N) * 2 * Math.PI, along)), q, 0.9, o); };
-    cap(0, Lc >= 0 ? -1 : 1);
-    cap(Lc, Lc >= 0 ? 1 : -1);
-  };
-  const shapes = (load.shapes || []).filter(Boolean);
-  if (shapes.length) {
-    for (const sh of shapes) {
-      const o = { isVoid: !!sh.void, fillOp: showDw ? 0.55 : 0.92 };
-      if (sh.type === 'box') boxFaces({ x0: Math.min(sh.x0, sh.x1), x1: Math.max(sh.x0, sh.x1), y0: Math.min(sh.y0, sh.y1), y1: Math.max(sh.y0, sh.y1), z0: Math.min(sh.z0, sh.z1), z1: Math.max(sh.z0, sh.z1) }, o);
-      else cylFaces(sh, o);
-    }
-  } else if (hasBox && !showDw) boxFaces(e, { fillOp: 0.9 }); // with the drawings shown they are the part: no box over them
-  // ---- drawing views projected on their planes
-  if (showDw) {
-    const planes = {
-      xy: (a, b) => P(a, b, e.z1 || e.z0),
-      xz: (a, b) => P(a, e.y0, b),
-      yz: (a, b) => P(e.x1, a, b),
-    };
-    for (const [key, v] of Object.entries(views)) {
-      if (!v?.image || !SAFE_IMG.test(v.image) || !(v.s > 0) || !planes[key]) continue;
-      const kf = v.flipH ? -1 : 1;
-      const at = (px, py) => S(planes[key]((px - v.ou) * v.s * kf, (v.ov - py) * v.s));
-      const o0 = at(0, 0), ou = at(1, 0), ovv = at(0, 1);
-      const m = [ou.x - o0.x, ou.y - o0.y, ovv.x - o0.x, ovv.y - o0.y, o0.x, o0.y];
-      const centre = at(v.w / 2, v.h / 2);
-      push(centre.d + 1, `<image href="${v.image}" width="${v.w}" height="${v.h}" preserveAspectRatio="none" transform="matrix(${m.map(n).join(' ')})" opacity="0.8" style="mix-blend-mode:multiply"/>`);
-    }
-  }
-
-  // ---- COG
-  const cg = S(P(+cog.x || 0, +cog.y || 0, +cog.z || 0));
-  const r = 8;
-  push(cg.d + 5e8, `<g transform="translate(${n(cg.x)} ${n(cg.y)})"><circle r="${r}" fill="#fff" stroke="#111" stroke-width="1.4"/><path d="M0 0 L${r} 0 A${r} ${r} 0 0 1 0 ${r} Z M0 0 L${-r} 0 A${r} ${r} 0 0 1 0 ${-r} Z" fill="#111"/>${opts.labels !== false ? `<text x="${r + 4}" y="${-r}" font-size="11" font-weight="800" paint-order="stroke" stroke="#fff" stroke-width="3">COG</text>` : ''}</g>`);
-
-  // ---- rigging
-  if (rig) {
-    const hk = S(M(rig.hook));
-    const head = rig.head || {};
-    const mlLen = ((head.masterlink?.dims?.insideLength || 0) + (head.useSub ? head.subLink?.dims?.insideLength || 0 : 0)) * k;
-    const labels = [];
-    for (const leg of rig.legs) {
-      const a = S(M(leg.bottom));
-      let t = S(M(leg.top));
-      if (leg.level !== 'bottom' && !head.onHook) t = { ...t, y: t.y + Math.min(mlLen, 0.4 * Math.hypot(t.x - a.x, t.y - a.y)) };
-      const col = leg.lengthKind === 'chain' ? '#4a5562' : esc(leg.comps?.sling?.colorHex || '#2a5db0');
-      const d = (a.d + t.d) / 2 + 1e6;
-      let s = `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(t.x)}" y2="${n(t.y)}" stroke="#fff" stroke-width="6.5" stroke-linecap="round"/>`;
-      s += `<line x1="${n(a.x)}" y1="${n(a.y)}" x2="${n(t.x)}" y2="${n(t.y)}" stroke="${col}" stroke-width="4" stroke-linecap="round"${leg.lengthKind === 'chain' ? ' stroke-dasharray="3 2"' : ''}/>`;
-      // shackle glyph at the lift point
-      if (leg.parts?.[0]?.kind === 'shackle') {
-        const ang = Math.atan2(t.y - a.y, t.x - a.x);
-        const gx = a.x + Math.cos(ang) * 9, gy = a.y + Math.sin(ang) * 9;
-        s += `<circle cx="${n(gx)}" cy="${n(gy)}" r="5" fill="none" stroke="#4a5562" stroke-width="2.2"/>`;
-      }
-      push(d, s);
-      if (opts.labels !== false) {
-        const mx = a.x + (t.x - a.x) * 0.26, my = a.y + (t.y - a.y) * 0.26;
-        // legs seen on top of each other share one label
-        const g = labels.find((q) => Math.hypot(q.ax - a.x, q.ay - a.y) < 4 && Math.hypot(q.tx - t.x, q.ty - t.y) < 4);
-        if (g) g.legs.push(leg);
-        else labels.push({ ax: a.x, ay: a.y, tx: t.x, ty: t.y, mx, my, d: d + 2e8, legs: [leg] });
-      }
-    }
-    for (const q of labels) {
-      const keys = q.legs.map((l) => l.key).join('/');
-      const same = q.legs.every((l) => Math.abs(l.Leff - q.legs[0].Leff) < 0.005);
-      const len = same ? `${q.legs[0].Leff.toFixed(2)} m` : q.legs.map((l) => `${l.Leff.toFixed(2)}`).join(' / ') + ' m';
-      const txt = opts.forces !== false ? `${keys} · ${len} · ${q.legs[0].angleV.toFixed(0)}°` : keys;
-      push(q.d, `<text x="${n(q.mx + 7)}" y="${n(q.my)}" font-size="10.5" font-weight="700" fill="#173a5e" paint-order="stroke" stroke="#fff" stroke-width="3.2">${esc(txt)}</text>`);
-    }
-    if (rig.spreader) {
-      const sa = S(M(rig.spreader.lugA)), sb = S(M(rig.spreader.lugB));
-      push((sa.d + sb.d) / 2 + 1.5e6, `<line x1="${n(sa.x)}" y1="${n(sa.y)}" x2="${n(sb.x)}" y2="${n(sb.y)}" stroke="#9b5a1d" stroke-width="9" stroke-linecap="round"/><line x1="${n(sa.x)}" y1="${n(sa.y)}" x2="${n(sb.x)}" y2="${n(sb.y)}" stroke="#e8a35e" stroke-width="5" stroke-linecap="round"/>`);
-    }
-    // head: master link, hook, rope
-    let h = '';
-    if (!head.onHook && head.masterlink) {
-      const L = Math.max(mlLen, 16), w = Math.max(L * 0.55, 9);
-      h += `<rect x="${n(hk.x - w / 2)}" y="${n(hk.y)}" width="${n(w)}" height="${n(L)}" rx="${n(w / 2)}" fill="none" stroke="#4a5562" stroke-width="3"/>`;
-    }
-    h += `<path d="M ${n(hk.x)} ${n(hk.y - 2)} C ${n(hk.x + 11)} ${n(hk.y - 2)} ${n(hk.x + 12)} ${n(hk.y - 18)} ${n(hk.x)} ${n(hk.y - 18)} L ${n(hk.x)} ${n(hk.y - 30)}" fill="none" stroke="#7a5a10" stroke-width="3.2" stroke-linecap="round"/>`;
-    h += `<rect x="${n(hk.x - 8)}" y="${n(hk.y - 44)}" width="16" height="14" rx="2" fill="#f2c14e" stroke="#7a5a10"/>`;
-    h += `<line x1="${n(hk.x)}" y1="${n(hk.y - 44)}" x2="${n(hk.x)}" y2="${n(Math.max(4, hk.y - 120))}" stroke="#333" stroke-width="1.2"/>`;
-    if (opts.labels !== false) h += `<text x="${n(hk.x + 14)}" y="${n(hk.y - 22)}" font-size="10.5" font-weight="700" fill="#7a5a10" paint-order="stroke" stroke="#fff" stroke-width="3">Hook · ${res.shlCrane?.toFixed(2) ?? ''} t</text>`;
-    push(hk.d + 3e8, h);
-    // vertical through the COG
-    const cgHook = S(P(+cog.x || 0, +cog.y || 0, rig.hook.z * 1000));
-    push(-5e8, `<line x1="${n(cg.x)}" y1="${n(cg.y)}" x2="${n(cgHook.x)}" y2="${n(cgHook.y)}" stroke="#7a5a10" stroke-width="0.8" stroke-dasharray="5 4" opacity=".7"/>`);
-  }
-  // ---- lift points
-  const ptLbl = [];
-  for (const p of pts) {
-    const a = S(P(+p.x || 0, +p.y || 0, +p.z || 0));
-    push(a.d + 4e8, `<circle cx="${n(a.x)}" cy="${n(a.y)}" r="4.2" fill="${p.padeye === false ? '#1f6fb2' : '#c0392b'}" stroke="#fff" stroke-width="1.4"/>`);
-    const g = ptLbl.find((q) => Math.hypot(q.x - a.x, q.y - a.y) < 6);
-    if (g) g.ids.push(p.id);
-    else ptLbl.push({ x: a.x, y: a.y, d: a.d + 4.5e8, ids: [p.id] });
-  }
-  if (opts.labels !== false)
-    for (const q of ptLbl) push(q.d, `<text x="${n(q.x - 6)}" y="${n(q.y + 15)}" font-size="11.5" font-weight="800" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="middle">${esc(q.ids.join('/'))}</text>`);
-  items.sort((a, b) => a.d - b.d);
-  body += items.map((i) => i.svg).join('');
-
-  // ---- axes triad
-  const tri = (dx, dy, dz) => { const q = pr(P(c.x + dx, c.y + dy, c.z + dz)); return [q.sx, -q.sy]; };
-  const ax = [['X', tri(1, 0, 0), '#c0392b'], ['Y', tri(0, 1, 0), '#1f8f4e'], ['Z', tri(0, 0, 1), '#2a5db0']];
-  const bx = 34, by = H - 30;
-  body += ax.map(([t, v, col]) => {
-    const l = Math.hypot(v[0], v[1]) || 1;
-    const x2 = bx + (v[0] / l) * 22 * Math.min(1, l), y2 = by + (v[1] / l) * 22 * Math.min(1, l);
-    return `<line x1="${bx}" y1="${by}" x2="${n(x2)}" y2="${n(y2)}" stroke="${col}" stroke-width="1.8"/><text x="${n(x2 + (v[0] / l) * 6 - 3)}" y="${n(y2 + (v[1] / l) * 6 + 4)}" font-size="10" fill="${col}" font-weight="700">${t}</text>`;
-  }).join('');
-  const title = opts.title ?? '3D view';
-  if (title) body += `<text x="12" y="20" font-size="12" font-weight="700" fill="#173a5e">${esc(title)}</text>`;
-  if (rig && opts.labels !== false) body += `<text x="${W - 12}" y="20" font-size="10.5" fill="#5d6b7a" text-anchor="end">Hook ${rig.riggingHeight.toFixed(2)} m above the lift points</text>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Arial, Helvetica, sans-serif" style="background:#fff">${body}</svg>`;
-}
-
-return { DEFAULT_CAM, draw3d };
-})();
-
-// ---- js/ui/viewer3d.js
-__m["js/ui/viewer3d.js"] = (() => {
-const { app } = __m["js/ui/app.js"];
-const { el, download, toast } = __m["js/ui/dom.js"];
-const { draw3d, DEFAULT_CAM } = __m["js/draw/view3d.js"];
-const { svgToPng } = __m["js/draw/svg.js"];
-// Interactive 3D viewer: drag to orbit, shift-drag / right-drag to pan, wheel to zoom, presets.
-
-
-
-
-
-const shared = { cam: { ...DEFAULT_CAM }, drawings: true };
-
-/** Camera of the 3D views on screen (the report uses the same orientation). */
-const current3d = () => ({ cam: { ...shared.cam, panX: 0, panY: 0, zoom: 1 }, drawings: shared.drawings });
-
-function viewer3d(opts = {}) {
-  const H = opts.height || 460;
-  const box = el('div', { class: 'v3d' });
-  const stage = el('div', { class: 'v3d-stage', style: { height: `${H}px` } });
-  const preset = (txt, c) => el('button', { class: 'small', onclick: () => { Object.assign(shared.cam, c, { panX: 0, panY: 0 }); draw(); } }, txt);
-  const bar = el('div', { class: 'v3d-bar' },
-    preset('3D', { yaw: -35, pitch: 24 }), preset('Top', { yaw: 0, pitch: 89.9 }), preset('Front', { yaw: 0, pitch: 0 }), preset('Side', { yaw: -90, pitch: 0 }),
-    el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: shared.drawings, onchange: (e) => { shared.drawings = e.target.checked; draw(); } }), 'Drawings'),
-    el('span', { class: 'muted', style: { fontSize: '11px' } }, 'drag = rotate · right-drag or shift-drag = move · wheel = zoom'),
-    el('span', { class: 'spacer' }),
-    el('button', { class: 'lv-btn', title: 'Zoom in', onclick: () => zoom(1.25) }, '+'),
-    el('button', { class: 'lv-btn', title: 'Zoom out', onclick: () => zoom(1 / 1.25) }, '−'),
-    el('button', { class: 'lv-btn', title: 'Fit', onclick: () => { Object.assign(shared.cam, { zoom: DEFAULT_CAM.zoom ?? 1, panX: 0, panY: 0 }); draw(); } }, 'Fit'),
-    el('button', { class: 'lv-btn', title: 'Full screen / back', onclick: () => { box.classList.toggle('lv-max'); stage.style.height = box.classList.contains('lv-max') ? 'calc(100vh - 90px)' : `${H}px`; setTimeout(draw, 30); } }, '⤢'),
-    el('button', { class: 'small', onclick: () => download('view-3d.svg', stage.innerHTML, 'image/svg+xml') }, 'SVG'),
-    el('button', { class: 'small', onclick: async () => { try { download('view-3d.png', await svgToPng(stage.innerHTML, 2), 'image/png'); } catch (e) { toast(e.message); } } }, 'PNG'),
-  );
-  box.append(bar, stage);
-  let drag = null;
-  const zoom = (f) => { shared.cam.zoom = Math.max(0.3, Math.min(6, (shared.cam.zoom || 1) * f)); draw(); };
-  function draw() {
-    const W = stage.clientWidth || opts.width || 640;
-    const h = stage.clientHeight || H;
-    stage.innerHTML = draw3d(app.project, app.result, { width: W, height: h, cam: shared.cam, drawings: shared.drawings, title: opts.title ?? '' });
-  }
-  stage.addEventListener('pointerdown', (e) => {
-    drag = { x: e.clientX, y: e.clientY, cam: { ...shared.cam }, pan: e.shiftKey || e.button === 2 };
-    stage.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  });
-  stage.addEventListener('contextmenu', (e) => e.preventDefault());
-  stage.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
-    if (drag.pan) Object.assign(shared.cam, { panX: drag.cam.panX + dx, panY: drag.cam.panY + dy });
-    else Object.assign(shared.cam, { yaw: drag.cam.yaw - dx * 0.45, pitch: Math.max(-5, Math.min(89.9, drag.cam.pitch + dy * 0.35)) });
-    draw();
-  });
-  const end = () => (drag = null);
-  stage.addEventListener('pointerup', end);
-  stage.addEventListener('pointercancel', end);
-  stage.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    shared.cam.zoom = Math.max(0.3, Math.min(6, shared.cam.zoom * (e.deltaY > 0 ? 1 / 1.12 : 1.12)));
-    draw();
-  }, { passive: false });
-  stage.addEventListener('dblclick', () => { Object.assign(shared.cam, DEFAULT_CAM); draw(); });
-  box.refresh = draw;
-  requestAnimationFrame(draw);
-  return box;
-}
-
-return { current3d, viewer3d };
-})();
-
 // ---- js/ui/loadsetup.js
 __m["js/ui/loadsetup.js"] = (() => {
 const { app } = __m["js/ui/app.js"];
 const { el, fmt, toast } = __m["js/ui/dom.js"];
 const { openSource, scanText } = __m["js/ui/pdfutil.js"];
 const { loadView, lvState, AXES } = __m["js/ui/loadview.js"];
-const { viewer3d } = __m["js/ui/viewer3d.js"];
 const { shapesCog, shapeVolume } = __m["js/engine/shape.js"];
 // Guided set-up of the load from its drawing, in 5 steps:
 //   1 drawing (PDF / image)  2 scale  3 top / front / side views (a frame each)  4 simple shapes (optional)
 //   5 lift points & COG clicked on the views
-// The 3D coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
-
+// The X, Y, Z coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
 
 
 
@@ -5492,7 +5161,6 @@ const VIEW_DEF = {
 const STEPS = ['Drawing', 'Scale', 'Views', 'Shape (optional)', 'Lift points & COG'];
 
 const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG', selShape: null, voidNext: false };
-let viewer = null;
 let pickViews = [];
 let root = null;
 
@@ -5506,7 +5174,6 @@ function loadSetup() {
 }
 
 function refreshSetup() {
-  viewer?.refresh();
   const need = setup.step === 5 ? nextNeeded(setup.item) : null;
   pickViews.forEach((v) => { v.classList.toggle('need', !!need && v.dataset.key === need); v.refresh(); });
   const st = document.getElementById('pick-status');
@@ -5546,8 +5213,7 @@ function build() {
   if (setup.step === 4) body.append(stepShape());
   if (setup.step === 5) body.append(stepPoints());
   if (setup.step !== 4) lvState.tool = null;
-  viewer = viewer3d({ height: setup.step >= 4 ? 360 : 420, title: '' });
-  root.append(head, el('div', { class: 'setup-grid' }, body, el('div', { class: 'setup-3d' }, el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, '3D preview — the drawing views are shown on their planes'), viewer)));
+  root.append(head, body);
 }
 
 const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(5, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
@@ -5584,13 +5250,37 @@ function stepDrawing() {
   return box;
 }
 
-async function openFile(f) {
+/** Scale of the file open for this view (each file can have its own). */
+function scaleLine(toolBtn) {
+  const s = scale(), src = app.drawSource;
+  const isPdf = src?.kind === 'pdf';
+  return el('div', { class: `row ${s.mmPerUnit ? '' : 'note warn'}`, style: { fontSize: '12px', margin: '0 0 6px', gap: '8px' } },
+    el('span', {}, s.mmPerUnit ? `Scale of this file: ${isPdf && s.ratio ? `1:${fmt(s.ratio, 0)}` : `1 unit = ${fmt(s.mmPerUnit, 3)} mm`}` : 'Scale of this file not set:'),
+    isPdf ? el('span', {}, '1 : ', el('input', { type: 'number', min: 1, step: 'any', value: s.ratio ?? '', style: { width: '70px' }, onchange: (e) => { const r = Number(e.target.value); if (r > 0) { setRatio(r); rebuild(); } } })) : null,
+    toolBtn('cal', 'Calibrate on a dimension'),
+    setup.tool === 'cal' ? el('span', { class: 'muted' }, 'click both ends of a known dimension, then type its length') : null);
+}
+
+function startEdit(k) {
+  const v = L().views?.[k];
+  setup.edit = k;
+  setup.tool = 'frame';
+  const same = v?.wizard && v.file === app.drawSource?.name;
+  setup.draft = same ? { ...v.wizard } : { page: setup.page, crop: null, origin: null, flipH: !!v?.flipH };
+  setup.page = setup.draft.page || setup.page;
+  setup.step = 3;
+  rebuild();
+}
+
+async function openFile(f, editKey) {
   try {
+    const prev = app.drawSource?.name;
     app.drawSource = await openSource(f);
     app.drawScan = null;
     setup.page = 1;
+    if (editKey) { startEdit(editKey); setup.draft.page = 1; }
     scale().kind = app.drawSource.kind;
-    if (app.drawSource.kind === 'image') scale().ratio = null;
+    if (app.drawSource.kind === 'image') { scale().ratio = null; if (app.drawSource.name !== prev) scale().mmPerUnit = null; }
     else if (scale().ratio) scale().mmPerUnit = PT_MM * scale().ratio;
     rebuild();
     app.drawScan = await scanText(app.drawSource).catch(() => null);
@@ -5612,7 +5302,9 @@ function setRatio(r) {
 
 function applyScaleToViews() {
   const s = scale();
-  for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit) v.s = s.mmPerUnit / v.pxPerUnit;
+  // only the views taken from this file (each file may have its own scale)
+  const name = app.drawSource?.name;
+  for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit && (!name || !v.file || v.file === name)) { v.s = s.mmPerUnit / v.pxPerUnit; v.scaled = true; }
   // views framed edge to edge: the size of the part follows the new scale
   if (Object.values(L().views || {}).some((v) => v?.autoOrigin)) envelopeFromViews();
   app.recompute();
@@ -5652,17 +5344,20 @@ function stepViews() {
     return el('div', { class: `view-card ${setup.edit === k ? 'on' : ''} ${v ? 'ok' : ''}` },
       el('div', { class: 'vc-head' }, el('b', {}, d.name), el('span', { class: 'muted' }, d.axes)),
       v?.image ? el('img', { src: v.image, alt: '' }) : el('div', { class: 'vc-empty' }, cubeIcon(k)),
+      v?.file ? el('div', { class: 'muted', style: { fontSize: '11px' } }, `${v.file}${v.page ? ` — page ${v.page}` : ''}${v.autoOrigin ? ' · origin: frame corner' : ' · origin clicked'}`) : null,
       el('div', { class: 'row' },
-        el('button', { class: `small ${v ? '' : 'primary'}`, disabled: !app.drawSource, onclick: () => { setup.edit = k; setup.tool = 'frame'; setup.draft = v?.wizard ? { ...v.wizard } : { page: setup.page, crop: null, origin: null, flipH: false }; setup.page = setup.draft.page || setup.page; rebuild(); } }, v ? 'Redo on the drawing' : 'Select on the drawing'),
+        el('button', { class: `small ${v ? '' : 'primary'}`, disabled: !app.drawSource, title: app.drawSource ? `On ${app.drawSource.name}` : 'Open a drawing first (or choose a file for this view)', onclick: () => startEdit(k) }, v ? 'Redo' : 'Select on the drawing'),
+        el('label', { class: 'btn small', title: 'A PDF or an image for this view only' }, 'Choose a file…', el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f, k); } })),
         v ? el('button', { class: 'small danger', onclick: () => { ld.views[k] = null; app.recompute(); rebuild(); } }, 'Remove') : null),
     );
   })));
-  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Open the drawing (step 1) to select the views. Without views you can still place the points on a white grid (step 5).'));
+  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Choose a file for each view (the same drawing or one image per view), or open the drawing in step 1. Without views you can still place the points on a white grid (step 5).'));
   const dm = ld.dims_mm || {};
   if (ld.views.xz || ld.views.yz)
     box.append(el('div', { class: 'row', style: { marginTop: '8px', fontSize: '12.5px' } },
       el('span', {}, 'Size of the part: ', el('b', {}, `${fmt(dm.L, 0)} (X) × ${fmt(dm.W, 0)} (Y) × ${fmt(dm.H, 0)} (Z) mm`)),
-      el('span', { class: 'muted' }, 'The front view has the same width as the top view (X), the side view the same width as its height (Y).'),
+      el('span', { class: 'muted' }, 'Taken from the frames when the origin is the frame corner; otherwise type it on the Load page or use the button.'),
+      el('button', { class: 'small', title: 'Use the frames of the views as the outline of the part', onclick: () => { envelopeFromViews(true); app.recompute(); toast('Size of the part taken from the frames'); rebuild(); } }, 'Size from the frames'),
       el('button', { class: 'small', title: 'Exchange the front and the side view', onclick: () => { swapFrontSide(); toast('Front and side views exchanged'); rebuild(); } }, 'Swap front ↔ side')));
   if (setup.edit && app.drawSource) {
     const d = VIEW_DEF[setup.edit];
@@ -5670,15 +5365,18 @@ function stepViews() {
     const toolBtn = (t, txt) => el('button', { class: `small ${setup.tool === t ? 'active' : ''}`, onclick: () => { setup.tool = t; rebuild(); } }, txt);
     box.append(
       el('div', { class: 'note info', style: { margin: '10px 0 6px' } },
-        el('b', {}, `${d.name} (${d.look}): `),
-        dr.crop
-          ? el('span', {}, 'frame set. ', el('b', {}, 'Save the view'), dr.origin ? ' (with your reference point).' : ' — the origin is the bottom-left corner of the frame, the size of the part is read from the frame.')
-          : el('span', {}, 'drag a frame around the part in this view, ', el('b', {}, 'edge to edge'), ' (not around the dimension lines). The frame gives the size of the part and its bottom-left corner is the origin.')),
-      el('div', { class: 'toolbar' }, toolBtn('frame', 'Frame'),
+        el('b', {}, `${d.name} (${d.look}) — `),
+        !dr.crop
+          ? el('span', {}, el('b', {}, '1. Frame: '), 'drag a frame around this view on the drawing (the image kept for this plane).')
+          : !dr.origin
+            ? el('span', {}, el('b', {}, '2. Origin: '), `click the origin of this view (the same reference point of the part in every view, ${d.h} and ${d.v} = 0) — or save directly to take the bottom-left corner of the frame.`)
+            : el('span', {}, 'Frame and origin set: ', el('b', {}, 'save the view'), '.')),
+      scaleLine(toolBtn),
+      el('div', { class: 'toolbar' }, toolBtn('frame', '1. Frame'), toolBtn('origin', '2. Origin'),
         el('label', { class: 'check', style: { fontSize: '12px' }, title: 'For a view drawn from the other side (the part appears mirrored)' }, el('input', { type: 'checkbox', checked: !!dr.flipH, onchange: (e) => { dr.flipH = e.target.checked; drawOverlay(); } }), 'Mirrored view'),
-        el('details', { class: 'inline-adv' }, el('summary', {}, 'Other origin…'),
-          el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Only if the origin is not the corner of the frame: '), toolBtn('origin', 'Click the reference point'),
-          dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; rebuild(); } }, 'Use the frame corner') : null),
+        dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; setup.tool = 'origin'; rebuild(); } }, 'Use the frame corner') : null,
+        el('label', { class: 'btn small', title: 'Another PDF or image for this view' }, 'Other file…', el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f, setup.edit); } })),
+        el('span', { class: 'muted', style: { fontSize: '12px' } }, app.drawSource?.name || ''),
         el('span', { class: 'spacer' }),
         el('button', { class: 'small', onclick: () => { setup.edit = null; rebuild(); } }, 'Cancel'),
         el('button', { class: 'primary small', disabled: !dr.crop, onclick: saveView }, 'Save view')),
@@ -5704,10 +5402,11 @@ function viewExtent(v) {
 }
 
 /** Overall size and origin of the part from the frames of the views. */
-function envelopeFromViews() {
+function envelopeFromViews(all = false) {
   const ld = L(), vs = ld.views || {};
-  if (!scale().mmPerUnit) return;
-  const e = { xy: viewExtent(vs.xy), xz: viewExtent(vs.xz), yz: viewExtent(vs.yz) };
+  // a frame is the outline of the part only when the origin is its corner (or when asked)
+  const ext = (v) => (v && v.scaled !== false && (all || v.autoOrigin) ? viewExtent(v) : null);
+  const e = { xy: ext(vs.xy), xz: ext(vs.xz), yz: ext(vs.yz) };
   const rx = e.xy ? [e.xy.a0, e.xy.a1] : e.xz ? [e.xz.a0, e.xz.a1] : null;
   const ry = e.xy ? [e.xy.b0, e.xy.b1] : e.yz ? [e.yz.a0, e.yz.a1] : null;
   const rz = e.xz ? [e.xz.b0, e.xz.b1] : e.yz ? [e.yz.b0, e.yz.b1] : null;
@@ -5760,7 +5459,7 @@ async function saveView() {
   L().views[k] = {
     image: canvas.toDataURL('image/jpeg', 0.85), w: canvas.width, h: canvas.height, pxPerUnit,
     s: mmPerUnit ? mmPerUnit / pxPerUnit : 1 / pxPerUnit, ou: (org.u - dr.crop.x) * pxPerUnit, ov: (org.v - dr.crop.y) * pxPerUnit,
-    flipH: !!dr.flipH, autoOrigin: !dr.origin, file: src.name, page: dr.page, wizard: { ...dr },
+    flipH: !!dr.flipH, autoOrigin: !dr.origin, scaled: !!mmPerUnit, file: src.name, page: dr.page, wizard: { ...dr },
   };
   const swapped = autoSwap();
   envelopeFromViews();
@@ -5854,6 +5553,7 @@ function onDown(ev) {
         s.ratio = app.drawSource.kind === 'pdf' ? Math.round((s.mmPerUnit / PT_MM) * 10) / 10 : null;
         applyScaleToViews();
         toast(`Scale set${s.ratio ? ` (≈ 1:${s.ratio})` : ''}`);
+        if (setup.edit) setup.tool = setup.draft?.crop ? 'origin' : 'frame';
         rebuild();
         return;
       }
@@ -5886,6 +5586,7 @@ function onUp() {
   if (r.w > 4 && r.h > 4) {
     setup.draft.crop = r;
     setup.draft.page = setup.page;
+    setup.tool = 'origin';
   }
   rebuild();
 }
@@ -6303,7 +6004,7 @@ function render(root) {
       el('button', { class: 'small', title: 'COG = centre of the overall size (weight evenly spread)', onclick: () => { load.cogBasis = 'geometric'; app.recompute(); window.__rerender(); toast('COG at the geometric centre of the part'); } }, 'COG at the geometric centre'),
       el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : load.cogBasis === 'shape' ? 'The COG follows the shapes drawn in step 4.' : '')),
     el('details', { class: 'sub' },
-      el('summary', {}, 'Overall envelope (for drawings and default positions)'),
+      el('summary', {}, 'Overall size of the part (geometric centre, symmetries)'),
       el('div', { class: 'fields' },
         field({ label: 'Overall length (X)', path: `${L}dims_mm.L`, unit: 'mm' }),
         field({ label: 'Overall width (Y)', path: `${L}dims_mm.W`, unit: 'mm' }),
@@ -7332,11 +7033,9 @@ const { listByType, listSlingFamily, listChainFamily, niceName } = __m["js/catal
 const { SLING_FAMILIES, SHACKLE_RANGES, DEFAULT_SHACKLE_RANGES } = __m["js/catalog/data.js"];
 const { isLengthPart } = __m["js/engine/rigging.js"];
 const { schematicSvg, assemblyOf: asmOf, SCHEM_COL: COL } = __m["js/draw/schematic.js"];
-const { viewer3d } = __m["js/ui/viewer3d.js"];
 const { loadView, lvState } = __m["js/ui/loadview.js"];
 // Rigging page: visual schematic (hook → head → one leg per lift point) built by drag & drop of
-// catalogue items, load share and lengths of every leg, 3D view.
-
+// catalogue items, load share and lengths of every leg, plan and elevations.
 
 
 
@@ -7364,7 +7063,6 @@ const PALETTE = [
 let linked = null; // true: a change on one leg is applied to every leg
 let lastLeg = null; // last leg edited on its own
 let pop = null;
-let v3 = null;
 let lviews = [];
 let highlight = null;
 
@@ -7399,6 +7097,51 @@ function linkLegs() {
   lastLeg = null;
   app.recompute();
   toast(src ? `Every leg now uses the assembly of leg ${src.key}` : 'Every leg uses the same assembly');
+}
+
+/**
+ * "Same WLL on every leg": for every item of the legs (shackle on the lift point, sling, top shackle…)
+ * the largest WLL used on one leg is fixed on every leg. Lengths stay free: each sling is still
+ * sized leg by leg with its own hardware.
+ */
+function sameWll() {
+  const rig = app.project.rigging;
+  const res = app.result?.rig;
+  if (!res || res.error || !res.legs?.length) return toast('No legs yet');
+  rig.design.uniformLegs = true;
+  const keyOf = (parts, i) => {
+    const p = parts[i];
+    const fam = p.kind === 'sling' ? p.family || p.item?.family || '' : '';
+    const same = parts.map((q, j) => (q.kind === p.kind ? j : -1)).filter((j) => j >= 0);
+    const pos = same.indexOf(i) === 0 ? 'first' : same.indexOf(i) === same.length - 1 ? 'last' : `n${same.indexOf(i)}`;
+    return `${p.kind}:${fam}:${pos}`;
+  };
+  const used = new Set();
+  for (const level of ['main', 'top']) {
+    const legs = res.legs.filter((l) => (level === 'top' ? l.level === 'top' : l.level !== 'top'));
+    if (!legs.length) continue;
+    const best = {};
+    legs.forEach((l) => l.parts.forEach((rp, i) => {
+      if (!rp.item) return;
+      const k = keyOf(l.parts, i);
+      if (!best[k] || rp.item.wll_t > best[k].wll_t) best[k] = rp.item;
+    }));
+    legs.forEach((l) => {
+      const own = rig.legs?.[l.key]?.parts;
+      const parts = own?.length ? own : assemblyOf(l.key, level).parts;
+      l.parts.forEach((rp, i) => {
+        const it = best[keyOf(l.parts, i)];
+        const p = parts[i];
+        if (!it || !p) return;
+        p.id = it.id;
+        if (isLengthPart(p)) { p.lock = false; p.length_m = null; }
+        used.add(niceName(it));
+      });
+    });
+  }
+  app.recompute();
+  window.__rerender?.();
+  toast(`Same WLL on every leg: ${[...used].join(', ')} — sling lengths calculated leg by leg`);
 }
 
 function itemsFor(part) {
@@ -7476,7 +7219,7 @@ function render(root) {
     ));
   }
 
-  if (linked == null) linked = !hasOwnLegs();
+  if (linked == null || hasOwnLegs()) linked = !hasOwnLegs();
   lvState.mode = 'select';
   lvState.tool = null;
   const palette = el('div', { class: 'palette flat' });
@@ -7488,16 +7231,17 @@ function render(root) {
   const schemPanel = panel(null,
     el('div', { class: 'panel-head' },
       el('h2', {}, 'Rigging arrangement'),
-      el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg'),
+      el('span', { class: 'row', style: { gap: '12px' } },
+        el('button', { class: 'small', title: 'Every leg gets the same WLL for each item (the largest one used), the sling length stays calculated leg by leg', onclick: sameWll }, 'Same WLL on every leg'),
+        el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg')),
     ),
     palette,
     el('p', { class: 'muted', style: { fontSize: '11.5px', margin: '4px 0 8px' } }, 'Click a "+" to add an item there (or drag an item of the list onto it); the bottom "+" is on the lift point. Click an item of the schematic to change its size, type or length, or to remove it — "Auto" sizes it from the force of the leg. The sling length of every leg is recalculated with its hardware. One leg is drawn for every lift point.'),
     el('div', { id: 'schem', class: 'schem' }),
   );
-  v3 = viewer3d({ height: 420, title: '' });
-  lviews = [loadView('xy', { editable: true, height: 300 }), loadView('xz', { editable: true, height: 300 })];
-  const views = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, '3D and views'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Drag the lift points or the COG in the views: lengths and forces update live.')),
-    el('div', { class: 'grid', style: { gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)', gap: '10px' } }, v3, el('div', { class: 'grid', style: { gap: '8px' } }, ...lviews)));
+  lviews = [loadView('xy', { editable: true, height: 320, title: 'Plan — XY' }), loadView('xz', { editable: true, height: 320, title: 'Front — XZ' }), loadView('yz', { editable: true, height: 320, title: 'Side — YZ' })];
+  const views = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Views'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Drag the lift points or the COG in the views: lengths and forces update live. Drag the background to move, wheel to zoom.')),
+    el('div', { class: 'grid g3', style: { gap: '8px' } }, ...lviews));
   const legs = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Legs — load share and lengths'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Lengths bearing to bearing (lift point → hook). The hook is above the COG.')), el('div', { id: 'legs-table', class: 'tbl-wrap' }));
   root.append(el('div', { class: 'grid g2' }, config, spreader || el('div', { id: 'factors-mini' })), schemPanel, legs, views);
   update(app.result);
@@ -7650,7 +7394,6 @@ function placePop(box, ev) {
 // ---------------------------------------------------------------- update
 function update(res) {
   drawSchematic();
-  v3?.refresh();
   lviews.forEach((v) => v.refresh());
   const fm = document.getElementById('factors-mini');
   if (fm && res?.rig?.factors) {
@@ -7906,11 +7649,9 @@ const { el, panel } = __m["js/ui/dom.js"];
 const { drawRiggingDetail } = __m["js/draw/detail.js"];
 const { schematicSvg } = __m["js/draw/schematic.js"];
 const { staticViewSvg } = __m["js/ui/loadview.js"];
-const { viewer3d } = __m["js/ui/viewer3d.js"];
 const { figure } = __m["js/ui/figure.js"];
-// Drawings: rigging schematic, rigging on the load (plan XY, elevations XZ and YZ, 3D) and the
+// Drawings: rigging schematic, rigging on the load (plan XY, elevations XZ and YZ) and the
 // components to scale. Every drawing exports as SVG or PNG.
-
 
 
 
@@ -7943,7 +7684,6 @@ function update(res) {
         figure(staticViewSvg('xz', p, res, { width: 720, height: 460, title: 'Front elevation — XZ' }), 'rigging-elevation-xz'),
         figure(staticViewSvg('yz', p, res, { width: 720, height: 460, title: 'Side elevation — YZ' }), 'rigging-elevation-yz'),
         figure(staticViewSvg('xy', p, res, { width: 720, height: 460, title: 'Plan — XY' }), 'rigging-plan-xy'),
-        viewer3d({ height: 482, title: '' }),
       ),
       el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Each leg is labelled with its name, bearing-to-bearing length and angle to the vertical; legs seen on top of each other share one label (e.g. A/D).'),
     ),
@@ -7990,17 +7730,13 @@ const { drawRiggingDetail, drawPadeyeFit } = __m["js/draw/detail.js"];
 const { schematicSvg } = __m["js/draw/schematic.js"];
 const { drawCapacityChart } = __m["js/draw/chart.js"];
 const { staticViewSvg, safeImg } = __m["js/ui/loadview.js"];
-const { draw3d } = __m["js/draw/view3d.js"];
 const { figure } = __m["js/ui/figure.js"];
 const { ENVIRONMENTS } = __m["js/engine/factors.js"];
 const { pointKind } = __m["js/engine/rigging.js"];
-const { current3d } = __m["js/ui/viewer3d.js"];
 const { SAFETY_MEASURES, CHECKLIFT } = __m["js/state.js"];
 // Lift plan report, laid out like the company lifting plan template (header with logos, blue
 // section bars, lifting plan block, load / crane details, safety measures, equipment, step-by-step,
 // sketches, checklift) followed by the calculation summary.
-
-
 
 
 
@@ -8022,7 +7758,6 @@ const FIGS = [
   ['xy', 'Plan — XY'],
   ['xz', 'Front elevation — XZ'],
   ['yz', 'Side elevation — YZ'],
-  ['v3d', '3D view'],
   ['padeye', 'Pad eye / shackle fit'],
   ['capacity', 'Crane capacity chart'],
 ];
@@ -8036,7 +7771,7 @@ function figsPanel() {
     el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report')),
     el('div', { class: 'row', style: { gap: '4px 16px' } },
       FIGS.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); update(); } }), t))),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'The 3D view is printed with the orientation it has on screen (turn it on the Load or Drawings page; "Drawings" ticked or not).'));
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'Saved with the project. The views are printed two per row.'));
 }
 
 function render(root) {
@@ -8193,19 +7928,17 @@ function buildReport() {
 
   // ---- Rigging: arrangement, detail, then the views
   const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  if (['schem', 'detail', 'xy', 'xz', 'yz', 'v3d'].some(figOn) || ownDw.length) {
+  if (['schem', 'detail', 'xy', 'xz', 'yz'].some(figOn) || ownDw.length) {
     add(el('div', { class: 'page-break' }));
     add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
   }
   const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
   if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
   if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  const c3 = current3d();
   const views = [
     figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
     figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
     figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-    figOn('v3d') && (() => draw3d(p, res, { width: 520, height: 300, title: 'Rigging — 3D view', cam: c3.cam, drawings: c3.drawings })),
   ].filter(Boolean);
   for (let i = 0; i < views.length; i += 2) {
     const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));
@@ -8764,11 +8497,11 @@ const TABS = [
 // short help on top of every page, and the order of the pages (Next → buttons)
 const INTRO = {
   project: ['1 / 7', 'Who, where and how: identification printed in the report header, the lift steps (with the crane radius of each one), weather limits and safety measures.'],
-  load: ['2 / 7', 'The object to lift: weight, its drawing (a frame around the top, front and side views gives its size), then click the lift points and the COG — or use the symmetry buttons and "COG at the geometric centre". The 3D view is rebuilt from the views.'],
+  load: ['2 / 7', 'The object to lift: weight, its drawing (for each view: a frame for the image, then its origin), the lift points and the COG — or use the symmetry buttons and "COG at the geometric centre".'],
   crane: ['3 / 7', 'The crane and its load chart (SWL against radius). Save a crane in "My cranes" to reuse it; a PDF load chart can be read into the table.'],
   rigging: ['4 / 7', 'From the crane hook down to the lift points: click a "+" to add an item to a leg. Sizes are chosen automatically from the force in every leg; the sling length of every leg from the target angle and its own hardware.'],
   results: ['5 / 7', 'Every check with its result. Click a warning to open the item to adjust; the grey line explains why it matters.'],
-  drawings: ['6 / 7', 'The drawings of the plan (schematic, elevations, plan, 3D, components to scale), exportable as SVG / PNG.'],
+  drawings: ['6 / 7', 'The drawings of the plan (schematic, elevations, plan, components to scale), exportable as SVG / PNG.'],
   report: ['7 / 7', 'The lift plan as printed. Add your own drawings if needed, then print or save as PDF.'],
 };
 const FLOW = ['project', 'load', 'crane', 'rigging', 'results', 'drawings', 'report'];

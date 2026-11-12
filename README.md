@@ -24,8 +24,10 @@ The current project and the inventory are saved automatically in the browser. **
 - **Easier picking**: a coordinate given by one view is kept by the next one (dashed orange guide lines show where to click; no more "views disagree"), the view to click is highlighted, a click on a marker selects it. **Mirror X / Mirror Y / 4 symmetric points** from one point, **COG at the geometric centre** of the part. COG envelope removed.
 - **Pad eye drawing**: shackle seen edge-on in the face view (its plane is perpendicular to the plate) and in its plane in the side view.
 - **Rigging**: click a "+" to choose the item to add (drag and drop still works); **master link anywhere** in a leg; G-Link removed; the **sling length of every leg is recalculated with its own hardware** — standard lengths chosen so that the legs agree best (exact length shown when it differs).
-- **Report**: the "Additional drawings" section only appears when drawings were added; **choose the drawings printed** (schematic, detail, XY, XZ, YZ, 3D, pad eye fit, crane chart); the 3D view is printed as oriented on screen.
-- **3D**: with the drawings shown, no box is drawn over them and they sit on the planes of their frames (no left-over size box); legs and points seen on top of each other share one label.
+- **Report**: the "Additional drawings" section only appears when drawings were added; **choose the drawings printed** (schematic, detail, XY, XZ, YZ, pad eye fit, crane chart).
+- **No 3D any more**: plan and elevations only (Load, Rigging, Drawings, report).
+- **Views**: for each plane, choose the image (the drawing or a file of its own, with its own scale) — 1. frame, 2. origin clicked (or the frame corner).
+- **Rigging**: *Same WLL on every leg* button — the largest WLL of each item is set on every leg, the sling length stays calculated leg by leg.
 
 ## What's new in v0.5
 
@@ -61,13 +63,13 @@ The current project and the inventory are saved automatically in the browser. **
 - **Leg assembly builder**: drag standard items (Green Pin shackles, round slings straight / choked, flat webbing, steel wire rope slings, chain G80, connecting links G80, safety hooks G80, G-Links) anywhere in the leg; one assembly for all legs, override leg by leg. Hook side: master link, quad master link (sub-links) or directly on the hook; master link SWL can be marked *not known*.
 - For each leg, from the COG: **required bearing-to-bearing length, connector lengths, sling EWL or chain length in whole links** (e.g. *shackle → connecting link → chain → connecting link → shackle* gives the number of links), **minimum WLL** of every part, utilisation.
 - Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; sling length of each leg (nearest standard, rounded up, made to measure) or matched set.
-- Object views with the drawing and the rigging overlaid, 3D isometric view; spreader bar (top + bottom assemblies).
+- Object views with the drawing and the rigging overlaid (plan and elevations); spreader bar (top + bottom assemblies).
 
 **Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), D/d of wire slings, connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at every step.
 
-**Drawings** — rigging schematic, rigging on the load in plan XY and elevations XZ / YZ (on the imported drawing when there is one), 3D view, rigging detail to scale (chains drawn link by link). SVG / PNG export.
+**Drawings** — rigging schematic, rigging on the load in plan XY and elevations XZ / YZ (on the imported drawing when there is one), rigging detail to scale (chains drawn link by link). SVG / PNG export.
 
-**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, rigging schematic and detail, views XY / XZ / YZ / 3D, half page for your drawings, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
+**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, rigging schematic and detail, views XY / XZ / YZ (chosen), your own drawings if any, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
 
 **Inventory** — **equipment for this lift with exact quantities**, an *on hand* tick and the certificate number per line (CSV export); your own certified fleet; browser of the built-in catalogue.
 
@@ -118,7 +120,7 @@ js/engine/            pure calculation code (testable under Node)
   shape.js            simple shapes → volume and COG
   compute.js          orchestration, equipment list, lift category
 js/catalog/           equipment data + selection rules
-js/draw/              SVG generators (schematic, 3D, detail, capacity curve)
+js/draw/              SVG generators (schematic, detail, capacity curve)
 js/ui/                user interface: tabs, load views (loadview.js), load set-up, PDF tools, load chart reader
 vendor/pdfjs/         pdf.js (Apache-2.0)
 tools/                standalone build, example generator

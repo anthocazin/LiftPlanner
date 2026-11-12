@@ -1,12 +1,11 @@
 // Guided set-up of the load from its drawing, in 5 steps:
 //   1 drawing (PDF / image)  2 scale  3 top / front / side views (a frame each)  4 simple shapes (optional)
 //   5 lift points & COG clicked on the views
-// The 3D coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
+// The X, Y, Z coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
 import { app } from './app.js';
 import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
-import { viewer3d } from './viewer3d.js';
 import { shapesCog, shapeVolume } from '../engine/shape.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -19,7 +18,6 @@ export const VIEW_DEF = {
 const STEPS = ['Drawing', 'Scale', 'Views', 'Shape (optional)', 'Lift points & COG'];
 
 export const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG', selShape: null, voidNext: false };
-let viewer = null;
 let pickViews = [];
 let root = null;
 
@@ -33,7 +31,6 @@ export function loadSetup() {
 }
 
 export function refreshSetup() {
-  viewer?.refresh();
   const need = setup.step === 5 ? nextNeeded(setup.item) : null;
   pickViews.forEach((v) => { v.classList.toggle('need', !!need && v.dataset.key === need); v.refresh(); });
   const st = document.getElementById('pick-status');
@@ -73,8 +70,7 @@ function build() {
   if (setup.step === 4) body.append(stepShape());
   if (setup.step === 5) body.append(stepPoints());
   if (setup.step !== 4) lvState.tool = null;
-  viewer = viewer3d({ height: setup.step >= 4 ? 360 : 420, title: '' });
-  root.append(head, el('div', { class: 'setup-grid' }, body, el('div', { class: 'setup-3d' }, el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, '3D preview — the drawing views are shown on their planes'), viewer)));
+  root.append(head, body);
 }
 
 const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(5, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
@@ -111,13 +107,37 @@ function stepDrawing() {
   return box;
 }
 
-async function openFile(f) {
+/** Scale of the file open for this view (each file can have its own). */
+function scaleLine(toolBtn) {
+  const s = scale(), src = app.drawSource;
+  const isPdf = src?.kind === 'pdf';
+  return el('div', { class: `row ${s.mmPerUnit ? '' : 'note warn'}`, style: { fontSize: '12px', margin: '0 0 6px', gap: '8px' } },
+    el('span', {}, s.mmPerUnit ? `Scale of this file: ${isPdf && s.ratio ? `1:${fmt(s.ratio, 0)}` : `1 unit = ${fmt(s.mmPerUnit, 3)} mm`}` : 'Scale of this file not set:'),
+    isPdf ? el('span', {}, '1 : ', el('input', { type: 'number', min: 1, step: 'any', value: s.ratio ?? '', style: { width: '70px' }, onchange: (e) => { const r = Number(e.target.value); if (r > 0) { setRatio(r); rebuild(); } } })) : null,
+    toolBtn('cal', 'Calibrate on a dimension'),
+    setup.tool === 'cal' ? el('span', { class: 'muted' }, 'click both ends of a known dimension, then type its length') : null);
+}
+
+function startEdit(k) {
+  const v = L().views?.[k];
+  setup.edit = k;
+  setup.tool = 'frame';
+  const same = v?.wizard && v.file === app.drawSource?.name;
+  setup.draft = same ? { ...v.wizard } : { page: setup.page, crop: null, origin: null, flipH: !!v?.flipH };
+  setup.page = setup.draft.page || setup.page;
+  setup.step = 3;
+  rebuild();
+}
+
+async function openFile(f, editKey) {
   try {
+    const prev = app.drawSource?.name;
     app.drawSource = await openSource(f);
     app.drawScan = null;
     setup.page = 1;
+    if (editKey) { startEdit(editKey); setup.draft.page = 1; }
     scale().kind = app.drawSource.kind;
-    if (app.drawSource.kind === 'image') scale().ratio = null;
+    if (app.drawSource.kind === 'image') { scale().ratio = null; if (app.drawSource.name !== prev) scale().mmPerUnit = null; }
     else if (scale().ratio) scale().mmPerUnit = PT_MM * scale().ratio;
     rebuild();
     app.drawScan = await scanText(app.drawSource).catch(() => null);
@@ -139,7 +159,9 @@ function setRatio(r) {
 
 function applyScaleToViews() {
   const s = scale();
-  for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit) v.s = s.mmPerUnit / v.pxPerUnit;
+  // only the views taken from this file (each file may have its own scale)
+  const name = app.drawSource?.name;
+  for (const v of Object.values(L().views || {})) if (v && v.pxPerUnit && s.mmPerUnit && (!name || !v.file || v.file === name)) { v.s = s.mmPerUnit / v.pxPerUnit; v.scaled = true; }
   // views framed edge to edge: the size of the part follows the new scale
   if (Object.values(L().views || {}).some((v) => v?.autoOrigin)) envelopeFromViews();
   app.recompute();
@@ -179,17 +201,20 @@ function stepViews() {
     return el('div', { class: `view-card ${setup.edit === k ? 'on' : ''} ${v ? 'ok' : ''}` },
       el('div', { class: 'vc-head' }, el('b', {}, d.name), el('span', { class: 'muted' }, d.axes)),
       v?.image ? el('img', { src: v.image, alt: '' }) : el('div', { class: 'vc-empty' }, cubeIcon(k)),
+      v?.file ? el('div', { class: 'muted', style: { fontSize: '11px' } }, `${v.file}${v.page ? ` — page ${v.page}` : ''}${v.autoOrigin ? ' · origin: frame corner' : ' · origin clicked'}`) : null,
       el('div', { class: 'row' },
-        el('button', { class: `small ${v ? '' : 'primary'}`, disabled: !app.drawSource, onclick: () => { setup.edit = k; setup.tool = 'frame'; setup.draft = v?.wizard ? { ...v.wizard } : { page: setup.page, crop: null, origin: null, flipH: false }; setup.page = setup.draft.page || setup.page; rebuild(); } }, v ? 'Redo on the drawing' : 'Select on the drawing'),
+        el('button', { class: `small ${v ? '' : 'primary'}`, disabled: !app.drawSource, title: app.drawSource ? `On ${app.drawSource.name}` : 'Open a drawing first (or choose a file for this view)', onclick: () => startEdit(k) }, v ? 'Redo' : 'Select on the drawing'),
+        el('label', { class: 'btn small', title: 'A PDF or an image for this view only' }, 'Choose a file…', el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f, k); } })),
         v ? el('button', { class: 'small danger', onclick: () => { ld.views[k] = null; app.recompute(); rebuild(); } }, 'Remove') : null),
     );
   })));
-  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Open the drawing (step 1) to select the views. Without views you can still place the points on a white grid (step 5).'));
+  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Choose a file for each view (the same drawing or one image per view), or open the drawing in step 1. Without views you can still place the points on a white grid (step 5).'));
   const dm = ld.dims_mm || {};
   if (ld.views.xz || ld.views.yz)
     box.append(el('div', { class: 'row', style: { marginTop: '8px', fontSize: '12.5px' } },
       el('span', {}, 'Size of the part: ', el('b', {}, `${fmt(dm.L, 0)} (X) × ${fmt(dm.W, 0)} (Y) × ${fmt(dm.H, 0)} (Z) mm`)),
-      el('span', { class: 'muted' }, 'The front view has the same width as the top view (X), the side view the same width as its height (Y).'),
+      el('span', { class: 'muted' }, 'Taken from the frames when the origin is the frame corner; otherwise type it on the Load page or use the button.'),
+      el('button', { class: 'small', title: 'Use the frames of the views as the outline of the part', onclick: () => { envelopeFromViews(true); app.recompute(); toast('Size of the part taken from the frames'); rebuild(); } }, 'Size from the frames'),
       el('button', { class: 'small', title: 'Exchange the front and the side view', onclick: () => { swapFrontSide(); toast('Front and side views exchanged'); rebuild(); } }, 'Swap front ↔ side')));
   if (setup.edit && app.drawSource) {
     const d = VIEW_DEF[setup.edit];
@@ -197,15 +222,18 @@ function stepViews() {
     const toolBtn = (t, txt) => el('button', { class: `small ${setup.tool === t ? 'active' : ''}`, onclick: () => { setup.tool = t; rebuild(); } }, txt);
     box.append(
       el('div', { class: 'note info', style: { margin: '10px 0 6px' } },
-        el('b', {}, `${d.name} (${d.look}): `),
-        dr.crop
-          ? el('span', {}, 'frame set. ', el('b', {}, 'Save the view'), dr.origin ? ' (with your reference point).' : ' — the origin is the bottom-left corner of the frame, the size of the part is read from the frame.')
-          : el('span', {}, 'drag a frame around the part in this view, ', el('b', {}, 'edge to edge'), ' (not around the dimension lines). The frame gives the size of the part and its bottom-left corner is the origin.')),
-      el('div', { class: 'toolbar' }, toolBtn('frame', 'Frame'),
+        el('b', {}, `${d.name} (${d.look}) — `),
+        !dr.crop
+          ? el('span', {}, el('b', {}, '1. Frame: '), 'drag a frame around this view on the drawing (the image kept for this plane).')
+          : !dr.origin
+            ? el('span', {}, el('b', {}, '2. Origin: '), `click the origin of this view (the same reference point of the part in every view, ${d.h} and ${d.v} = 0) — or save directly to take the bottom-left corner of the frame.`)
+            : el('span', {}, 'Frame and origin set: ', el('b', {}, 'save the view'), '.')),
+      scaleLine(toolBtn),
+      el('div', { class: 'toolbar' }, toolBtn('frame', '1. Frame'), toolBtn('origin', '2. Origin'),
         el('label', { class: 'check', style: { fontSize: '12px' }, title: 'For a view drawn from the other side (the part appears mirrored)' }, el('input', { type: 'checkbox', checked: !!dr.flipH, onchange: (e) => { dr.flipH = e.target.checked; drawOverlay(); } }), 'Mirrored view'),
-        el('details', { class: 'inline-adv' }, el('summary', {}, 'Other origin…'),
-          el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Only if the origin is not the corner of the frame: '), toolBtn('origin', 'Click the reference point'),
-          dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; rebuild(); } }, 'Use the frame corner') : null),
+        dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; setup.tool = 'origin'; rebuild(); } }, 'Use the frame corner') : null,
+        el('label', { class: 'btn small', title: 'Another PDF or image for this view' }, 'Other file…', el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f, setup.edit); } })),
+        el('span', { class: 'muted', style: { fontSize: '12px' } }, app.drawSource?.name || ''),
         el('span', { class: 'spacer' }),
         el('button', { class: 'small', onclick: () => { setup.edit = null; rebuild(); } }, 'Cancel'),
         el('button', { class: 'primary small', disabled: !dr.crop, onclick: saveView }, 'Save view')),
@@ -231,10 +259,11 @@ function viewExtent(v) {
 }
 
 /** Overall size and origin of the part from the frames of the views. */
-function envelopeFromViews() {
+function envelopeFromViews(all = false) {
   const ld = L(), vs = ld.views || {};
-  if (!scale().mmPerUnit) return;
-  const e = { xy: viewExtent(vs.xy), xz: viewExtent(vs.xz), yz: viewExtent(vs.yz) };
+  // a frame is the outline of the part only when the origin is its corner (or when asked)
+  const ext = (v) => (v && v.scaled !== false && (all || v.autoOrigin) ? viewExtent(v) : null);
+  const e = { xy: ext(vs.xy), xz: ext(vs.xz), yz: ext(vs.yz) };
   const rx = e.xy ? [e.xy.a0, e.xy.a1] : e.xz ? [e.xz.a0, e.xz.a1] : null;
   const ry = e.xy ? [e.xy.b0, e.xy.b1] : e.yz ? [e.yz.a0, e.yz.a1] : null;
   const rz = e.xz ? [e.xz.b0, e.xz.b1] : e.yz ? [e.yz.b0, e.yz.b1] : null;
@@ -287,7 +316,7 @@ async function saveView() {
   L().views[k] = {
     image: canvas.toDataURL('image/jpeg', 0.85), w: canvas.width, h: canvas.height, pxPerUnit,
     s: mmPerUnit ? mmPerUnit / pxPerUnit : 1 / pxPerUnit, ou: (org.u - dr.crop.x) * pxPerUnit, ov: (org.v - dr.crop.y) * pxPerUnit,
-    flipH: !!dr.flipH, autoOrigin: !dr.origin, file: src.name, page: dr.page, wizard: { ...dr },
+    flipH: !!dr.flipH, autoOrigin: !dr.origin, scaled: !!mmPerUnit, file: src.name, page: dr.page, wizard: { ...dr },
   };
   const swapped = autoSwap();
   envelopeFromViews();
@@ -381,6 +410,7 @@ function onDown(ev) {
         s.ratio = app.drawSource.kind === 'pdf' ? Math.round((s.mmPerUnit / PT_MM) * 10) / 10 : null;
         applyScaleToViews();
         toast(`Scale set${s.ratio ? ` (≈ 1:${s.ratio})` : ''}`);
+        if (setup.edit) setup.tool = setup.draft?.crop ? 'origin' : 'frame';
         rebuild();
         return;
       }
@@ -413,6 +443,7 @@ function onUp() {
   if (r.w > 4 && r.h > 4) {
     setup.draft.crop = r;
     setup.draft.page = setup.page;
+    setup.tool = 'origin';
   }
   rebuild();
 }

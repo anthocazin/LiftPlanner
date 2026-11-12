@@ -1,12 +1,11 @@
 // Rigging page: visual schematic (hook → head → one leg per lift point) built by drag & drop of
-// catalogue items, load share and lengths of every leg, 3D view.
+// catalogue items, load share and lengths of every leg, plan and elevations.
 import { app } from '../app.js';
 import { el, field, panel, fmt, utilBar, toast } from '../dom.js';
 import { listByType, listSlingFamily, listChainFamily, niceName } from '../../catalog/index.js';
 import { SLING_FAMILIES, SHACKLE_RANGES, DEFAULT_SHACKLE_RANGES } from '../../catalog/data.js';
 import { isLengthPart } from '../../engine/rigging.js';
 import { schematicSvg, assemblyOf as asmOf, SCHEM_COL as COL } from '../../draw/schematic.js';
-import { viewer3d } from '../viewer3d.js';
 import { loadView, lvState } from '../loadview.js';
 
 // one flat list: drag any item onto any "+" of a leg (hook items go on the hook)
@@ -28,7 +27,6 @@ const PALETTE = [
 let linked = null; // true: a change on one leg is applied to every leg
 let lastLeg = null; // last leg edited on its own
 let pop = null;
-let v3 = null;
 let lviews = [];
 let highlight = null;
 
@@ -63,6 +61,51 @@ function linkLegs() {
   lastLeg = null;
   app.recompute();
   toast(src ? `Every leg now uses the assembly of leg ${src.key}` : 'Every leg uses the same assembly');
+}
+
+/**
+ * "Same WLL on every leg": for every item of the legs (shackle on the lift point, sling, top shackle…)
+ * the largest WLL used on one leg is fixed on every leg. Lengths stay free: each sling is still
+ * sized leg by leg with its own hardware.
+ */
+function sameWll() {
+  const rig = app.project.rigging;
+  const res = app.result?.rig;
+  if (!res || res.error || !res.legs?.length) return toast('No legs yet');
+  rig.design.uniformLegs = true;
+  const keyOf = (parts, i) => {
+    const p = parts[i];
+    const fam = p.kind === 'sling' ? p.family || p.item?.family || '' : '';
+    const same = parts.map((q, j) => (q.kind === p.kind ? j : -1)).filter((j) => j >= 0);
+    const pos = same.indexOf(i) === 0 ? 'first' : same.indexOf(i) === same.length - 1 ? 'last' : `n${same.indexOf(i)}`;
+    return `${p.kind}:${fam}:${pos}`;
+  };
+  const used = new Set();
+  for (const level of ['main', 'top']) {
+    const legs = res.legs.filter((l) => (level === 'top' ? l.level === 'top' : l.level !== 'top'));
+    if (!legs.length) continue;
+    const best = {};
+    legs.forEach((l) => l.parts.forEach((rp, i) => {
+      if (!rp.item) return;
+      const k = keyOf(l.parts, i);
+      if (!best[k] || rp.item.wll_t > best[k].wll_t) best[k] = rp.item;
+    }));
+    legs.forEach((l) => {
+      const own = rig.legs?.[l.key]?.parts;
+      const parts = own?.length ? own : assemblyOf(l.key, level).parts;
+      l.parts.forEach((rp, i) => {
+        const it = best[keyOf(l.parts, i)];
+        const p = parts[i];
+        if (!it || !p) return;
+        p.id = it.id;
+        if (isLengthPart(p)) { p.lock = false; p.length_m = null; }
+        used.add(niceName(it));
+      });
+    });
+  }
+  app.recompute();
+  window.__rerender?.();
+  toast(`Same WLL on every leg: ${[...used].join(', ')} — sling lengths calculated leg by leg`);
 }
 
 function itemsFor(part) {
@@ -140,7 +183,7 @@ export function render(root) {
     ));
   }
 
-  if (linked == null) linked = !hasOwnLegs();
+  if (linked == null || hasOwnLegs()) linked = !hasOwnLegs();
   lvState.mode = 'select';
   lvState.tool = null;
   const palette = el('div', { class: 'palette flat' });
@@ -152,16 +195,17 @@ export function render(root) {
   const schemPanel = panel(null,
     el('div', { class: 'panel-head' },
       el('h2', {}, 'Rigging arrangement'),
-      el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg'),
+      el('span', { class: 'row', style: { gap: '12px' } },
+        el('button', { class: 'small', title: 'Every leg gets the same WLL for each item (the largest one used), the sling length stays calculated leg by leg', onclick: sameWll }, 'Same WLL on every leg'),
+        el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg')),
     ),
     palette,
     el('p', { class: 'muted', style: { fontSize: '11.5px', margin: '4px 0 8px' } }, 'Click a "+" to add an item there (or drag an item of the list onto it); the bottom "+" is on the lift point. Click an item of the schematic to change its size, type or length, or to remove it — "Auto" sizes it from the force of the leg. The sling length of every leg is recalculated with its hardware. One leg is drawn for every lift point.'),
     el('div', { id: 'schem', class: 'schem' }),
   );
-  v3 = viewer3d({ height: 420, title: '' });
-  lviews = [loadView('xy', { editable: true, height: 300 }), loadView('xz', { editable: true, height: 300 })];
-  const views = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, '3D and views'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Drag the lift points or the COG in the views: lengths and forces update live.')),
-    el('div', { class: 'grid', style: { gridTemplateColumns: 'minmax(0,1.3fr) minmax(0,1fr)', gap: '10px' } }, v3, el('div', { class: 'grid', style: { gap: '8px' } }, ...lviews)));
+  lviews = [loadView('xy', { editable: true, height: 320, title: 'Plan — XY' }), loadView('xz', { editable: true, height: 320, title: 'Front — XZ' }), loadView('yz', { editable: true, height: 320, title: 'Side — YZ' })];
+  const views = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Views'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Drag the lift points or the COG in the views: lengths and forces update live. Drag the background to move, wheel to zoom.')),
+    el('div', { class: 'grid g3', style: { gap: '8px' } }, ...lviews));
   const legs = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Legs — load share and lengths'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Lengths bearing to bearing (lift point → hook). The hook is above the COG.')), el('div', { id: 'legs-table', class: 'tbl-wrap' }));
   root.append(el('div', { class: 'grid g2' }, config, spreader || el('div', { id: 'factors-mini' })), schemPanel, legs, views);
   update(app.result);
@@ -314,7 +358,6 @@ function placePop(box, ev) {
 // ---------------------------------------------------------------- update
 function update(res) {
   drawSchematic();
-  v3?.refresh();
   lviews.forEach((v) => v.refresh());
   const fm = document.getElementById('factors-mini');
   if (fm && res?.rig?.factors) {

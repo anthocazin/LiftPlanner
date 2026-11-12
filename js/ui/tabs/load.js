@@ -49,7 +49,7 @@ export function render(root) {
       el('button', { class: 'small', title: 'COG = centre of the overall size (weight evenly spread)', onclick: () => { load.cogBasis = 'geometric'; app.recompute(); window.__rerender(); toast('COG at the geometric centre of the part'); } }, 'COG at the geometric centre'),
       el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : load.cogBasis === 'shape' ? 'The COG follows the shapes drawn in step 4.' : '')),
     el('details', { class: 'sub' },
-      el('summary', {}, 'Overall envelope (for drawings and default positions)'),
+      el('summary', {}, 'Overall size of the part (geometric centre, symmetries)'),
       el('div', { class: 'fields' },
         field({ label: 'Overall length (X)', path: `${L}dims_mm.L`, unit: 'mm' }),
         field({ label: 'Overall width (Y)', path: `${L}dims_mm.W`, unit: 'mm' }),
