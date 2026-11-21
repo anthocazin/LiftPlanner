@@ -65,8 +65,9 @@ function act(e, fn) {
 }
 const tkp = (path) => tk(() => getPath(app.project, path), (v) => setPath(app.project, path, v));
 
-// drawings that can be printed (chosen on the Report page, saved with the project)
+// ---------- drawings of the report: windows (move, widen, resize, remove), saved with the project
 const FIGS = [
+  ['be', 'Lift plan — engineering office'],
   ['schem', 'Rigging arrangement (schematic)'],
   ['detail', 'Rigging detail (to scale)'],
   ['xy', 'Plan — XY'],
@@ -75,17 +76,142 @@ const FIGS = [
   ['padeye', 'Pad eye / shackle fit'],
   ['capacity', 'Crane capacity chart'],
 ];
+const DEF_W = { be: 1, schem: 0.6, detail: 0.4, xy: 0.5, xz: 0.5, yz: 0.5, padeye: 0.5, capacity: 0.5 };
 const figOn = (k) => app.project.report?.figs?.[k] !== false;
+const ownKey = (d) => `own:${d.id}`;
+
+/** Windows that can be shown (data available), whether ticked or not: { key: info } in default order. */
+function availableWins(p, res, all = false) {
+  const out = {};
+  const ld = p.load, r = res?.rig;
+  const on = (k) => all || figOn(k);
+  if (safeImg(ld.bePlan?.image) && on('be')) out.be = true;
+  ['schem', 'detail', 'xy', 'xz', 'yz'].forEach((k) => { if (on(k)) out[k] = true; });
+  const pts = (ld.liftPoints || []).filter((q) => q.used !== false && pointKind(q) === 'padeye');
+  const lg = pts.length ? r?.legs?.find((l) => l.pointId === pts[0].id && l.level !== 'top') : null;
+  const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
+  if (sh && on('padeye')) out.padeye = { pq: pts[0], sh, n: pts.length };
+  if (on('capacity')) out.capacity = true;
+  (p.report?.drawings || []).forEach((d) => {
+    if (!d.id) d.id = Math.random().toString(36).slice(2, 8);
+    if (safeImg(d.image) && on(ownKey(d))) out[ownKey(d)] = d;
+  });
+  return out;
+}
+
+/** Order and size of the windows: saved order first, new windows at their default place. */
+function layoutOf(p, wins) {
+  p.report = p.report || {};
+  const L = (p.report.layout = p.report.layout || {});
+  L.win = L.win || {};
+  const def = FIGS.map(([k]) => k).concat(Object.keys(wins).filter((k) => k.startsWith('own:')));
+  const rank = (k) => { const i = def.indexOf(k); return i < 0 ? 999 : i; };
+  const order = (L.order || []).filter((k) => wins[k]);
+  Object.keys(wins).filter((k) => !order.includes(k)).forEach((k) => {
+    const at = order.findIndex((o) => rank(o) > rank(k));
+    order.splice(at < 0 ? order.length : at, 0, k);
+  });
+  const win = {};
+  order.forEach((k) => {
+    const s = L.win[k] || {};
+    win[k] = { w: Math.min(1, Math.max(0.2, Number(s.w) || DEF_W[k] || 1)), h: Number(s.h) > 0 ? Number(s.h) : null };
+  });
+  return { order, win, store: L };
+}
+
+/** Rows of windows: they follow on while the widths add up to the page width. */
+function packRows(lay) {
+  const rows = [];
+  let cur = [], sum = 0;
+  for (const k of lay.order) {
+    const w = lay.win[k].w;
+    if (cur.length && sum + w > 1.001) { rows.push(cur); cur = []; sum = 0; }
+    cur.push(k);
+    sum += w;
+  }
+  if (cur.length) rows.push(cur);
+  return rows;
+}
+
+function saveLayout(lay, k, patch) {
+  const st = lay.store;
+  st.order = [...lay.order];
+  st.win = st.win || {};
+  if (k) st.win[k] = { ...lay.win[k], ...(st.win[k] || {}), ...patch };
+}
+
+/** Buttons shown on a window of the preview (not printed). */
+function winTools(k, lay) {
+  const i = lay.order.indexOf(k);
+  const W = lay.win[k];
+  const move = (d) => { const o = lay.order; const j = i + d; if (j < 0 || j >= o.length) return; [o[i], o[j]] = [o[j], o[i]]; saveLayout(lay); };
+  const curH = () => { const e = document.querySelector(`#report-preview .win[data-key="${k}"] .drawing`); return e ? Math.round(e.getBoundingClientRect().height * mmPerPx()) : 80; };
+  const b = (txt, title, fn, cls = '') => act(el('button', { class: cls, title }, txt), fn);
+  return el('div', { class: 'win-tools no-print' },
+    b('←', 'Move before', () => move(-1)),
+    b('→', 'Move after', () => move(1)),
+    b('½', 'Half the page width', () => saveLayout(lay, k, { w: 0.5 }), W.w === 0.5 ? 'on' : ''),
+    b('⬌', 'Whole page width', () => saveLayout(lay, k, { w: 1 }), W.w === 1 ? 'on' : ''),
+    b('−', 'Smaller (height)', () => saveLayout(lay, k, { h: Math.max(25, (W.h || curH()) - 10) })),
+    b('+', 'Bigger (height)', () => saveLayout(lay, k, { h: Math.min(260, (W.h || curH()) + 10) })),
+    W.h || lay.store.win?.[k]?.w ? b('↺', 'Size as default', () => { delete lay.store.win[k]; saveLayout(lay); }) : null,
+    b('✕', 'Remove from the report (tick it again in "Drawings in the report")', () => { const f = (app.project.report.figs = app.project.report.figs || {}); f[k] = false; }, 'del'));
+}
+
+/** Millimetres of paper per screen pixel in the preview (the sheet is 210 mm wide). */
+function mmPerPx() {
+  const sh = document.querySelector('#report-preview > .report');
+  return sh ? 210 / sh.getBoundingClientRect().width : 0.2646;
+}
+
+/** Corner of a window dragged: width (in % of the page, by 5 %) and height (by 5 mm). */
+function resizeWin(ev, w, k) {
+  ev.preventDefault();
+  if (document.activeElement?.dataset?.ed) document.activeElement.blur();
+  const row = w.parentElement, dr = w.querySelector('.drawing');
+  const rowW = row.getBoundingClientRect().width;
+  const r0 = w.getBoundingClientRect(), d0 = dr?.getBoundingClientRect();
+  const mm = mmPerPx();
+  const x0 = ev.clientX, y0 = ev.clientY;
+  const keys = [...row.children].map((c) => c.dataset.key);
+  const lay = layoutOf(app.project, availableWins(app.project, app.result));
+  let nw = lay.win[k].w, nh = lay.win[k].h || (d0 ? Math.round(d0.height * mm) : null);
+  const tag = el('div', { class: 'win-size no-print' });
+  w.append(tag);
+  w.classList.add('resizing');
+  const grip = ev.target;
+  grip.setPointerCapture(ev.pointerId);
+  const move = (e) => {
+    nw = Math.min(1, Math.max(0.2, Math.round(((r0.width + e.clientX - x0) / rowW) * 20) / 20));
+    if (d0) nh = Math.min(260, Math.max(25, Math.round(((d0.height + e.clientY - y0) * mm) / 5) * 5));
+    const ws = keys.map((x) => (x === k ? nw : lay.win[x].w));
+    const sum = ws.reduce((a, b) => a + b, 0);
+    row.style.gridTemplateColumns = ws.map((x) => `${x}fr`).join(' ') + (sum < 0.999 ? ` ${(1 - sum).toFixed(3)}fr` : '');
+    if (dr && nh) { dr.style.height = `${nh}mm`; w.classList.add('sized'); }
+    tag.textContent = `${Math.round(nw * 100)} % × ${nh ?? '—'} mm`;
+  };
+  const up = () => {
+    grip.removeEventListener('pointermove', move);
+    grip.removeEventListener('pointerup', up);
+    saveLayout(lay, k, { w: nw, h: nh });
+    app.recompute();
+  };
+  grip.addEventListener('pointermove', move);
+  grip.addEventListener('pointerup', up);
+}
 
 function figsPanel() {
   const p = app.project;
   p.report = p.report || {};
   p.report.figs = p.report.figs || {};
-  return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
-    el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report')),
+  const avail = availableWins(p, app.result, true);
+  const items = [...FIGS.filter(([k]) => avail[k]), ...(p.report.drawings || []).filter((d) => avail[ownKey(d)]).map((d) => [ownKey(d), d.caption || 'My drawing'])];
+  return el('div', { id: 'figs-panel', class: 'panel no-print', style: { marginBottom: '12px' } },
+    el('div', { class: 'panel-head' }, el('h2', {}, 'Drawings in the report'),
+      el('button', { class: 'small', title: 'Default order and sizes', onclick: () => { delete p.report.layout; app.recompute(); } }, 'Reset the layout')),
     el('div', { class: 'row', style: { gap: '4px 16px' } },
-      FIGS.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); update(); } }), t))),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'Saved with the project. The views are printed two per row.'));
+      items.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); } }), t))),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'In the preview, point at a drawing: ← → to move it, ½ / ⬌ for half or whole page width, − + for its height, ✕ to remove it — or drag its corner ◢. Saved with the project.'));
 }
 
 export function render(root) {
@@ -156,6 +282,8 @@ function update() {
   const sp = document.getElementById('signoff-panel');
   if (panelStale && sp) sp.replaceWith(signoffPanel());
   panelStale = false;
+  const fp = document.getElementById('figs-panel');
+  if (fp) { const n = figsPanel(); fp.replaceWith(n); }
 }
 
 const fig = (svg, cls = '') => figure(svg, '', { exportable: false, cls });
@@ -294,35 +422,41 @@ export function buildReport() {
       el('td', { class: 'c' }, ed(`storyboard.steps.${i}.responsible`, { ph: 'Responsible' })))),
   ), act(el('button', { class: 'small no-print ed-add' }, '+ Add a step'), () => { steps.push({ note: '', responsible: '' }); setTimeout(() => { const all = document.querySelectorAll('#report-preview table.steps [data-ed].multi'); all[all.length - 1]?.focus(); }, 30); }));
 
-  // ---- Drawings: they follow on without forced page break, two per row
+  // ---- Drawings: windows that can be moved, widened, resized or removed (layout saved with the project)
   const sub = (t) => el('div', { class: 'sub-t' }, t);
-  const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
-  const det = figOn('detail') ? drawRiggingDetail(p, res, { height: 560 }) : null;
-  const halves = [];
-  if (figOn('xy')) halves.push(() => fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })));
-  if (figOn('xz')) halves.push(() => fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })));
-  if (figOn('yz')) halves.push(() => fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })));
-  const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
-  const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
-  if (pts.length && figOn('padeye')) {
-    const pq = pts[0], lg = legOf(pq.id);
-    const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
-    if (sh) halves.push(() => el('div', {}, sub(`Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 460, height: 230 }), 'pfit')));
-  }
-  if (figOn('capacity')) halves.push(() => el('div', {}, sub('Crane capacity'), fig(drawCapacityChart(p, res, { width: 480, height: 250 }))));
-  const blocks = [];
-  if (sch.svg && det)
-    blocks.push(el('div', { class: 'figs rig2' },
-      el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')),
-      el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail'))));
-  else if (sch.svg) blocks.push(el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')));
-  else if (det) blocks.push(el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail')));
-  for (let i = 0; i < halves.length; i += 2) blocks.push(el('div', { class: 'figs' }, halves.slice(i, i + 2).map((f) => f())));
-  // the user's own drawings (only when some were added)
-  ownDw.forEach((d) => blocks.push(el('div', { class: 'own-dwg' }, el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null))));
-  // the section title stays with its first drawing (no title alone at the bottom of a page)
-  blocks.forEach((b, i) => add(el('div', { class: 'avoid-break' }, i === 0 ? bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories') : null, b)));
+  const wins = availableWins(p, res);
+  const lay = layoutOf(p, wins);
+  const content = {
+    be: () => { const be = ld.bePlan; return [sub(`Lift plan — engineering office${be.ref ? ` (${be.ref})` : ''}`), el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(be.image) || '', alt: '' }))]; },
+    schem: () => { const sv = schematicSvg(p, res, { width: 760 })?.svg; return sv ? [sub('Rigging arrangement'), fig(sv, 'schem-r')] : null; },
+    detail: () => { const sv = drawRiggingDetail(p, res, { height: 560 }); return sv ? [sub('Rigging detail (to scale)'), fig(sv, 'detail')] : null; },
+    xy: () => [fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' }))],
+    xz: () => [fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' }))],
+    yz: () => [fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' }))],
+    padeye: () => { const { pq, sh, n } = wins.padeye; return [sub(`Padeye / shackle fit (point ${pq.id}${n > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 460, height: 230 }), 'pfit')]; },
+    capacity: () => [sub('Crane capacity'), fig(drawCapacityChart(p, res, { width: 480, height: 250 }))],
+  };
+  const bodies = {};
+  lay.order.forEach((k) => {
+    const own = k.startsWith('own:') ? wins[k] : null;
+    bodies[k] = own ? [own.caption ? sub(own.caption) : null, el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(own.image) || '', alt: '' }))] : content[k]?.();
+  });
+  lay.order = lay.order.filter((k) => bodies[k]);
+  const winEl = (k) => {
+    const body = bodies[k];
+    const L = lay.win[k];
+    const w = el('div', { class: `win ${L.h ? 'sized' : ''}`, 'data-key': k }, winTools(k, lay), body, el('div', { class: 'win-grip no-print', title: 'Drag to resize (width and height)' }));
+    const dr = w.querySelector('.drawing');
+    if (dr && L.h) dr.style.height = `${L.h}mm`;
+    w.querySelector('.win-grip').addEventListener('pointerdown', (ev) => resizeWin(ev, w, k));
+    return w;
+  };
+  packRows(lay).forEach((row, i) => {
+    const sum = row.reduce((t, k) => t + lay.win[k].w, 0);
+    const cols = row.map((k) => `${lay.win[k].w}fr`).join(' ') + (sum < 0.999 ? ` ${(1 - sum).toFixed(3)}fr` : '');
+    const r = el('div', { class: 'figs-row', style: { gridTemplateColumns: cols } }, row.map(winEl));
+    add(el('div', { class: 'avoid-break' }, i === 0 ? bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories') : null, r));
+  });
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
@@ -373,7 +507,7 @@ function ownDrawingsPanel() {
     if (!f) return;
     const url = await shrink(f);
     if (!url) return alert('Unreadable image');
-    p.report.drawings.push({ image: url, caption: f.name.replace(/\.[a-z0-9]+$/i, '') });
+    p.report.drawings.push({ id: Math.random().toString(36).slice(2, 8), image: url, caption: f.name.replace(/\.[a-z0-9]+$/i, '') });
     app.recompute();
     draw();
   } });
@@ -388,7 +522,7 @@ function ownDrawingsPanel() {
   return el('div', { class: 'panel no-print', style: { marginBottom: '12px' } },
     el('div', { class: 'panel-head' }, el('h2', {}, 'My drawings in the report'),
       el('button', { class: 'small primary', onclick: () => inp.click() }, '+ Add a drawing (PNG / JPG)'), inp),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Your drawings are printed after the rigging views (half a page each). With no drawing, the section is left out. A PDF page can be added as a screenshot (PNG).'),
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Your drawings come after the other drawings, the whole page width: move or resize them in the preview. A PDF page can be added as a screenshot (PNG).'),
     list);
 }
 

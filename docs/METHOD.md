@@ -42,6 +42,7 @@ The calculation iterates (≤ 5 passes) because the rigging weight depends on th
   - connecting link (chain): effective length, estimated `A − 2·C` from the catalogue dimensions; G-Link: effective length;
   - chain: `n × pitch` bearing to bearing (n links); overall length `n × pitch + 2 d`. n is rounded up to the next link (nearest link in "exact" mode);
   - sling: EWL rounded to a standard length (matched set, nearest, next up) or exact.
+- **Imposed leg length** (v0.8, e.g. from the lift plan of the engineering office): `L_eff` is the length given (lift point → hook), the sling is sized to `L = L_eff − Σ connectors − head` to the millimetre (not rounded); an error is raised when the shackles and links alone are longer. A sling EWL can also be given (locked length): `L_eff = EWL + Σ connectors + head`.
 - **Actual geometry**: with the selected lengths each leg gives a hook height; the mean is used for angles and forces.
 - **Tilt**: rotation of the rigid body about its COG such that the lengths are respected (exact for 1 to 3 legs, least squares above); a sling longer than needed is reported as slack.
 

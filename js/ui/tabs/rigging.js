@@ -380,7 +380,20 @@ function update(res) {
   }
   const tgt = res.rules?.targetAngleV_deg ?? 30, mx = res.rules?.maxAngleV_deg ?? 45;
   const tA = rig.legs[0]?.need?.target?.angle ?? tgt;
-  const head = ['Leg', 'Static load share', 'Static tension', 'Design force (min WLL)', `Length for ${fmt(tA, 0)}°`, `Min. length for ${mx}°`, 'Sling / chain to use', 'Actual length · angle', 'Max util.'];
+  const canImpose = rig.type === 'hook';
+  const head = ['Leg', 'Static load share', 'Static tension', 'Design force (min WLL)', `Length for ${fmt(tA, 0)}°`, `Min. length for ${mx}°`, canImpose ? 'Imposed leg length' : null, 'Sling / chain to use', 'Actual length · angle', 'Max util.'].filter(Boolean);
+  const imposeInput = (l) => {
+    const R = app.project.rigging;
+    const cur = Number(R.legs?.[l.pointId]?.Leff_m) || '';
+    return el('span', { class: 'nowrap' }, el('input', { type: 'number', step: 'any', min: 0, value: cur, placeholder: 'auto', style: { width: '76px' }, title: 'Length lift point → hook known (e.g. from the lift plan of the engineering office). Empty: chosen by LiftPlanner',
+      onchange: (e) => {
+        const v = Number(String(e.target.value).replace(',', '.'));
+        R.legs = R.legs || {};
+        const leg = (R.legs[l.pointId] = R.legs[l.pointId] || {});
+        if (v > 0) leg.Leff_m = v; else delete leg.Leff_m;
+        app.recompute();
+      } }), ' m');
+  };
   const tb = el('tbody');
   for (const l of rig.legs) {
     const len = l.parts[l.li];
@@ -394,6 +407,7 @@ function update(res) {
       el('td', { class: 'num' }, el('b', {}, `${fmt(l.Fdesign)} t`)),
       el('td', { class: 'num' }, nd.target ? lenTxt(nd.target.L, nd.target.elem) : '—'),
       el('td', { class: 'num' }, nd.max ? lenTxt(nd.max.L, nd.max.elem) : '—'),
+      canImpose ? el('td', {}, l.level === 'top' ? '' : imposeInput(l)) : null,
       el('td', {}, len?.item ? niceName(len.item, { length_m: len.length_m, links: len.kind === 'chain' ? len.links : null }) : '—'),
       el('td', { class: 'num', style: { color: l.angleV > mx + 0.2 ? 'var(--fail)' : l.angleV > tgt + 0.2 ? 'var(--warn)' : '' } }, `${fmt(l.Leff, 2)} m · ${l.angleV.toFixed(1)}°`),
       el('td', {}, utilBar(utilMax)),

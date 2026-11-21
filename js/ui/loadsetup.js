@@ -6,6 +6,7 @@ import { app } from './app.js';
 import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
+import { openPlanImport, importedSummary } from './planimport.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PT_MM = 25.4 / 72;
@@ -30,6 +31,8 @@ export function loadSetup() {
 }
 
 export function refreshSetup() {
+  const sum = document.getElementById('pi-summary');
+  if (sum) { const n = importedSummary(app.result); n.id = 'pi-summary'; sum.replaceWith(n); return; }
   const need = setup.step === 3 ? nextNeeded(setup.item) : null;
   pickViews.forEach((v) => { v.classList.toggle('need', !!need && v.dataset.key === need); v.refresh(); });
   const st = document.getElementById('pick-status');
@@ -54,8 +57,23 @@ function build() {
   if (!(setup.step >= 1 && setup.step <= 3)) setup.step = 1;
   root.innerHTML = '';
   pickViews = [];
+  const ld = L();
+  const importBtn = (t) => el('button', { class: 'small primary', title: 'Lift plan made by the engineering office: drawing + lift points from the COG + leg lengths', onclick: () => openPlanImport() }, t);
+  if (ld.setupMode === 'import' && ld.bePlan) {
+    const sum = importedSummary(app.result);
+    sum.id = 'pi-summary';
+    root.append(
+      el('div', { class: 'panel-head' },
+        el('h2', {}, 'Load from the engineering office lift plan'),
+        el('div', { class: 'row' },
+          importBtn('Edit the import…'),
+          el('button', { class: 'small', title: 'Keep the points and lengths, and set up the load from its drawing (views, points clicked)', onclick: () => { ld.setupMode = 'drawing'; app.recompute(); rebuild(); } }, 'Set up from the drawing instead'))),
+      sum);
+    return;
+  }
   const head = el('div', { class: 'panel-head' },
     el('h2', {}, 'Load set-up from the drawing'),
+    importBtn('⇪ Import a lift plan (engineering office)…'),
     el('div', { class: 'stepper' }, STEPS.map((t, i) =>
       el('button', { class: `step ${setup.step === i + 1 ? 'on' : ''} ${stepDone(i + 1) ? 'done' : ''}`, onclick: () => { setup.step = i + 1; setup.edit = null; rebuild(); } },
         el('b', {}, stepDone(i + 1) && setup.step !== i + 1 ? '✓' : String(i + 1)), t))),

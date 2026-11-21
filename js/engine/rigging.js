@@ -257,18 +257,23 @@ function connectorsLength(parts) {
 function sizeLengthElement(leg, Lreq, roundMode) {
   const p = leg.parts[leg.li];
   if (!p) return;
+  // leg length imposed (e.g. from the engineering office lift plan): lift point → hook, kept as given
+  const imp = leg.imposed > 0;
+  if (imp) Lreq = leg.imposed;
   const wrap = p.hitch === 'choke' ? Math.max(0, Number(p.wrap_m) || 0) : 0;
   const need = Lreq - leg.hwLength + wrap;
   leg.slingLengthReq = need;
+  if (imp && need < 0.3) leg.errors.push(`Leg length ${Math.round(leg.imposed * 100) / 100} m is shorter than its shackles and links (${Math.round(leg.hwLength * 100) / 100} m) plus a sling`);
   if (p.kind === 'chain') {
-    const c = chainLinks(p.item, need, roundMode === 'exact' ? 'nearest' : 'up');
+    const c = chainLinks(p.item, need, imp || roundMode === 'exact' ? 'nearest' : 'up');
     p.links = c.n;
     p.length_m = c.length_m;
     p.overall_m = c.overall_m;
     leg.slingLength = c.length_m;
   } else {
     let L;
-    if (p.lock && Number(p.length_m) > 0) L = Number(p.length_m);
+    if (imp) L = Math.max(0.3, Math.round(need * 1000) / 1000);
+    else if (p.lock && Number(p.length_m) > 0) L = Number(p.length_m);
     else if (p.item?.length_m) L = Number(p.item.length_m);
     else L = roundSlingLength(need, roundMode, stdLengths(p.item));
     p.length_m = L;
@@ -282,6 +287,7 @@ function sizeLengthElement(leg, Lreq, roundMode) {
 function trialLeff(leg, Lreq, roundMode) {
   const p = leg.parts[leg.li];
   if (!p?.item) return null;
+  if (leg.imposed > 0) return leg.imposed;
   const wrap = p.hitch === 'choke' ? Math.max(0, Number(p.wrap_m) || 0) : 0;
   const need = Lreq - leg.hwLength + wrap;
   let L;
@@ -327,7 +333,7 @@ function applyLengthSet(legs, roundMode) {
   if (roundMode !== 'set') return;
   const free = legs.filter((l) => {
     const p = l.parts[l.li];
-    return p && p.kind === 'sling' && !(p.lock && Number(p.length_m) > 0) && !p.item?.length_m;
+    return p && p.kind === 'sling' && !(p.lock && Number(p.length_m) > 0) && !p.item?.length_m && !(l.imposed > 0);
   });
   if (!free.length) return;
   const maxReq = Math.max(...free.map((l) => l.slingLengthReq));
@@ -532,6 +538,7 @@ function solveHook(project, ctx) {
         key: p.id, label: `Leg ${p.id}`, level: 'main', pointId: p.id, point: p, bottom: p.pos, azimuthPad: p.azimuth_deg,
         parts: r.parts, li: r.li, errors: r.errors, Fsel: F, Fdesign: tD.T[i] * fac, Flen,
         angleV: deg(Math.acos(Math.min(1, u.z))), azimuth: deg(Math.atan2(p.pos.y - cog.y, p.pos.x - cog.x)),
+        imposed: Number(rig.legs?.[p.id]?.Leff_m) > 0 ? Number(rig.legs[p.id].Leff_m) : null,
       };
       aliasComps(leg);
       return leg;

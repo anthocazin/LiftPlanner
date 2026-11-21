@@ -433,3 +433,40 @@ details.inline-adv[open] { display: inline-flex; }
 #signpad .sign-box { width: auto; max-width: 100%; }
 .sign-body { padding: 12px 16px 16px; }
 .sign-canvas { border: 1px solid #c9d3dd; border-radius: 8px; background: #fff; touch-action: none; cursor: crosshair; display: block; max-width: 100%; }
+
+/* ---------- v0.8: report drawings as windows (move, widen, resize, remove) ---------- */
+.report.tpl .figs-row { display: grid; gap: 6px; align-items: stretch; margin-bottom: 6px; }
+.report.tpl .win { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.report.tpl .win > .sub-t { margin-top: 0; }
+.report.tpl .win > .drawing { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
+.report.tpl .win.sized > .drawing { flex: none; }
+.report.tpl .win.sized > .drawing svg, .report.tpl .win.sized > .drawing img { width: 100% !important; height: 100% !important; max-height: none !important; max-width: 100% !important; object-fit: contain; margin: 0; }
+.report.tpl .drawing.img-win img { display: block; max-width: 100%; max-height: 130mm; object-fit: contain; margin: 0 auto; }
+.report.tpl .win-tools { position: absolute; top: 3px; right: 3px; display: none; gap: 1px; z-index: 3; background: rgba(255,255,255,.95); border: 1px solid #c9d3de; border-radius: 6px; padding: 2px; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.report.tpl .win:hover .win-tools, .report.tpl .win.resizing .win-tools { display: flex; }
+.report.tpl .win-tools button { border: 0; background: none; font: 600 12px/1 Arial, sans-serif; min-width: 22px; height: 22px; cursor: pointer; border-radius: 4px; padding: 0 5px; color: #1c2733; }
+.report.tpl .win-tools button:hover { background: #eef2f6; }
+.report.tpl .win-tools button.on { background: #fde8d6; color: #b4561a; }
+.report.tpl .win-tools button.del { color: #c0392b; }
+.report.tpl .win:hover, .report.tpl .win.resizing { outline: 1px dashed #e8822a; outline-offset: 1px; }
+.report.tpl .win-grip { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; display: none; background: linear-gradient(135deg, transparent 52%, #e8822a 52%); border-radius: 0 0 3px 0; touch-action: none; z-index: 3; }
+.report.tpl .win:hover .win-grip, .report.tpl .win.resizing .win-grip { display: block; }
+.report.tpl .win-size { position: absolute; right: 20px; bottom: 3px; background: #1c2733; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; z-index: 4; }
+@media (hover: none) { .report.tpl .win-tools, .report.tpl .win-grip { display: flex; } }
+@media print { .report.tpl .win:hover { outline: none; } }
+.print-probe .report.tpl .win:hover { outline: none; }
+
+/* lift plan import */
+.pi-body { grid-template-columns: 500px 1fr; }
+.pi-side .pi-step { border-bottom: 1px solid var(--line); padding: 8px 0 10px; }
+.pi-side .field { display: grid; gap: 3px; margin-top: 6px; }
+.pi-side .field input, .pi-side .field select { width: 100%; }
+.pi-pts input { width: 100%; min-width: 0 !important; }
+.pi-pts td, .pi-pts th { padding: 2px 3px !important; }
+.pi-hint { font-size: 12px; margin-left: 8px; align-self: center; }
+.pi-empty { color: #fff; text-align: center; padding: 60px 20px; }
+.pi-empty p { margin-bottom: 14px; }
+.pi-sum { display: grid; grid-template-columns: minmax(160px, 280px) 1fr; gap: 14px; align-items: start; }
+.pi-sum table.data { width: auto; min-width: 520px; }
+.pi-thumb { width: 100%; max-height: 260px; object-fit: contain; border: 1px solid var(--line); border-radius: 6px; background: #fff; cursor: zoom-in; }
+.nowrap { white-space: nowrap; }

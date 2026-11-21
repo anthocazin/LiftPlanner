@@ -18,6 +18,12 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8
+
+- **Import a lift plan of the engineering office** (Load page, *⇪ Import a lift plan*): the drawing (PDF or image — a sheet can be framed to keep only the view), its reference, the weight, the **lift points measured from the COG** and the **known leg lengths** (overall lift point → hook, or sling EWL). On a PDF, click a dimension on the drawing to put it in the field selected. The legs keep the lengths given; LiftPlanner computes the hook height, angles, tensions, the estimated tilt and **any slack leg**, and chooses the shackles, slings and master link for the forces. The plan is printed in the report.
+- **Imposed leg length** on the Rigging page (legs table): length lift point → hook known, kept as given (empty = chosen by LiftPlanner).
+- **Report drawings as windows**: point at a drawing in the preview to move it (← →), set half or whole page width (½ ⬌), make it smaller or bigger (− +), remove it (✕) — or drag its corner ◢ to resize freely (width in % of the page, height in mm). Rows fill up to the page width; layout saved with the project, *Reset the layout* to go back. Your own drawings are windows too.
+
 ## What's new in v0.7
 
 - **Load, simpler**: 3 steps — 1 drawing & scale, 2 views, 3 lift points & COG (the shape builder is gone). For each view: a frame, an origin, and the **overall dimensions read on the drawing** (the dimension values around the frame, the one matching the frame proposed; with no scale, picking it sets the scale).

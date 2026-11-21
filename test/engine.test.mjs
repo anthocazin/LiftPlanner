@@ -444,3 +444,27 @@ test('overall dimensions read around a view frame, and 4 similar lift points', (
   assert.deepEqual(pts.map((q) => [q.id, q.x, q.y, q.z]), [['A', 529, 219, 2591], ['B', 5529, 219, 2591], ['C', 5529, 2219, 2591], ['D', 529, 2219, 2591]]);
   assert.ok(pts.every((q) => q.padeyeStd === pts[0].padeyeStd && q.swl_t === pts[0].swl_t));
 });
+
+test('leg lengths imposed (engineering office lift plan): kept as given, hook and tilt from them', () => {
+  // COG at the origin, 4 points around it (not symmetric), Z of the points above the COG
+  const pts = [['A', -1501, -2646, 592], ['B', 2400, -2646, 592], ['C', 2400, 1900, 592], ['D', -1501, 1900, 592]];
+  const p = baseProject(pts, { x: 0, y: 0, z: 0 });
+  // lengths for a hook 5 m above the points, straight above the COG: the load hangs level
+  const H = 5;
+  p.rigging.legs = Object.fromEntries(pts.map(([id, x, y]) => [id, { Leff_m: Math.round(Math.hypot(x / 1000, y / 1000, H) * 1000) / 1000 }]));
+  const r = computeProject(p).rig;
+  r.legs.forEach((l) => near(l.Leff, p.rigging.legs[l.pointId].Leff_m, 0.0015));
+  near(r.hook.z, 0.592 + H, 0.01);
+  assert.ok(Math.abs(r.tilt?.tilt_deg ?? 99) < 0.3, `tilt ${JSON.stringify(r.tilt)}`);
+  assert.deepEqual(r.tilt.slack, []);
+  // one leg 300 mm longer: it is slack (the 3 other legs carry the load)
+  p.rigging.legs.A.Leff_m += 0.3;
+  const res2 = computeProject(p), r2 = res2.rig;
+  near(r2.legs.find((l) => l.pointId === 'A').Leff, p.rigging.legs.A.Leff_m, 0.0015);
+  assert.deepEqual(r2.tilt.slack, [0]);
+  assert.ok(res2.checks.some((c) => c.item === 'Leg A' && /slack/.test(c.label)));
+  // too short for its hardware: reported
+  p.rigging.legs.B.Leff_m = 0.2;
+  const r3 = computeProject(p);
+  assert.ok(r3.checks.some((c) => c.status === 'fail' && /shorter than its shackles/.test(c.label)));
+});
