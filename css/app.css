@@ -412,11 +412,20 @@ details.inline-adv[open] { display: inline-flex; }
 /* v0.7.2 — cranes #1…n in the report, sign-off with drawn signatures */
 .report.tpl .cranes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 14px; }
 .report.tpl .crane-b ul { margin-top: 1px; }
+.report.tpl .cranes > *, .report.tpl .figs > *, .report.tpl .rhead > * { min-width: 0; }
+/* screen: the A4 sheet at its print width (scaled to the window by script, never cut) */
+#report-preview > .report.tpl { width: 210mm; max-width: none; }
+/* off-screen copy measured before printing: laid out like the printed page */
+.print-probe { position: absolute; left: -10000px; top: 0; width: 210mm; visibility: hidden; }
+.print-probe .report.tpl { padding: 0 10mm; box-shadow: none; max-width: none; }
+.print-probe .no-print, .print-probe table.print-empty { display: none !important; }
+.print-probe .ed:empty::before { content: ''; }
 .report.tpl .env { margin-top: 3px; color: #333; }
 .report.tpl table.signoff td.sig-cell { cursor: pointer; padding: 2px; }
 .report.tpl table.signoff td.sig-cell img { max-height: 40px; max-width: 95%; display: block; margin: 0 auto; }
 .report .sig-hint { color: #b3b9c0; font-style: italic; font-size: 9px; }
-.sign-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sign-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.sign-col { min-width: 0; }
 .sign-col { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .sign-prev { height: 64px; border: 1px dashed #c9d3dd; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #fff; }
 .sign-prev img { max-height: 58px; max-width: 95%; }

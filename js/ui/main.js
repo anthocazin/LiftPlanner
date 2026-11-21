@@ -159,7 +159,7 @@ function wireActions() {
 export function printReport() {
   const pr = document.getElementById('print-root');
   pr.innerHTML = '';
-  pr.append(tReport.buildReport());
+  pr.append(tReport.buildPrintReport());
   setTimeout(() => window.print(), 100);
 }
 

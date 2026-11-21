@@ -103,6 +103,43 @@ export function render(root) {
   );
   update();
   root._update = update;
+  // the preview is the A4 sheet as printed, scaled down when the window is narrower
+  const box = document.getElementById('report-preview');
+  if (window.ResizeObserver && box) {
+    const ro = new ResizeObserver(() => { if (!box.isConnected) { ro.disconnect(); return; } zoomSheet(); });
+    ro.observe(box);
+  }
+}
+
+/** Content wider than the page (a long word, a wide table…) is scaled down to the page width
+ *  instead of being cut on the right. `rep` is a laid-out .report element. */
+export function fitContent(rep) {
+  const t = rep?.querySelector(':scope > table.pt');
+  if (!t) return;
+  t.style.zoom = '';
+  const cs = getComputedStyle(rep);
+  const avail = rep.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const w = Math.max(t.offsetWidth, t.scrollWidth);
+  if (avail > 0 && w > avail + 1) t.style.zoom = (avail / w).toFixed(4);
+}
+
+/** Report as it will be printed: built and measured off screen at the A4 width, fitted, then returned. */
+export function buildPrintReport() {
+  const rep = buildReport();
+  const probe = el('div', { class: 'print-probe' }, rep);
+  document.body.append(probe);
+  fitContent(rep);
+  probe.remove();
+  return rep;
+}
+
+function zoomSheet() {
+  const box = document.getElementById('report-preview');
+  const sh = box?.querySelector(':scope > .report');
+  if (!sh) return;
+  sh.style.zoom = '';
+  const z = box.clientWidth / sh.offsetWidth;
+  if (z < 0.999) sh.style.zoom = Math.max(0.3, z).toFixed(4);
 }
 
 function update() {
@@ -111,7 +148,10 @@ function update() {
   if (holdUpdate || box.contains(document.activeElement) && document.activeElement?.dataset?.ed) { pendingUpdate = true; return; }
   pendingUpdate = false;
   box.innerHTML = '';
-  box.append(buildReport());
+  const rep = buildReport();
+  box.append(rep);
+  fitContent(rep);
+  zoomSheet();
   // keep the sign-off panel in step with what was typed in the report
   const sp = document.getElementById('signoff-panel');
   if (panelStale && sp) sp.replaceWith(signoffPanel());
