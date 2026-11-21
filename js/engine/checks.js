@@ -260,7 +260,9 @@ export function riggingChecks(rig, project, rules) {
       push(out, { cat: 'Stability', item: 'Load', label: `Single lift point offset ${(off * 1000).toFixed(0)} mm from the COG: tilt ≈ ${tilt.toFixed(1)}°`, status: 'warn', unit: '' });
     }
   }
-  if (rig.pts.length === 2 || rig.type === 'spreader') {
+  if (load?.cogZUnknown) {
+    push(out, { cat: 'Stability', item: 'Load', label: 'COG height not given: make sure the COG is below the lift points (load stable under the hook)', status: rig.pts.length <= 2 ? 'warn' : 'info', unit: '' });
+  } else if (rig.pts.length === 2 || rig.type === 'spreader') {
     if (zCog >= zPad)
       push(out, {
         cat: 'Stability', item: 'Load',

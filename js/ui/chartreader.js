@@ -6,6 +6,7 @@
 import { app } from './app.js';
 import { el, toast } from './dom.js';
 import { openSource } from './pdfutil.js';
+import { panZoomBox } from './panzoom.js';
 
 const LS_KEY = 'liftplanner.claude.key';
 const LS_MODEL = 'liftplanner.claude.model';
@@ -258,6 +259,8 @@ function build() {
       el('div', { class: 'wz-side', id: 'cr-side' }),
       el('div', { class: 'wz-main' }, el('div', { class: 'muted', id: 'cr-hint', style: { fontSize: '12px', marginBottom: '4px' } }), el('div', { class: 'wz-canvas', id: 'cr-canvas' }))),
   )));
+  // wheel = zoom at the cursor, right / middle button or Space + drag = move
+  panZoomBox(document.getElementById('cr-canvas'), { get: () => st.zoom, set: (z) => { st.zoom = z; }, redraw: renderPage, min: 0.5, max: 8 });
 }
 
 async function setZoom(z) {
@@ -283,7 +286,7 @@ async function renderPage() {
   const size = st.src.pageSize(st.page);
   const k = (((box.clientWidth || 800) - 24) / size.w) * st.zoom;
   st.k = k;
-  st.kPx = k * Math.max(1.5, window.devicePixelRatio || 1);
+  st.kPx = Math.min(k * Math.max(1.5, window.devicePixelRatio || 1), Math.sqrt(40e6 / (size.w * size.h)));
   const c = await st.src.render(st.page, st.kPx);
   st.canvas = c;
   st.img = null;

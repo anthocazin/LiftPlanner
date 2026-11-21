@@ -200,6 +200,80 @@ function resizeWin(ev, w, k) {
   grip.addEventListener('pointerup', up);
 }
 
+/** Scrolling element of the page (for the automatic scroll while a window is dragged). */
+function scroller(e) {
+  for (let x = e?.parentElement; x; x = x.parentElement) {
+    const o = getComputedStyle(x).overflowY;
+    if ((o === 'auto' || o === 'scroll') && x.scrollHeight > x.clientHeight + 4) return x;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+/** Window dragged and dropped before or after another one (the page scrolls near its top / bottom). */
+function dragWin(ev, w, k) {
+  if (ev.button !== 0 || ev.target.closest('.win-tools, .win-grip, [data-ed], button, input, select, a')) return;
+  ev.preventDefault();
+  if (document.activeElement?.dataset?.ed) document.activeElement.blur();
+  const x0 = ev.clientX, y0 = ev.clientY;
+  const sc = scroller(w);
+  let on = false, target = null, side = 'before', ghost = null, mark = null, last = null, raf = 0;
+  const others = () => [...document.querySelectorAll('#report-preview .win')].filter((x) => x !== w);
+  const place = (e) => {
+    let best = null, bd = Infinity;
+    for (const x of others()) {
+      const r = x.getBoundingClientRect();
+      const d = Math.hypot(Math.max(r.left - e.clientX, 0, e.clientX - r.right), Math.max(r.top - e.clientY, 0, e.clientY - r.bottom));
+      if (d < bd) { bd = d; best = x; }
+    }
+    target = best && bd < 150 ? best : null;
+    if (!target) { mark.style.display = 'none'; return; }
+    const r = target.getBoundingClientRect();
+    side = e.clientX < r.left + r.width / 2 ? 'before' : 'after';
+    Object.assign(mark.style, { display: 'block', left: `${(side === 'before' ? r.left - 5 : r.right + 2)}px`, top: `${r.top}px`, height: `${r.height}px` });
+  };
+  const tick = () => {
+    if (!on || !last) return;
+    const y = last.clientY, H = window.innerHeight;
+    const v = y < 90 ? -Math.ceil((90 - y) / 6) : y > H - 70 ? Math.ceil((y - H + 70) / 6) : 0;
+    if (v) { sc.scrollTop += v; place(last); }
+    raf = requestAnimationFrame(tick);
+  };
+  const move = (e) => {
+    last = e;
+    if (!on) {
+      if (Math.hypot(e.clientX - x0, e.clientY - y0) < 6) return;
+      on = true;
+      w.classList.add('dragging');
+      ghost = el('div', { class: 'win-ghost' }, w.querySelector('.sub-t')?.textContent || FIGS.find(([f]) => f === k)?.[1] || 'Drawing');
+      mark = el('div', { class: 'win-mark' });
+      document.body.append(ghost, mark);
+      raf = requestAnimationFrame(tick);
+    }
+    Object.assign(ghost.style, { left: `${e.clientX + 14}px`, top: `${e.clientY + 10}px` });
+    place(e);
+  };
+  const up = () => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    cancelAnimationFrame(raf);
+    ghost?.remove();
+    mark?.remove();
+    w.classList.remove('dragging');
+    if (!on || !target) return;
+    const lay = layoutOf(app.project, availableWins(app.project, app.result));
+    const o = lay.order;
+    o.splice(o.indexOf(k), 1);
+    let j = o.indexOf(target.dataset.key);
+    if (j < 0) return;
+    if (side === 'after') j++;
+    o.splice(j, 0, k);
+    saveLayout(lay);
+    app.recompute();
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
 function figsPanel() {
   const p = app.project;
   p.report = p.report || {};
@@ -211,7 +285,7 @@ function figsPanel() {
       el('button', { class: 'small', title: 'Default order and sizes', onclick: () => { delete p.report.layout; app.recompute(); } }, 'Reset the layout')),
     el('div', { class: 'row', style: { gap: '4px 16px' } },
       items.map(([k, t]) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: figOn(k), onchange: (e) => { p.report.figs[k] = e.target.checked; app.recompute(); } }), t))),
-    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'In the preview, point at a drawing: ← → to move it, ½ / ⬌ for half or whole page width, − + for its height, ✕ to remove it — or drag its corner ◢. Saved with the project.'));
+    el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } }, 'In the preview: drag a drawing to move it, drag its corner ◢ to resize it; or point at it: ← → move, ½ / ⬌ half or whole page width, − + height, ✕ remove. Saved with the project.'));
 }
 
 export function render(root) {
@@ -359,8 +433,10 @@ export function buildReport() {
       el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } },
         tk(() => ld.cogBasis === 'obvious', () => { ld.cogBasis = 'obvious'; }), ' Obvious  ',
         tk(() => ['estimated', 'geometric'].includes(ld.cogBasis), () => { ld.cogBasis = 'estimated'; }), ' Estimated  ',
-        tk(() => ld.cogBasis === 'drawing' || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
-        el('div', {}, 'X ', ed('load.cog_mm.x', { num: true }), ' · Y ', ed('load.cog_mm.y', { num: true }), ' · Z ', ed('load.cog_mm.z', { num: true }), ' mm'),
+        tk(() => ld.cogBasis === 'drawing' || ld.cogBasis === 'legs' || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
+        ld.cogBasis === 'legs'
+          ? el('div', {}, `X ${fmt(ld.cog_mm?.x, 0)} · Y ${fmt(ld.cog_mm?.y, 0)}${ld.cogZUnknown ? '' : ` · Z ${fmt(ld.cog_mm?.z, 0)}`} mm — under the hook given by the leg lengths of the lift plan`)
+          : el('div', {}, 'X ', ed('load.cog_mm.x', { num: true }), ' · Y ', ed('load.cog_mm.y', { num: true }), ' · Z ', ed('load.cog_mm.z', { num: true }), ' mm'),
         ld.cogBasis === 'geometric' ? el('div', {}, 'Geometric centre of the part (weight assumed evenly spread)') : null),
       el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), el('div', { style: { margin: '4px 0' } },
         tk(() => ld.weightBasis === 'actual', () => { ld.weightBasis = 'actual'; }), ' Actual  ',
@@ -449,6 +525,7 @@ export function buildReport() {
     const dr = w.querySelector('.drawing');
     if (dr && L.h) dr.style.height = `${L.h}mm`;
     w.querySelector('.win-grip').addEventListener('pointerdown', (ev) => resizeWin(ev, w, k));
+    w.addEventListener('pointerdown', (ev) => dragWin(ev, w, k));
     return w;
   };
   packRows(lay).forEach((row, i) => {

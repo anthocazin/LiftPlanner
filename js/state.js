@@ -115,7 +115,7 @@ export function defaultProject() {
     },
     rigging: {
       type: 'hook',
-      design: { mode: 'angle', targetAngleV_deg: 30, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'nearest' },
+      design: { mode: 'angle', targetAngleV_deg: 30, sizingAngleV_deg: 30, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'nearest' },
       head: { type: 'assembly', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, topShackleId: 'auto' },
       assembly: [
         { kind: 'shackle', id: 'auto' },

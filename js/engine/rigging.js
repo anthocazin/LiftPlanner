@@ -471,6 +471,21 @@ function finalizeLeg(leg, top, tens, i, fac, zLegTop) {
   return leg;
 }
 
+/**
+ * Slings and shackles sized for at least the sizing angle to the vertical (e.g. 30°): the design
+ * force of a leg is its vertical share / cos(max(actual angle, sizing angle)) × factors.
+ */
+function applySizingAngle(legs, design, fac) {
+  const sa = Number(design?.sizingAngleV_deg);
+  if (!(sa > 0 && sa < 89)) return;
+  legs.forEach((l) => {
+    const a = Math.max(l.angleV, sa);
+    const T = ((l.Tstatic * Math.cos(rad(l.angleV))) / Math.cos(rad(a))) * fac;
+    l.FdesignActual = l.Fdesign;
+    if (T > l.Fdesign + 1e-9) { l.Fdesign = T; l.sizedAt = a; }
+  });
+}
+
 /** True when an automatically selected part is no longer sufficient for the final force. */
 function needsReselect(leg) {
   const F = leg.Fdesign;
@@ -564,6 +579,7 @@ function solveHook(project, ctx) {
     const hook = v3(cog.x, cog.y, zHook);
     const tA = envelopeTensions(zHook, pts.map((p) => p.pos), W, cog, env);
     legs = legs.map((leg, i) => finalizeLeg(leg, hook, tA, i, fac, zLeg[i]));
+    applySizingAngle(legs, design, fac);
     return { legs, head, hook, tooShort, zHook };
   };
 

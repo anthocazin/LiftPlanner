@@ -2,6 +2,7 @@
 // lift points and COG can be added / dragged, the rigging is overlaid from the calculation.
 import { app } from './app.js';
 import { el } from './dom.js';
+import { wheelZoom, sideways } from './panzoom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 export const AXES = { xy: ['x', 'y'], xz: ['x', 'z'], yz: ['y', 'z'] };
@@ -281,7 +282,7 @@ export function loadView(key, opts = {}) {
       c[A] = sa;
       c[B] = sbv;
       if (load().cogPicks) { load().cogPicks[key] = [sa, sbv]; syncPicks(c, load().cogPicks); }
-      if (load().cogBasis === 'geometric') load().cogBasis = 'drawing';
+      if (load().cogBasis === 'geometric' || load().cogBasis === 'legs') load().cogBasis = 'drawing';
       drag.g.setAttribute('transform', `translate(${sa} ${-sbv})`);
     }
   });
@@ -321,7 +322,13 @@ export function loadView(key, opts = {}) {
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
   svg.addEventListener('wheel', (ev) => {
     ev.preventDefault();
-    zoomBy(ev.deltaY > 0 ? 1.15 : 1 / 1.15, toModel(ev));
+    if (sideways(ev)) {
+      const cur = curZoom(), s = vb.w / (svg.clientWidth || 1);
+      zoomState[key] = { ...cur, cx: cur.cx + (ev.deltaX || ev.deltaY) * s };
+      draw();
+      return;
+    }
+    zoomBy(1 / wheelZoom(ev), toModel(ev));
   }, { passive: false });
   svg.addEventListener('dblclick', (ev) => {
     if (ev.target.closest('[data-drag]')) return;

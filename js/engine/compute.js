@@ -4,6 +4,7 @@ import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks
 import { isLengthPart } from './rigging.js';
 import { setUserCatalog, itemWeight_t, niceName } from '../catalog/index.js';
 import { chartRange } from './crane.js';
+import { cogFromLegs } from './legcog.js';
 
 export function buildBOM(rig, project) {
   const lines = new Map();
@@ -92,10 +93,17 @@ export function computeProject(project) {
     if (c) ld.cog_mm = c;
   }
   const rules = { ...DEFAULT_RULES, ...(project.rules || {}), ...(project.load?.padeyeRules || {}) };
+  // COG under the hook given by the known leg lengths (lift plan of the engineering office)
+  let legCog = null;
+  if (ld.cogBasis === 'legs') {
+    legCog = cogFromLegs(project, rules);
+    if (legCog.cog) ld.cog_mm = legCog.cog;
+  }
   const rig = solveRigging(project, rules);
   const checks = riggingChecks(rig, project, rules);
+  if (legCog?.error) checks.unshift({ cat: 'Input', item: 'COG', label: legCog.error, status: 'fail', unit: '', util: null, value: null, limit: null, ref: { tab: 'load' } });
   const crane = project.crane || {};
-  const res = { rig, rules, checks, steps: [], bom: [] };
+  const res = { rig, rules, checks, steps: [], bom: [], legCog };
   if (rig.error) {
     res.status = 'fail';
     return res;

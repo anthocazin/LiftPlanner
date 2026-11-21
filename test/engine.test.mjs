@@ -468,3 +468,33 @@ test('leg lengths imposed (engineering office lift plan): kept as given, hook an
   const r3 = computeProject(p);
   assert.ok(r3.checks.some((c) => c.status === 'fail' && /shorter than its shackles/.test(c.label)));
 });
+
+test('COG deduced from the leg lengths (under the hook), slings sized for 30° at least', async () => {
+  const { hookFromLegs } = await import('../js/engine/legcog.js');
+  // hook from 4 lengths, 3 lengths, 2 lengths
+  const P = [v3(0, 0, 0), v3(4, 0, 0), v3(4, 3, 0), v3(0, 3, 0)];
+  const H = v3(1.2, 1.1, 5);
+  const L = P.map((p) => Math.hypot(H.x - p.x, H.y - p.y, H.z - p.z));
+  for (const Ls of [L, [L[0], L[1], L[2], null]]) { const h = hookFromLegs(P, Ls); near(h.x, 1.2, 1e-5); near(h.y, 1.1, 1e-5); near(h.z, 5, 1e-5); }
+  const h2 = hookFromLegs([v3(0, 0, 0), v3(4, 0, 0)], [Math.hypot(1, 3), Math.hypot(3, 3)]);
+  near(h2.x, 1, 1e-6); near(h2.y, 0, 1e-6); near(h2.z, 3, 1e-6);
+  // project: points from a corner of the part, COG not given → under the hook
+  const pts = [['A', 0, 0, 0], ['B', 4000, 0, 0], ['C', 4000, 3000, 0], ['D', 0, 3000, 0]];
+  const p = baseProject(pts, { x: 0, y: 0, z: -500 });
+  p.load.cogBasis = 'legs';
+  p.rigging.legs = Object.fromEntries(pts.map(([id], i) => [id, { Leff_m: L[i] }]));
+  const res = computeProject(p);
+  near(p.load.cog_mm.x, 1200, 1); near(p.load.cog_mm.y, 1100, 1); near(p.load.cog_mm.z, -500, 0);
+  assert.deepEqual(res.rig.tilt.slack, []);
+  // sizing angle: the design force of a leg at less than 30° is the one at 30°
+  p.rigging.design.sizingAngleV_deg = 30;
+  const r30 = computeProject(p).rig;
+  r30.legs.forEach((l) => {
+    const atA = l.FdesignActual;
+    if (l.angleV < 30) near(l.Fdesign, (atA * Math.cos((l.angleV * Math.PI) / 180)) / Math.cos(Math.PI / 6), 1e-6);
+    else near(l.Fdesign, atA, 1e-9);
+  });
+  // not enough lengths: reported
+  delete p.rigging.legs.B.Leff_m; delete p.rigging.legs.C.Leff_m;
+  assert.ok(computeProject(p).checks.some((c) => c.status === 'fail' && /at least 3 legs/.test(c.label)));
+});

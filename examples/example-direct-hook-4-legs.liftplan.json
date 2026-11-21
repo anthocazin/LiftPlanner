@@ -232,6 +232,7 @@
     "design": {
       "mode": "angle",
       "targetAngleV_deg": 30,
+      "sizingAngleV_deg": 30,
       "hookHeight_m": 4,
       "minHeight_m": 1,
       "roundLengths": "nearest"

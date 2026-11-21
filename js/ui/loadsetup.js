@@ -7,6 +7,7 @@ import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
 import { openPlanImport, importedSummary } from './planimport.js';
+import { panZoomBox } from './panzoom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PT_MM = 25.4 / 72;
@@ -451,13 +452,16 @@ function pageViewer() {
   const src = app.drawSource;
   const pageSel = el('select', { onchange: (e) => { setup.page = Number(e.target.value); if (setup.draft) setup.draft.page = setup.page; renderPage(); } });
   for (let i = 1; i <= src.pages; i++) pageSel.append(el('option', { value: i, selected: i === setup.page }, `Page ${i}`));
+  const cv = el('div', { class: 'pv-canvas', id: 'pv-canvas' });
+  panZoomBox(cv, { get: () => setup.zoom, set: (z) => { setup.zoom = z; }, redraw: renderPage, min: 0.4, max: 10 });
   const wrap = el('div', { class: 'pv' },
     el('div', { class: 'toolbar' }, src.pages > 1 ? pageSel : null,
       el('button', { class: 'small', onclick: () => { setup.zoom = Math.max(0.4, setup.zoom / 1.3); renderPage(); } }, '−'),
       el('button', { class: 'small', onclick: () => { setup.zoom = Math.min(8, setup.zoom * 1.3); renderPage(); } }, '+'),
       el('button', { class: 'small', onclick: () => { setup.zoom = 1; renderPage(); } }, 'Fit'),
-      el('span', { class: 'muted', id: 'pv-status', style: { fontSize: '12px' } }, '')),
-    el('div', { class: 'pv-canvas', id: 'pv-canvas' }),
+      el('span', { class: 'muted', id: 'pv-status', style: { fontSize: '12px' } }, ''),
+      el('span', { class: 'muted', style: { fontSize: '12px', marginLeft: 'auto' } }, 'Wheel = zoom · right / middle button drag or Space + drag = move')),
+    cv,
   );
   setTimeout(renderPage, 0);
   return wrap;
@@ -473,7 +477,7 @@ async function renderPage() {
   const key = `${src.name}#${setup.page}@${k.toFixed(4)}`;
   let c = pageCache.get(key);
   if (!c) {
-    c = await src.render(setup.page, k * (window.devicePixelRatio || 1));
+    c = await src.render(setup.page, Math.min(k * (window.devicePixelRatio || 1), Math.sqrt(40e6 / (size.w * size.h))));
     if (pageCache.size > 6) pageCache.clear();
     pageCache.set(key, c);
   }

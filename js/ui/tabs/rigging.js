@@ -160,6 +160,7 @@ export function render(root) {
         ? field({ label: 'Hook height above the lift points', path: `${R}design.hookHeight_m`, unit: 'm' })
         : field({ label: 'Target angle to vertical', path: `${R}design.targetAngleV_deg`, unit: '°', hint: `max ${rules.maxAngleV_deg ?? 45}° (Settings)` }),
       field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['nearest', 'Each leg: nearest standard length'], ['up', 'Each leg: standard length rounded up'], ['set', 'Same length on every leg (matched set)'], ['exact', 'Each leg: made to measure']], hint: 'Standard lengths every 0.5 m. Each leg is sized with its own hardware.' }),
+      field({ label: 'Sizing angle (min.)', path: `${R}design.sizingAngleV_deg`, unit: '°', placeholder: 'actual', hint: 'Slings and shackles sized for at least this angle to the vertical (empty: the actual angle)' }),
       field({ label: 'Same size on every leg', path: `${R}design.uniformLegs`, type: 'select', options: [['true', 'Yes'], ['false', 'No — each leg on its own force']], onchange: (v) => { rig.design.uniformLegs = v === 'true'; app.recompute(); } }),
     ),
     el('details', { class: 'sub' }, el('summary', {}, 'Shackle ranges used by "auto"'),
@@ -404,7 +405,7 @@ function update(res) {
       el('td', {}, el('b', {}, l.label)),
       el('td', { class: 'num' }, `${fmt(l.R)} t`, el('span', { class: 'muted' }, ` (${(l.share * 100).toFixed(1)} %)`)),
       el('td', { class: 'num' }, `${fmt(l.Tstatic)} t`),
-      el('td', { class: 'num' }, el('b', {}, `${fmt(l.Fdesign)} t`)),
+      el('td', { class: 'num' }, el('b', {}, `${fmt(l.Fdesign)} t`), l.sizedAt ? el('span', { class: 'muted' }, ` at ${fmt(l.sizedAt, 0)}°`) : null),
       el('td', { class: 'num' }, nd.target ? lenTxt(nd.target.L, nd.target.elem) : '—'),
       el('td', { class: 'num' }, nd.max ? lenTxt(nd.max.L, nd.max.elem) : '—'),
       canImpose ? el('td', {}, l.level === 'top' ? '' : imposeInput(l)) : null,
