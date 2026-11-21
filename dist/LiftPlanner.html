@@ -8259,7 +8259,7 @@ function buildReport() {
       el('td', {}, el('b', {}, 'Crane identification/configuration/mode:'),
         ul([ed('crane.name', { ph: 'Crane' }), ed('crane.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane.radius_m', { num: true }), ' m'), `Mode: ${ENVIRONMENTS[p.environment]}`]),
         c2 ? el('div', { class: 'crane2' }, el('b', {}, 'Second crane', c2.role ? ` (${c2.role})` : '', ':'),
-          ul([ed('crane2.name', { ph: 'Crane' }), ed('crane2.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane2.radius_m', { num: true }), ' m', sw2 != null ? ` — SWL ${fmt(sw2)} t` : ''), el('i', {}, 'Not considered in the calculation')])) : null),
+          ul([ed('crane2.name', { ph: 'Crane' }), ed('crane2.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane2.radius_m', { num: true }), ' m', sw2 != null ? ` — SWL ${fmt(sw2)} t` : '')])) : null),
       el('td', {}, el('b', {}, 'Crane specifications:'), ul([...swlLines, res.chartRange ? `Load chart ${res.chartRange.rMin}–${res.chartRange.rMax} m` : null])),
       el('td', {}, el('b', {}, 'Design lift conditions (maximum):'), ul([
         el('span', {}, 'Wind speed: ', ed('weather.windMax_ms', { num: true, ph: '—' }), ' m/s (gusts ', ed('weather.windGust_ms', { num: true, ph: '—' }), ' m/s)'),
