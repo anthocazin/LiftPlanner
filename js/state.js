@@ -1,6 +1,6 @@
 // Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 export const DEFAULT_CHECKLIST = [
   'Lifting equipment inspected, certificates valid and identified (serial numbers)',
@@ -75,6 +75,8 @@ export function defaultProject() {
     factors: { applyDAF: true, dafMode: 'dnv', dafManual: 1.1, sklMode: 'auto', sklManual: 1.25, cogFactor: 1.0, extraFactor: 1.0 },
     safety: { measures: {}, further: '', comms: { primary: 'UHF radio', secondary: 'Hand signals', other: '', primaryChecked: false, secondaryChecked: false }, },
     rules: {},
+    otherCranes: [],
+    signoff: {},
     load: {
       name: 'Pump skid P-101',
       weight_t: 12.5,
@@ -196,6 +198,7 @@ export function migrate(data) {
   if (v < 4) migrateV3(out);
   if (v < 5) migrateV4(out);
   if (v < 6) migrateV5(out);
+  if (v < 7) migrateV6(out);
   // the site map (storyboard) is gone: the radius already measured on it is kept
   (out.storyboard?.steps || []).forEach((st) => { delete st.pos; delete st.aiSketch; });
   out.schema = SCHEMA_VERSION;
@@ -300,6 +303,14 @@ function migrateV4(out) {
   r.assemblyTop = drop(r.assemblyTop);
   Object.values(r.legs || {}).forEach((l) => { if (l?.parts) l.parts = drop(l.parts); });
   if (out.load) out.load.cogEnvelope_mm = { dx: 0, dy: 0 };
+}
+
+/** v6 → v7: any number of other cranes (Crane #2, #3…); sign-off dates and signatures. */
+function migrateV6(out) {
+  out.otherCranes = Array.isArray(out.otherCranes) ? out.otherCranes : [];
+  if (out.crane2) out.otherCranes.unshift(out.crane2);
+  delete out.crane2;
+  out.signoff = out.signoff || {};
 }
 
 /** v5 → v6: no shape model (COG kept as estimated), steps = details + responsible, no technical review. */

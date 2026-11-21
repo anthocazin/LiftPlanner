@@ -284,7 +284,12 @@ table.data tbody tr { cursor: default; }
 .report.tpl .figs.lone { grid-template-columns: 1fr 1fr; }
 .report.tpl td.cols2 { column-count: 2; column-gap: 14px; }
 .report.tpl .own-dwg { margin-bottom: 6px; }
-.report.tpl .legs-t table { font-size: 8.5px; }
+.report.tpl .legs-t table { width: 100%; border-collapse: collapse; }
+.report.tpl .legs-t table th, .report.tpl .legs-t table td { font-size: 9px !important; padding: 2px 5px; border: 1px solid #c9d3de; }
+.report.tpl .legs-t table th { background: #c6d6ee; color: #111; position: static; }
+.report.tpl .legs-t table td:nth-child(-n+8) { white-space: nowrap; }
+/* text fields inside bullet lists wrap like text (the bullet stays on the first line) */
+.report.tpl li > .ed:not(.multi) { display: inline; }
 
 /* ---------- v0.4: load set-up stepper, 3D viewer, schematic, shapes ---------- */
 .setup .panel-head { flex-wrap: wrap; gap: 8px; }
@@ -391,11 +396,11 @@ details.inline-adv[open] { display: inline-flex; }
 .report.tpl table.tb.signoff th:first-child { text-align: left; }
 .report.tpl table.tb.signoff td { height: 20px; }
 .report.tpl table.tb.signoff tr.sig td { height: 44px; }
-.report.tpl .crane2 { margin-top: 6px; padding-top: 4px; border-top: 1px dashed #aaa; }
 @media print {
   .report .ed:empty::before { content: ''; }
   .report .ed, .report .ed:hover { background: none; box-shadow: none; }
   .report table.print-empty { display: none; }
+  .report.tpl li:has(> .ed:only-child:empty) { display: none; }
   .report.tpl table.tb.avoid-break { break-inside: avoid; }
 }
 .dim-pick { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; background: #f3f7fb; border: 1px solid #d6e2ee; border-radius: 6px; padding: 6px 8px; margin: 0 0 6px; }
@@ -404,3 +409,18 @@ details.inline-adv[open] { display: inline-flex; }
 .chip-btn.on { background: #e8822a; color: #fff; border-color: #e8822a; font-weight: 700; }
 .four-form { display: flex; flex-direction: column; gap: 6px; background: #fff8f0; border: 1px solid #f0c48f; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
 .four-form .field { min-width: 150px; }
+/* v0.7.2 — cranes #1…n in the report, sign-off with drawn signatures */
+.report.tpl .cranes { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 14px; }
+.report.tpl .crane-b ul { margin-top: 1px; }
+.report.tpl .env { margin-top: 3px; color: #333; }
+.report.tpl table.signoff td.sig-cell { cursor: pointer; padding: 2px; }
+.report.tpl table.signoff td.sig-cell img { max-height: 40px; max-width: 95%; display: block; margin: 0 auto; }
+.report .sig-hint { color: #b3b9c0; font-style: italic; font-size: 9px; }
+.sign-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.sign-col { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.sign-prev { height: 64px; border: 1px dashed #c9d3dd; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #fff; }
+.sign-prev img { max-height: 58px; max-width: 95%; }
+#signpad { align-items: center; }
+#signpad .sign-box { width: auto; max-width: 100%; }
+.sign-body { padding: 12px 16px 16px; }
+.sign-canvas { border: 1px solid #c9d3dd; border-radius: 8px; background: #fff; touch-action: none; cursor: crosshair; display: block; max-width: 100%; }

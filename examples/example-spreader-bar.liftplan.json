@@ -1,5 +1,5 @@
 {
-  "schema": 6,
+  "schema": 7,
   "project": {
     "name": "Example — skid lift with spreader bar",
     "liftId": "LP-002",
@@ -54,6 +54,8 @@
     }
   },
   "rules": {},
+  "otherCranes": [],
+  "signoff": {},
   "load": {
     "name": "Pump skid P-101",
     "weight_t": 12.5,

@@ -22,10 +22,10 @@ const TYPES = [
 export function render(root) {
   const C = 'crane.';
   const ident = panel(
-    'Crane',
+    'Crane #1 — used for the calculation',
     el('div', { class: 'fields' },
       field({ label: 'Crane', path: `${C}name`, type: 'text', cls: 'span2' }),
-      field({ label: 'Configuration / mode', path: `${C}configuration`, type: 'text', cls: 'span2', hint: 'Boom, counterweight, offshore / harbour mode…' }),
+      field({ label: 'Configuration', path: `${C}configuration`, type: 'text', cls: 'span2', hint: 'Boom, counterweight, offshore / harbour…' }),
       field({ label: 'Type', path: `${C}type`, type: 'select', options: TYPES }),
       field({ label: 'Critical lift threshold', path: `${C}utilLimit`, type: 'percent', hint: 'Utilisation above which the lift is critical' }),
       field({ label: 'Working radius', path: `${C}radius_m`, unit: 'm', hint: 'Largest radius of the lift: the SWL is checked there' }),
@@ -68,7 +68,7 @@ export function render(root) {
   );
 
   const graph = panel(null, el('div', { id: 'cap-chart' }));
-  root.append(libraryPanel(), el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, ident, graph), chartP), secondCranePanel());
+  root.append(libraryPanel(), el('div', { class: 'grid g2' }, el('div', { class: 'grid' }, ident, graph), chartP), otherCranesPanel());
   renderTable();
   update(app.result);
   root._update = update;
@@ -232,54 +232,67 @@ async function importLib(e) {
   }
 }
 
-// ---------- second crane: shown in the lift plan, not used in the calculation ----------
-const TYPE_NAME = Object.fromEntries(TYPES);
-export function crane2Swl(c2) {
-  if (!c2) return null;
-  if (c2.chart?.rows?.length && +c2.radius_m > 0) {
-    const v = chartCapacity(c2.chart, +c2.radius_m, Number(c2.activeColumn) || 0, c2.interpolation || 'step');
+// ---------- other cranes (Crane #2, #3…): shown in the lift plan, the calculation uses Crane #1 ----------
+/** SWL of a crane at its working radius: from its load chart, else the value typed. */
+export function craneSwl(c) {
+  if (!c) return null;
+  if (c.chart?.rows?.length && +c.radius_m > 0) {
+    const v = chartCapacity(c.chart, +c.radius_m, Number(c.activeColumn) || 0, c.interpolation || 'step');
     return v.status === 'ok' && v.capacity > 0 ? Math.round(v.capacity * 100) / 100 : null;
   }
-  return +c2.swl_t > 0 ? +c2.swl_t : null;
+  return +c.swl_t > 0 ? +c.swl_t : null;
 }
 
-function secondCranePanel() {
+const newCrane = () => ({ name: '', configuration: '', type: 'offshore', role: '', radius_m: null, swl_t: null, chart: null, activeColumn: 0, interpolation: 'step' });
+
+function otherCranesPanel() {
   const p = app.project;
-  const c2 = p.crane2;
-  const box = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Second crane'),
-    el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Shown in the lift plan; only the crane above is used in the calculation.'),
-    el('span', { class: 'spacer' }),
-    c2 ? el('button', { class: 'small', title: 'The second crane becomes the crane of the calculation (and the other way round)', onclick: swapCranes }, '⇄ Use it for the calculation') : null,
-    c2 ? el('button', { class: 'small danger', onclick: () => { p.crane2 = null; app.recompute(); window.__rerender(); } }, 'Remove') : el('button', { class: 'small primary', onclick: () => { p.crane2 = { name: '', configuration: '', type: 'offshore', role: '', radius_m: null, swl_t: null, chart: null, activeColumn: 0, interpolation: 'step' }; app.recompute(); window.__rerender(); } }, '+ Add a second crane')));
-  if (!c2) return box;
+  const list = (p.otherCranes = p.otherCranes || []);
+  const wrap = el('div', { class: 'grid' });
+  list.forEach((c, i) => wrap.append(otherCranePanel(c, i)));
+  wrap.append(el('div', { class: 'row' },
+    el('button', { class: 'small primary', onclick: () => { list.push(newCrane()); app.recompute(); window.__rerender(); } }, `+ Add Crane #${list.length + 2}`),
+    el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Other cranes of the operation are listed in the lift plan with their radius and SWL; the calculation uses Crane #1.')));
+  return wrap;
+}
+
+function otherCranePanel(c, i) {
+  const p = app.project;
+  const P = `otherCranes.${i}.`;
+  const n = i + 2;
   const lib = readLib();
-  const libSel = el('select', { onchange: (e) => { const c = lib[Number(e.target.value)]; if (!c) return; Object.assign(c2, clone({ name: c.name, configuration: c.configuration, type: c.type, chart: c.chart, activeColumn: c.activeColumn || 0, interpolation: c.interpolation || 'step' })); app.recompute(); window.__rerender(); toast(`${c.name} set as the second crane`); } },
-    el('option', { value: '' }, lib.length ? '— fill from my cranes —' : '— no saved crane —'), ...lib.map((c, i) => el('option', { value: i }, `${c.name}${c.configuration ? ` — ${c.configuration}` : ''}`)));
-  const hasChart = !!c2.chart?.rows?.length;
-  const swl = crane2Swl(c2);
-  box.append(el('div', { class: 'fields' },
-    field({ label: 'Crane', path: 'crane2.name', type: 'text', cls: 'span2' }),
-    field({ label: 'Configuration / mode', path: 'crane2.configuration', type: 'text', cls: 'span2' }),
-    field({ label: 'Type', path: 'crane2.type', type: 'select', options: TYPES }),
-    field({ label: 'Role in the operation', path: 'crane2.role', type: 'text', hint: 'e.g. standby, tailing, assist, back-up' }),
-    field({ label: 'Working radius', path: 'crane2.radius_m', unit: 'm' }),
-    hasChart ? el('div', { class: 'field' }, el('span', { class: 'lbl' }, 'SWL at this radius'), el('div', { class: 'card' }, swl != null ? `${swl} t (from its load chart)` : 'outside its load chart'))
-      : field({ label: 'SWL at this radius', path: 'crane2.swl_t', unit: 't', hint: 'From its load chart' }),
-  ), el('div', { class: 'row', style: { marginTop: '6px' } }, libSel, hasChart ? el('span', { class: 'muted', style: { fontSize: '12px' } }, `Load chart: ${c2.chart.rows.length} rows (${c2.chart.columns[Number(c2.activeColumn) || 0] || ''})`) : null));
-  return box;
+  const libSel = el('select', { onchange: (e) => { const l = lib[Number(e.target.value)]; if (!l) return; Object.assign(c, clone({ name: l.name, configuration: l.configuration, type: l.type, chart: l.chart, activeColumn: l.activeColumn || 0, interpolation: l.interpolation || 'step' })); app.recompute(); window.__rerender(); toast(`${l.name} set as Crane #${n}`); } },
+    el('option', { value: '' }, lib.length ? '— fill from my cranes —' : '— no saved crane —'), ...lib.map((l, k) => el('option', { value: k }, `${l.name}${l.configuration ? ` — ${l.configuration}` : ''}`)));
+  const hasChart = !!c.chart?.rows?.length;
+  const swl = craneSwl(c);
+  return panel(null,
+    el('div', { class: 'panel-head' }, el('h2', {}, `Crane #${n}`), el('span', { class: 'spacer' }),
+      el('button', { class: 'small', title: `Crane #${n} becomes Crane #1 (used for the calculation) and Crane #1 takes its place`, onclick: () => makeFirst(i) }, '⇄ Make it Crane #1'),
+      el('button', { class: 'small danger', onclick: () => { p.otherCranes.splice(i, 1); app.recompute(); window.__rerender(); } }, 'Remove')),
+    el('div', { class: 'fields' },
+      field({ label: 'Crane', path: `${P}name`, type: 'text', cls: 'span2' }),
+      field({ label: 'Configuration', path: `${P}configuration`, type: 'text', cls: 'span2' }),
+      field({ label: 'Type', path: `${P}type`, type: 'select', options: TYPES }),
+      field({ label: 'Role in the operation', path: `${P}role`, type: 'text', hint: 'e.g. standby, tailing, assist, back-up' }),
+      field({ label: 'Working radius', path: `${P}radius_m`, unit: 'm' }),
+      hasChart ? el('div', { class: 'field' }, el('span', { class: 'lbl' }, 'SWL at this radius'), el('div', { class: 'card' }, swl != null ? `${swl} t (from its load chart)` : 'outside its load chart'))
+        : field({ label: 'SWL at this radius', path: `${P}swl_t`, unit: 't', hint: 'From its load chart' })),
+    el('div', { class: 'row', style: { marginTop: '6px' } }, libSel, hasChart ? el('span', { class: 'muted', style: { fontSize: '12px' } }, `Load chart: ${c.chart.rows.length} rows (${c.chart.columns[Number(c.activeColumn) || 0] || ''})`) : null));
 }
 
-function swapCranes() {
+function makeFirst(i) {
   const p = app.project;
-  const c1 = p.crane, c2 = p.crane2;
-  if (!c2) return;
-  if (!c2.chart?.rows?.length && !confirm('The second crane has no load chart: after the exchange, enter its load chart for the calculation. Exchange anyway?')) return;
-  const keep = { utilLimit: c1.utilLimit ?? 0.85, interpolation: 'step', activeColumn: 0, chart: { columns: ['SWL'], rows: [] } };
-  p.crane = { ...keep, ...clone(c2), chart: c2.chart?.rows?.length ? clone(c2.chart) : keep.chart };
+  const c1 = p.crane, c = p.otherCranes[i];
+  if (!c) return;
+  // no load chart but an SWL at the working radius: it becomes a one-line load chart
+  const oneRow = !c.chart?.rows?.length && +c.swl_t > 0 && +c.radius_m > 0 ? { columns: ['SWL'], rows: [[+c.radius_m, +c.swl_t]] } : null;
+  if (!c.chart?.rows?.length && !oneRow && !confirm('This crane has no load chart nor SWL: after the exchange, enter its load chart for the calculation. Exchange anyway?')) return;
+  const keep = { utilLimit: c1.utilLimit ?? 0.85, interpolation: 'step', activeColumn: 0, chart: oneRow || { columns: ['SWL'], rows: [] } };
+  p.crane = { ...keep, ...clone(c), chart: c.chart?.rows?.length ? clone(c.chart) : keep.chart };
   delete p.crane.swl_t;
   delete p.crane.role;
-  p.crane2 = { ...clone(c1), role: c2.role || '', swl_t: null };
+  p.otherCranes[i] = { ...clone(c1), role: c.role || '', swl_t: null };
   app.recompute();
   window.__rerender();
-  toast(`${p.crane.name || 'The second crane'} is now used for the calculation`);
+  toast(`${p.crane.name || `Crane #${i + 2}`} is now Crane #1`);
 }

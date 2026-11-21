@@ -275,7 +275,7 @@ test('v2 project file migrates to leg assemblies', () => {
     load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
   };
   const p = migrate(v2);
-  assert.equal(p.schema, 6);
+  assert.equal(p.schema, 7);
   assert.equal(p.rigging.design.targetAngleV_deg, 30);
   assert.equal(p.rigging.head.type, 'masterlink');
   assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);

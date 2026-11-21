@@ -23,9 +23,10 @@ The current project and the inventory are saved automatically in the browser. **
 - **Load, simpler**: 3 steps — 1 drawing & scale, 2 views, 3 lift points & COG (the shape builder is gone). For each view: a frame, an origin, and the **overall dimensions read on the drawing** (the dimension values around the frame, the one matching the frame proposed; with no scale, picking it sets the scale).
 - **4 similar lift points**: A, B, C, D with the same pad eye, from the distances between points along X and Y, the height, centred on the geometric centre or the COG (Load page and step 3).
 - **Load chart reader** for PDF (vector or scanned) and images: **curve / abaque** (axes read from the axis labels or calibrated by two clicks each, the curve followed by its colour, SWL every metre — the values are drawn back on the chart to check), **table** (text of the PDF), or **Ask Claude** (your own Anthropic API key, kept in the browser only).
-- **Second crane** on the lift plan (name, configuration, role, radius, SWL — or from *My cranes*), printed in the report (only the first crane is used in the calculation, without mention in the report); one click exchanges the two cranes.
-- **Report editable**: click any field (title, reference, description, load, crane, weather, steps, communications, certificates, names…) — it is written into the project, so the other pages follow; tick boxes clickable; *+ Add a step*.
-- Report: no orange warnings (only what fails is printed), steps = details + responsible, technical review removed, sign-off table aligned (Prepared / Checked / Approved × name, date, signature).
+- **Several cranes**: *Crane #1* (used for the calculation) and as many others as needed — *+ Add Crane #2, #3…* (name, configuration, role, radius, SWL — or from *My cranes*); *⇄ Make it Crane #1* exchanges them (an SWL without load chart becomes a one-line chart). In the report, one crane block per crane (identification and specifications together).
+- **Report editable**: click any field (title, reference, description, load, crane, weather, steps, communications, names, dates…) — it is written into the project, so the other pages follow; tick boxes clickable; *+ Add a step*.
+- **Sign-off**: names and dates for *Prepared / Checked / Approved by* (on the Report page or directly in the report), and **drawn signatures** (mouse, finger or pen; click the signature cell in the report) — kept in the project file.
+- Report: no orange warnings (only what fails is printed), steps = details + responsible, technical review removed, no certificate column in the equipment table, sign-off table aligned.
 - Wire rope D/d rule removed; crane checked at the working radius of the Crane page.
 
 ## What's new in v0.6
@@ -79,7 +80,7 @@ The current project and the inventory are saved automatically in the browser. **
 
 **Drawings** — rigging schematic, rigging on the load in plan XY and elevations XZ / YZ (on the imported drawing when there is one), rigging detail to scale (chains drawn link by link). SVG / PNG export.
 
-**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, rigging schematic and detail, views XY / XZ / YZ (chosen), your own drawings if any, concise calculation summary (legs, padeye fit, failed checks only), checklift, sign-off — every field editable in the report → *Print / Save as PDF*.
+**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration)**, step-by-step with responsible, rigging schematic and detail, views XY / XZ / YZ (chosen), your own drawings if any, concise calculation summary (legs, padeye fit, failed checks only), checklift, sign-off with drawn signatures — every field editable in the report → *Print / Save as PDF*.
 
 **Inventory** — **equipment for this lift with exact quantities**, an *on hand* tick and the certificate number per line (CSV export); your own certified fleet; browser of the built-in catalogue.
 

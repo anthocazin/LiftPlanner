@@ -1,5 +1,5 @@
 {
-  "schema": 6,
+  "schema": 7,
   "project": {
     "name": "Example — offshore container transfer from supply vessel",
     "liftId": "LP-003",
@@ -54,6 +54,8 @@
     }
   },
   "rules": {},
+  "otherCranes": [],
+  "signoff": {},
   "load": {
     "name": "20' tool container",
     "weight_t": 8.2,

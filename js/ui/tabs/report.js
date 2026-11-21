@@ -12,7 +12,8 @@ import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
 import { SAFETY_MEASURES, CHECKLIFT, getPath, setPath } from '../../state.js';
-import { crane2Swl } from './crane.js';
+import { craneSwl } from './crane.js';
+import { openSignPad } from '../signpad.js';
 
 const opts = { calc: true, checksAll: false };
 
@@ -20,6 +21,7 @@ const opts = { calc: true, checksAll: false };
 // other pages); the report is rebuilt when the editing is over.
 let holdUpdate = false;
 let pendingUpdate = false;
+let panelStale = false; // the sign-off panel must show what was typed in the report
 const pathGS = (path, { num = false } = {}) => ({
   get: () => getPath(app.project, path),
   set: (v) => setPath(app.project, path, num ? (v === '' ? null : Number(String(v).replace(',', '.'))) : v),
@@ -39,6 +41,7 @@ function ed(target, { multi = false, ph = '', num = false, show } = {}) {
     if (String(before ?? '') !== v) {
       if (num && v !== '' && !isFinite(Number(v.replace(',', '.')))) { e.textContent = before ?? ''; return; }
       gs.set(v);
+      panelStale = true;
       holdUpdate = !!next;
       app.recompute();
       holdUpdate = false;
@@ -94,6 +97,7 @@ export function render(root) {
       tog('calc', 'Calculation summary'), tog('checksAll', 'All checks (not only issues)'),
     ),
     figsPanel(),
+    signoffPanel(),
     ownDrawingsPanel(),
     el('div', { id: 'report-preview' }),
   );
@@ -108,6 +112,10 @@ function update() {
   pendingUpdate = false;
   box.innerHTML = '';
   box.append(buildReport());
+  // keep the sign-off panel in step with what was typed in the report
+  const sp = document.getElementById('signoff-panel');
+  if (panelStale && sp) sp.replaceWith(signoffPanel());
+  panelStale = false;
 }
 
 const fig = (svg, cls = '') => figure(svg, '', { exportable: false, cls });
@@ -163,14 +171,18 @@ export function buildReport() {
 
   // ---- Load / crane details
   const crane = p.crane;
-  const c2 = p.crane2;
-  const swlLines = [];
-  if (Number(crane.radius_m) > 0) {
-    const c = res.checks.find((k) => k.cat === 'Crane' && k.util != null);
-    if (c) swlLines.push(`SWL ${fmt(c.limit)} t @ ${fmt(crane.radius_m, 1)} m → ${(c.util * 100).toFixed(0)} %`);
-  }
   const ul = (arr) => el('ul', {}, arr.filter(Boolean).map((t) => el('li', {}, t)));
-  const sw2 = c2 ? crane2Swl(c2) : null;
+  const cc = res.checks.find((k) => k.cat === 'Crane' && k.util != null);
+  // Crane #1 (calculated) then the other cranes, side by side
+  const craneBlock = (c, P, n) => {
+    const swl = n === 1 ? (cc ? cc.limit : null) : craneSwl(c);
+    return el('div', { class: 'crane-b' }, el('b', {}, `Crane #${n}`, c.role ? ` (${c.role})` : '', ':'),
+      ul([ed(`${P}name`, { ph: 'Crane' }), ed(`${P}configuration`, { ph: 'Boom, counterweight…' }),
+        el('span', {}, 'Radius: ', ed(`${P}radius_m`, { num: true, ph: '—' }), ' m'),
+        swl != null ? `SWL ${fmt(swl)} t${n === 1 && cc ? ` → ${(cc.util * 100).toFixed(0)} % used` : ''}` : null,
+        n === 1 && res.chartRange ? `Load chart ${res.chartRange.rMin}–${res.chartRange.rMax} m` : null]));
+  };
+  const cranes = [craneBlock(crane, 'crane.', 1), ...(p.otherCranes || []).map((c, i) => craneBlock(c, `otherCranes.${i}.`, i + 2))];
   const w = p.weather || {};
   add(el('table', { class: 'tb' },
     el('tr', {}, el('th', { colspan: 3, class: 'sec' }, 'Load details/crane details', el('span', {}, ' (maximum hook load not to be exceeded)'))),
@@ -188,11 +200,7 @@ export function buildReport() {
         ul([el('span', {}, 'Net weight ', ed('load.weight_t', { num: true }), ` t × WCF ${fmt(ld.wcf)} = ${fmt(r.W)} t`), `Rigging ${fmt(r.rigWeight)} t`, `Max hook load: ${fmt(res.shlCrane)} t static / ${fmt(res.dynamicHookLoad)} t dynamic`])),
     ),
     el('tr', {},
-      el('td', {}, el('b', {}, 'Crane identification/configuration/mode:'),
-        ul([ed('crane.name', { ph: 'Crane' }), ed('crane.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane.radius_m', { num: true }), ' m'), `Mode: ${ENVIRONMENTS[p.environment]}`]),
-        c2 ? el('div', { class: 'crane2' }, el('b', {}, 'Second crane', c2.role ? ` (${c2.role})` : '', ':'),
-          ul([ed('crane2.name', { ph: 'Crane' }), ed('crane2.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane2.radius_m', { num: true }), ' m', sw2 != null ? ` — SWL ${fmt(sw2)} t` : '')])) : null),
-      el('td', {}, el('b', {}, 'Crane specifications:'), ul([...swlLines, res.chartRange ? `Load chart ${res.chartRange.rMin}–${res.chartRange.rMax} m` : null])),
+      el('td', { colspan: 2 }, el('div', { class: 'cranes' }, cranes), el('div', { class: 'env' }, `Environment: ${ENVIRONMENTS[p.environment]}`)),
       el('td', {}, el('b', {}, 'Design lift conditions (maximum):'), ul([
         el('span', {}, 'Wind speed: ', ed('weather.windMax_ms', { num: true, ph: '—' }), ' m/s (gusts ', ed('weather.windGust_ms', { num: true, ph: '—' }), ' m/s)'),
         el('span', {}, 'Hs: ', ed('weather.hsMax_m', { num: true, ph: '—' }), ' m'),
@@ -224,17 +232,15 @@ export function buildReport() {
   ));
 
   // ---- Lifting equipment
-  const chk = p.equipmentCheck || {};
   add(el('table', { class: 'tb eq avoid-break' },
-    el('tr', {}, el('th', { colspan: 6, class: 'sec' }, 'Lifting equipment and accessories to be used', el('span', {}, ' (specify type, SWL and configuration)'))),
-    el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration', 'Cert. no.'].map((h) => el('td', {}, h))),
+    el('tr', {}, el('th', { colspan: 5, class: 'sec' }, 'Lifting equipment and accessories to be used', el('span', {}, ' (specify type, SWL and configuration)'))),
+    el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration'].map((h) => el('td', {}, h))),
     res.bom.filter((b) => !b.unknown).map((b) => el('tr', {},
       el('td', { class: 'c' }, String(b.qty)),
       el('td', {}, b.name),
       el('td', { class: 'c' }, b.ewl_m != null ? (b.links ? `${b.links} links (${fmt(b.ewl_m, 3)} m)` : `${fmt(b.ewl_m)} m`) : 'n/a'),
       el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
       el('td', {}, b.config || ''),
-      el('td', {}, ed({ get: () => chk[b.key]?.certNo || b.certNo || '', set: (v) => { p.equipmentCheck = p.equipmentCheck || {}; p.equipmentCheck[b.key] = { ...(p.equipmentCheck[b.key] || {}), certNo: v }; } }, { ph: '…' })),
     )),
   ));
 
@@ -306,8 +312,11 @@ export function buildReport() {
     el('colgroup', {}, el('col', { class: 'h' }), who.map(() => el('col', {}))),
     el('tr', {}, el('th', { class: 'sec' }, ''), who.map(([t]) => el('th', { class: 'sec' }, t))),
     el('tr', {}, el('th', {}, 'Name'), who.map(([, k]) => el('td', {}, ed(`project.${k}`, { ph: 'Name' })))),
-    el('tr', {}, el('th', {}, 'Date'), who.map(() => el('td', {}, ''))),
-    el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(() => el('td', {}, ''))),
+    el('tr', {}, el('th', {}, 'Date'), who.map(([, k]) => el('td', {}, ed(`signoff.${k}.date`, { ph: 'Date' })))),
+    el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(([t, k]) => {
+      const img = safeImg(p.signoff?.[k]?.signature);
+      return el('td', { class: 'sig-cell', title: 'Click to sign', onclick: () => signFor(k, t) }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'no-print sig-hint' }, '✎ Click to sign'));
+    })),
   ));
   return rep;
 }
@@ -378,4 +387,38 @@ function reportChecks(list) {
       el('td', { class: 'c' }, c.value != null ? `${fmt(c.value)} ${c.unit || ''}` : ''),
       el('td', { class: 'c' }, c.limit != null ? `${fmt(c.limit)} ${c.unit || ''}` : ''),
       el('td', { class: 'c' }, el('b', {}, word[c.status] || '')))));
+}
+
+// ---------- sign-off: names, dates and signatures (drawn), also editable in the report
+function signFor(k, role) {
+  const p = app.project;
+  const who = p.project?.[k] || '';
+  openSignPad(`${role}${who ? ` — ${who}` : ''}`, (url) => {
+    p.signoff = p.signoff || {};
+    p.signoff[k] = { ...(p.signoff[k] || {}), signature: url };
+    if (url && !p.signoff[k].date) p.signoff[k].date = new Date().toISOString().slice(0, 10);
+    app.recompute();
+    window.__rerender?.();
+  });
+}
+
+function signoffPanel() {
+  const p = app.project;
+  p.signoff = p.signoff || {};
+  const roles = [['Prepared by', 'preparedBy'], ['Checked by', 'checkedBy'], ['Approved by', 'approvedBy']];
+  const col = ([t, k]) => {
+    const so = (p.signoff[k] = p.signoff[k] || {});
+    const img = safeImg(so.signature);
+    return el('div', { class: 'sign-col' },
+      el('b', {}, t),
+      el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Name'), el('input', { type: 'text', value: p.project[k] || '', placeholder: 'Name', onchange: (e) => { p.project[k] = e.target.value; app.recompute(); } })),
+      el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Date'), el('input', { type: 'text', value: so.date || '', placeholder: 'e.g. 2026-11-21', onchange: (e) => { so.date = e.target.value; app.recompute(); } })),
+      el('div', { class: 'sign-prev' }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
+      el('div', { class: 'row' },
+        el('button', { class: 'small primary', onclick: () => signFor(k, t) }, img ? 'Sign again' : '✎ Draw the signature'),
+        img ? el('button', { class: 'small danger', onclick: () => { so.signature = null; app.recompute(); window.__rerender?.(); } }, 'Remove') : null));
+  };
+  return el('div', { id: 'signoff-panel', class: 'panel no-print', style: { marginBottom: '12px' } },
+    el('div', { class: 'panel-head' }, el('h2', {}, 'Sign-off'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Names, dates and signatures printed at the end of the lift plan (also editable in the report). Signatures stay in the project file.')),
+    el('div', { class: 'sign-grid' }, roles.map(col)));
 }
