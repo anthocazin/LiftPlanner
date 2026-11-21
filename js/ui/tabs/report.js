@@ -2,8 +2,8 @@
 // section bars, lifting plan block, load / crane details, safety measures, equipment, step-by-step,
 // sketches, checklift) followed by the calculation summary.
 import { app } from '../app.js';
-import { el, fmt, badge } from '../dom.js';
-import { checksTable, legsTable } from './results.js';
+import { el, fmt } from '../dom.js';
+import { legsTable } from './results.js';
 import { drawRiggingDetail, drawPadeyeFit } from '../../draw/detail.js';
 import { schematicSvg } from '../../draw/schematic.js';
 import { drawCapacityChart } from '../../draw/chart.js';
@@ -11,9 +11,56 @@ import { staticViewSvg, safeImg } from '../loadview.js';
 import { figure } from '../figure.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
-import { SAFETY_MEASURES, CHECKLIFT } from '../../state.js';
+import { SAFETY_MEASURES, CHECKLIFT, getPath, setPath } from '../../state.js';
+import { crane2Swl } from './crane.js';
 
 const opts = { calc: true, checksAll: false };
+
+// ---------- editing in the report: every field writes back into the project (and so into the
+// other pages); the report is rebuilt when the editing is over.
+let holdUpdate = false;
+let pendingUpdate = false;
+const pathGS = (path, { num = false } = {}) => ({
+  get: () => getPath(app.project, path),
+  set: (v) => setPath(app.project, path, num ? (v === '' ? null : Number(String(v).replace(',', '.'))) : v),
+});
+/** Editable text: { get, set } or a project path. */
+function ed(target, { multi = false, ph = '', num = false, show } = {}) {
+  const gs = typeof target === 'string' ? pathGS(target, { num }) : target;
+  const cur = gs.get();
+  const txt = show ? show(cur) : cur ?? '';
+  const e = el(multi ? 'div' : 'span', { class: `ed ${multi ? 'multi' : ''}`, contenteditable: 'true', spellcheck: 'false', 'data-ph': ph, 'data-ed': '1', title: 'Click to edit — saved in the project' }, txt == null ? '' : String(txt));
+  e.addEventListener('keydown', (ev) => { if (!multi && ev.key === 'Enter') { ev.preventDefault(); e.blur(); } });
+  e.addEventListener('focus', () => { if (show && cur != null) e.textContent = String(cur); });
+  e.addEventListener('focusout', (ev) => {
+    const v = multi ? e.innerText.replace(/\n+$/, '').trim() : e.textContent.trim();
+    const next = ev.relatedTarget?.closest?.('#report-preview [data-ed]');
+    const before = gs.get();
+    if (String(before ?? '') !== v) {
+      if (num && v !== '' && !isFinite(Number(v.replace(',', '.')))) { e.textContent = before ?? ''; return; }
+      gs.set(v);
+      holdUpdate = !!next;
+      app.recompute();
+      holdUpdate = false;
+    } else if (!next && pendingUpdate) update();
+  });
+  return e;
+}
+/** Tick box that can be clicked in the report. */
+function tk(get, set) {
+  return act(el('span', { class: 'tick ed-tick', title: 'Click to tick / untick' }, get() ? '☒' : '☐'), () => set(!get()));
+}
+/** Action on press (before the field being edited loses the focus and the report is rebuilt). */
+function act(e, fn) {
+  e.addEventListener('mousedown', (ev) => {
+    ev.preventDefault();
+    if (document.activeElement?.dataset?.ed) document.activeElement.blur();
+    fn();
+    app.recompute();
+  });
+  return e;
+}
+const tkp = (path) => tk(() => getPath(app.project, path), (v) => setPath(app.project, path, v));
 
 // drawings that can be printed (chosen on the Report page, saved with the project)
 const FIGS = [
@@ -57,6 +104,8 @@ export function render(root) {
 function update() {
   const box = document.getElementById('report-preview');
   if (!box) return;
+  if (holdUpdate || box.contains(document.activeElement) && document.activeElement?.dataset?.ed) { pendingUpdate = true; return; }
+  pendingUpdate = false;
   box.innerHTML = '';
   box.append(buildReport());
 }
@@ -73,9 +122,9 @@ function header(p) {
   return el('div', { class: 'rhead' },
     el('div', { class: 'logo l' }, logo('company')),
     el('div', { class: 'mid' },
-      el('div', { class: 'h1' }, hl[0] || pr.client || ''),
-      el('div', { class: 'h2' }, hl[1] || pr.site || ''),
-      el('div', { class: 'h3' }, hl[2] || pr.name || ''),
+      el('div', { class: 'h1' }, ed({ get: () => hl[0] || pr.client || '', set: (v) => { pr.headerLines = [...(pr.headerLines || [])]; pr.headerLines[0] = v; } }, { ph: 'Header line 1' })),
+      el('div', { class: 'h2' }, ed({ get: () => hl[1] || pr.site || '', set: (v) => { pr.headerLines = [...(pr.headerLines || [])]; pr.headerLines[1] = v; } }, { ph: 'Header line 2' })),
+      el('div', { class: 'h3' }, ed({ get: () => hl[2] || pr.name || '', set: (v) => { pr.headerLines = [...(pr.headerLines || [])]; pr.headerLines[2] = v; } }, { ph: 'Header line 3' })),
     ),
     el('div', { class: 'logo r' }, logo('client')),
   );
@@ -101,11 +150,11 @@ export function buildReport() {
   // ---- LIFTING PLAN block
   add(el('table', { class: 'tb' },
     el('tr', {}, el('th', { colspan: 4, class: 'big' }, 'LIFTING PLAN')),
-    el('tr', {}, el('th', {}, 'Title'), el('td', { colspan: 3 }, pr.name || '')),
-    el('tr', {}, el('th', {}, 'Reference'), el('td', {}, pr.liftId || ''), el('th', {}, 'Revision / date'), el('td', {}, `${pr.revision || '-'} — ${pr.date || ''}`)),
-    el('tr', {}, el('th', {}, 'Vessel/Site'), el('td', {}, pr.site || pr.vessel || ''), el('th', {}, 'Category'), el('td', {}, `${res?.category?.cat || '—'}`, res ? el('span', { style: { marginLeft: '6px' } }, badge(res.status)) : null)),
-    el('tr', {}, el('th', {}, 'Client'), el('td', { colspan: 3 }, pr.client || '')),
-    el('tr', {}, el('th', {}, 'Lift Location'), el('td', { colspan: 3 }, pr.location || '')),
+    el('tr', {}, el('th', {}, 'Title'), el('td', { colspan: 3 }, ed('project.name', { ph: 'Title of the lift' }))),
+    el('tr', {}, el('th', {}, 'Reference'), el('td', {}, ed('project.liftId', { ph: 'Reference' })), el('th', {}, 'Revision / date'), el('td', {}, ed('project.revision', { ph: 'Rev.' }), ' — ', ed('project.date', { ph: 'Date' }))),
+    el('tr', {}, el('th', {}, 'Vessel/Site'), el('td', {}, ed('project.site', { ph: 'Vessel / site' })), el('th', {}, 'Category'), el('td', {}, `${res?.category?.cat || '—'}`)),
+    el('tr', {}, el('th', {}, 'Client'), el('td', { colspan: 3 }, ed('project.client', { ph: 'Client' }))),
+    el('tr', {}, el('th', {}, 'Lift Location'), el('td', { colspan: 3 }, ed('project.location', { ph: 'Location of the lift' }))),
   ));
   if (!r || r.error) {
     add(el('div', { class: 'note fail' }, r?.error || 'Calculation not possible'));
@@ -113,55 +162,64 @@ export function buildReport() {
   }
 
   // ---- Load / crane details
-  const crSteps = (p.storyboard.steps || []).map((st, i) => ({ st, i, sr: res.steps?.[i] })).filter((x) => Number(x.st.radius_m) > 0);
-  const radii = crSteps.map((x) => Number(x.st.radius_m));
   const crane = p.crane;
-  const swlLines = crSteps.map(({ st, i, sr }) => {
-    const c = sr?.checks?.find((k) => k.cat === 'Crane' && k.util != null);
-    return c ? `Step ${i + 1}: SWL ${fmt(c.limit)} t @ ${fmt(st.radius_m, 1)} m → ${(c.util * 100).toFixed(0)} %` : `Step ${i + 1}: R ${fmt(st.radius_m, 1)} m — ${sr?.checks?.[0]?.label || ''}`;
-  });
-  if (!crSteps.length && Number(crane.radius_m) > 0) {
+  const c2 = p.crane2;
+  const swlLines = [];
+  if (Number(crane.radius_m) > 0) {
     const c = res.checks.find((k) => k.cat === 'Crane' && k.util != null);
     if (c) swlLines.push(`SWL ${fmt(c.limit)} t @ ${fmt(crane.radius_m, 1)} m → ${(c.util * 100).toFixed(0)} %`);
   }
   const ul = (arr) => el('ul', {}, arr.filter(Boolean).map((t) => el('li', {}, t)));
+  const sw2 = c2 ? crane2Swl(c2) : null;
   const w = p.weather || {};
   add(el('table', { class: 'tb' },
     el('tr', {}, el('th', { colspan: 3, class: 'sec' }, 'Load details/crane details', el('span', {}, ' (maximum hook load not to be exceeded)'))),
     el('tr', {},
-      el('td', {}, el('b', {}, 'Load identification:'), ul([ld.name, `Overall ${fmt(ld.dims_mm.L, 0)} × ${fmt(ld.dims_mm.W, 0)} × ${fmt(ld.dims_mm.H, 0)} mm`, `${r.pts.length} lift point(s) ${r.pts.map((q) => q.id).join(', ')}`, p.rigging.type === 'spreader' ? `Spreader bar ${fmt(r.spreader.length)} m` : `Direct to hook, ${r.legs.length} legs`])),
-      el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } }, box(ld.cogBasis === 'obvious'), ' Obvious  ', box(['estimated', 'geometric', 'shape'].includes(ld.cogBasis)), ' Estimated  ', box(ld.cogBasis === 'drawing' || !ld.cogBasis), ' Drawing'),
-        el('div', {}, `X ${fmt(ld.cog_mm.x, 0)} · Y ${fmt(ld.cog_mm.y, 0)} · Z ${fmt(ld.cog_mm.z, 0)} mm`),
-        ld.cogBasis === 'geometric' ? el('div', {}, 'Geometric centre of the part (weight assumed evenly spread)') : ld.cogBasis === 'shape' ? el('div', {}, 'Calculated from the shape of the part (weight evenly spread)') : null),
-      el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), el('div', { style: { margin: '4px 0' } }, box(ld.weightBasis === 'actual'), ' Actual  ', box(ld.weightBasis !== 'actual'), ' Assessed'),
-        ul([`Net weight ${fmt(ld.weight_t)} t × WCF ${fmt(ld.wcf)} = ${fmt(r.W)} t`, `Rigging ${fmt(r.rigWeight)} t`, `Max hook load: ${fmt(res.shlCrane)} t static / ${fmt(res.dynamicHookLoad)} t dynamic`])),
+      el('td', {}, el('b', {}, 'Load identification:'), ul([ed('load.name', { ph: 'Name of the load' }), el('span', {}, 'Overall ', ed('load.dims_mm.L', { num: true }), ' × ', ed('load.dims_mm.W', { num: true }), ' × ', ed('load.dims_mm.H', { num: true }), ' mm'), `${r.pts.length} lift point(s) ${r.pts.map((q) => q.id).join(', ')}`, p.rigging.type === 'spreader' ? `Spreader bar ${fmt(r.spreader.length)} m` : `Direct to hook, ${r.legs.length} legs`])),
+      el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } },
+        tk(() => ld.cogBasis === 'obvious', () => { ld.cogBasis = 'obvious'; }), ' Obvious  ',
+        tk(() => ['estimated', 'geometric'].includes(ld.cogBasis), () => { ld.cogBasis = 'estimated'; }), ' Estimated  ',
+        tk(() => ld.cogBasis === 'drawing' || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
+        el('div', {}, 'X ', ed('load.cog_mm.x', { num: true }), ' · Y ', ed('load.cog_mm.y', { num: true }), ' · Z ', ed('load.cog_mm.z', { num: true }), ' mm'),
+        ld.cogBasis === 'geometric' ? el('div', {}, 'Geometric centre of the part (weight assumed evenly spread)') : null),
+      el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), el('div', { style: { margin: '4px 0' } },
+        tk(() => ld.weightBasis === 'actual', () => { ld.weightBasis = 'actual'; }), ' Actual  ',
+        tk(() => ld.weightBasis !== 'actual', () => { ld.weightBasis = 'assessed'; }), ' Assessed'),
+        ul([el('span', {}, 'Net weight ', ed('load.weight_t', { num: true }), ` t × WCF ${fmt(ld.wcf)} = ${fmt(r.W)} t`), `Rigging ${fmt(r.rigWeight)} t`, `Max hook load: ${fmt(res.shlCrane)} t static / ${fmt(res.dynamicHookLoad)} t dynamic`])),
     ),
     el('tr', {},
-      el('td', {}, el('b', {}, 'Crane identification/configuration/mode:'), ul([crane.name, crane.configuration, radii.length ? `Radius: ${radii.map((x) => fmt(x, 1)).join(' → ')} m` : null, `Mode: ${ENVIRONMENTS[p.environment]}`])),
+      el('td', {}, el('b', {}, 'Crane identification/configuration/mode:'),
+        ul([ed('crane.name', { ph: 'Crane' }), ed('crane.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane.radius_m', { num: true }), ' m'), `Mode: ${ENVIRONMENTS[p.environment]}`]),
+        c2 ? el('div', { class: 'crane2' }, el('b', {}, 'Second crane', c2.role ? ` (${c2.role})` : '', ':'),
+          ul([ed('crane2.name', { ph: 'Crane' }), ed('crane2.configuration', { ph: 'Configuration' }), el('span', {}, 'Radius: ', ed('crane2.radius_m', { num: true }), ' m', sw2 != null ? ` — SWL ${fmt(sw2)} t` : ''), el('i', {}, 'Not considered in the calculation')])) : null),
       el('td', {}, el('b', {}, 'Crane specifications:'), ul([...swlLines, res.chartRange ? `Load chart ${res.chartRange.rMin}–${res.chartRange.rMax} m` : null])),
-      el('td', {}, el('b', {}, 'Design lift conditions (maximum):'), ul([w.windMax_ms ? `Wind speed: ${w.windMax_ms} m/s${w.windGust_ms ? ` (gusts ${w.windGust_ms} m/s)` : ''}` : null, w.hsMax_m ? `Hs: ${w.hsMax_m} m` : null, w.visibility ? `Visibility: ${w.visibility}` : null, ...lines(w.notes)])),
+      el('td', {}, el('b', {}, 'Design lift conditions (maximum):'), ul([
+        el('span', {}, 'Wind speed: ', ed('weather.windMax_ms', { num: true, ph: '—' }), ' m/s (gusts ', ed('weather.windGust_ms', { num: true, ph: '—' }), ' m/s)'),
+        el('span', {}, 'Hs: ', ed('weather.hsMax_m', { num: true, ph: '—' }), ' m'),
+        el('span', {}, 'Visibility: ', ed('weather.visibility', { ph: '—' })),
+        ed('weather.notes', { multi: true, ph: 'Other conditions' })])),
     ),
   ));
 
   // ---- Description
-  add(el('table', { class: 'tb' }, el('tr', {}, el('th', { class: 'sec' }, 'Description of lifting')), el('tr', {}, el('td', {}, pr.description || ''))));
+  add(el('table', { class: 'tb' }, el('tr', {}, el('th', { class: 'sec' }, 'Description of lifting')), el('tr', {}, el('td', {}, ed('project.description', { multi: true, ph: 'Describe the lift' })))));
 
   // ---- Safety measures
   const ms = p.safety?.measures || {};
   const third = Math.ceil(SAFETY_MEASURES.length / 3);
-  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(ms[m]), ' ', m)));
+  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, tk(() => ms[m], (v) => { p.safety = p.safety || {}; p.safety.measures = p.safety.measures || {}; p.safety.measures[m] = v; }), ' ', m)));
   add(el('table', { class: 'tb' },
     el('tr', {}, el('th', { colspan: 3, class: 'sec' }, 'Possible safety measures to be considered', el('span', {}, ' (tick as applicable and detail in ‘step-by-step’)'))),
     el('tr', {}, col(0), col(1), col(2)),
   ));
   const fu = lines(p.safety?.further);
-  if (fu.length) add(el('table', { class: 'tb' }, el('tr', {}, el('th', { class: 'sec' }, 'Any further safety measures', el('span', {}, ' (as identified in the risk assessment; remember SIMOPs)'))), el('tr', {}, el('td', {}, ul(fu)))));
+  add(el('table', { class: `tb ${fu.length ? '' : 'print-empty'}` }, el('tr', {}, el('th', { class: 'sec' }, 'Any further safety measures', el('span', {}, ' (as identified in the risk assessment; remember SIMOPs)'))), el('tr', {}, el('td', {}, ed('safety.further', { multi: true, ph: 'One measure per line' })))));
   const cm = p.safety?.comms || {};
   add(el('table', { class: 'tb' },
     el('tr', {}, el('th', { colspan: 2, class: 'sec' }, 'Communications')),
     el('tr', {},
-      el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || ''}`)),
-      el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(cm.primaryChecked), ' Primary checked   ', box(cm.secondaryChecked), ' Secondary checked')),
+      el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ' Primary (', ed('safety.comms.primary', { ph: '—' }), ')   ', box(!!cm.secondary), ' Secondary (', ed('safety.comms.secondary', { ph: '—' }), ')   ', box(!!cm.other), ' Other: ', ed('safety.comms.other', { ph: '—' }))),
+      el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, tkp('safety.comms.primaryChecked'), ' Primary checked   ', tkp('safety.comms.secondaryChecked'), ' Secondary checked')),
     ),
   ));
 
@@ -176,19 +234,19 @@ export function buildReport() {
       el('td', { class: 'c' }, b.ewl_m != null ? (b.links ? `${b.links} links (${fmt(b.ewl_m, 3)} m)` : `${fmt(b.ewl_m)} m`) : 'n/a'),
       el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
       el('td', {}, b.config || ''),
-      el('td', {}, chk[b.key]?.certNo || b.certNo || ''),
+      el('td', {}, ed({ get: () => chk[b.key]?.certNo || b.certNo || '', set: (v) => { p.equipmentCheck = p.equipmentCheck || {}; p.equipmentCheck[b.key] = { ...(p.equipmentCheck[b.key] || {}), certNo: v }; } }, { ph: '…' })),
     )),
   ));
 
   // ---- Step-by-step
-  const steps = p.storyboard.steps || [];
-  const rv = p.safety?.review || {};
+  const steps = (p.storyboard.steps = p.storyboard.steps || []);
   add(el('table', { class: 'tb steps' },
-    el('tr', {}, el('th', { colspan: 2, class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec' }, 'Responsible')),
-    steps.map((st, i) => el('tr', {}, el('td', { class: 'c n' }, String(i + 1)), el('td', {}, el('b', {}, st.name || ''), st.note ? ` — ${st.note}` : '', Number(st.radius_m) > 0 ? el('span', { class: 'muted' }, ` (R ${fmt(st.radius_m, 1)} m, load +${fmt(st.loadElevation_m ?? 0, 1)} m)`) : null), el('td', { class: 'c' }, st.responsible || ''))),
-    el('tr', {}, el('th', { colspan: 3, class: 'sec' }, 'Technical Review')),
-    el('tr', {}, el('td', { colspan: 2 }, 'Has a technical review been conducted'), el('td', {}, box(rv.done), ` Yes ${rv.ref ? `(${rv.ref})` : ''}  `, box(!rv.done), ' No')),
-  ));
+    el('tr', {}, el('th', { colspan: 2, class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
+    steps.map((st, i) => el('tr', {},
+      el('td', { class: 'c n' }, String(i + 1)),
+      el('td', {}, ed(`storyboard.steps.${i}.note`, { multi: true, ph: 'Details of the step' }), act(el('button', { class: 'ed-del no-print', title: 'Delete the step' }, '✕'), () => steps.splice(i, 1))),
+      el('td', { class: 'c' }, ed(`storyboard.steps.${i}.responsible`, { ph: 'Responsible' })))),
+  ), act(el('button', { class: 'small no-print ed-add' }, '+ Add a step'), () => { steps.push({ note: '', responsible: '' }); setTimeout(() => { const all = document.querySelectorAll('#report-preview table.steps [data-ed].multi'); all[all.length - 1]?.focus(); }, 30); }));
 
   // ---- Rigging: arrangement, detail, then the views
   const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
@@ -237,10 +295,13 @@ export function buildReport() {
       const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
       if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));
     }
-    const shownChecks = res.checks.filter((c) => !c.hideInReport);
-    const issues = opts.checksAll ? shownChecks : shownChecks.filter((c) => c.status === 'fail' || c.status === 'warn');
+    // no warnings in the report (they stay on the Checks page): only what fails, in plain text
+    const shownChecks = res.checks.filter((c) => !c.hideInReport && c.status !== 'warn' && c.status !== 'info');
+    const fails = shownChecks.filter((c) => c.status === 'fail');
+    const list = opts.checksAll ? shownChecks : fails;
     const nOk = shownChecks.filter((c) => c.status === 'ok').length;
-    add(el('div', { class: 'sub-t' }, opts.checksAll ? 'Checks' : `Checks — issues only (${nOk} other checks OK)`), issues.length ? checksTable(issues, { compact: true }) : el('div', { class: 'note ok' }, 'All checks passed.'));
+    add(el('div', { class: 'sub-t' }, opts.checksAll ? `Checks (${nOk} OK)` : fails.length ? `Checks not satisfied (${nOk} checks OK)` : `Checks — ${nOk} checks OK`),
+      list.length ? reportChecks(list) : null);
   }
 
   // ---- Checklift + sign-off
@@ -248,9 +309,13 @@ export function buildReport() {
     el('tr', {}, el('th', { class: 'sec' }, 'Performing the lift: Checklift')),
     el('tr', {}, el('td', {}, CHECKLIFT.map((t) => el('div', {}, `→ ${t}`)))),
   ));
-  add(el('table', { class: 'tb sign avoid-break' },
-    el('tr', {}, ['Prepared by', 'Checked by', 'Approved by'].map((t) => el('th', { class: 'sec' }, t))),
-    el('tr', {}, [pr.preparedBy, pr.checkedBy, pr.approvedBy].map((t) => el('td', {}, t || '', el('div', { class: 'muted', style: { marginTop: '26px' } }, 'Date / signature')))),
+  const who = [['Prepared by', 'preparedBy'], ['Checked by', 'checkedBy'], ['Approved by', 'approvedBy']];
+  add(el('table', { class: 'tb signoff avoid-break' },
+    el('colgroup', {}, el('col', { class: 'h' }), who.map(() => el('col', {}))),
+    el('tr', {}, el('th', { class: 'sec' }, ''), who.map(([t]) => el('th', { class: 'sec' }, t))),
+    el('tr', {}, el('th', {}, 'Name'), who.map(([, k]) => el('td', {}, ed(`project.${k}`, { ph: 'Name' })))),
+    el('tr', {}, el('th', {}, 'Date'), who.map(() => el('td', {}, ''))),
+    el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(() => el('td', {}, ''))),
   ));
   add(el('div', { class: 'disclaimer' }, 'Lift plan prepared with LiftPlanner (planning aid). Equipment data from manufacturer / distributor catalogues (DS Levage 2025): check every item against its certificate. The plan must be reviewed by a competent person before the lift.'));
   return rep;
@@ -310,4 +375,16 @@ function shrink(file) {
     fr.onerror = () => resolve(null);
     fr.readAsDataURL(file);
   });
+}
+
+/** Checks in the report, plain (no colour badges). */
+function reportChecks(list) {
+  const word = { ok: 'OK', fail: 'NOT OK' };
+  return el('table', { class: 'tb rchecks' },
+    el('tr', { class: 'colh' }, ['Item', 'Check', 'Value', 'Limit', 'Result'].map((h) => el('td', {}, h))),
+    list.map((c) => el('tr', {},
+      el('td', {}, c.item || ''), el('td', {}, c.label || ''),
+      el('td', { class: 'c' }, c.value != null ? `${fmt(c.value)} ${c.unit || ''}` : ''),
+      el('td', { class: 'c' }, c.limit != null ? `${fmt(c.limit)} ${c.unit || ''}` : ''),
+      el('td', { class: 'c' }, el('b', {}, word[c.status] || '')))));
 }

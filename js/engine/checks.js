@@ -18,7 +18,6 @@ export const DEFAULT_RULES = {
   maxTiltFail_deg: 5, // estimated load tilt (reject)
   utilWarn: 0.9, // equipment utilisation above which a warning is raised
   maxOutOfPlane_deg: 5, // allowed out-of-plane angle on a padeye
-  minBendingRatio: 1, // wire rope / grommet: bearing Ø / rope Ø (warn below)
   shackleRanges: DEFAULT_SHACKLE_RANGES, // shackle ranges used by auto-selection
   enCheck: true, // EN 13414 / EN 818-4 / EN 1492 multi-leg mode factor check
 };

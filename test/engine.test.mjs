@@ -171,7 +171,7 @@ test('catalogue limited to the supplied tables', () => {
   near(bendingRatio({ type: 'wiresling', dims: { ropeDia: 24 } }, 48), 2);
 });
 
-test('wire rope rigging: smaller shackle bow than rope gives a D/d warning', () => {
+test('wire rope rigging is sized', () => {
   const p = baseProject([['A', 0, 0, 0], ['B', 4000, 0, 0], ['C', 4000, 2000, 0], ['D', 0, 2000, 0]], { x: 2000, y: 1000, z: -500 });
   p.rigging.assembly = [{ kind: 'shackle', id: 'auto' }, { kind: 'sling', family: 'WIRE', id: 'auto', hitch: 'direct' }, { kind: 'shackle', id: 'auto' }];
   const res = computeProject(p);
@@ -275,7 +275,7 @@ test('v2 project file migrates to leg assemblies', () => {
     load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
   };
   const p = migrate(v2);
-  assert.equal(p.schema, 5);
+  assert.equal(p.schema, 6);
   assert.equal(p.rigging.design.targetAngleV_deg, 30);
   assert.equal(p.rigging.head.type, 'masterlink');
   assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);
@@ -395,4 +395,52 @@ test('symmetric lift points and geometric COG of a container', () => {
   const A = r2.rig.legs.find((l) => l.key === 'A'), B = r2.rig.legs.find((l) => l.key === 'B');
   assert.ok(A.slingLength < B.slingLength, `${A.slingLength} < ${B.slingLength}`);
   assert.ok(A.parts.some((q) => q.kind === 'masterlink' && q.item?.type === 'masterlink'));
+});
+
+import { autoAxes, traceCurve, sampleCurve, parseClaudeChart, mergeChart } from '../js/ui/chartreader.js';
+import { dimTokens, rankDims, fourSimilar } from '../js/ui/loadsetup.js';
+
+test('load chart graph: axes from the labels, curve followed by its colour, values every metre', () => {
+  // axis labels: radius 0..40 m every 10 m at u = 100 + 10·R ; SWL 0..50 t every 10 t at v = 500 − 8·SWL
+  const items = [];
+  for (const R of [0, 10, 20, 30, 40]) items.push({ str: String(R), u: 100 + 10 * R - 5, v: 520, w: 10, h: 8 });
+  for (const W of [0, 10, 20, 30, 40, 50]) items.push({ str: String(W), u: 70, v: 500 - 8 * W + 2.8, w: 10, h: 8 });
+  const ax = autoAxes(items);
+  assert.ok(Math.abs(ax.x.a + ax.x.b * 300 - 20) < 0.01, JSON.stringify(ax.x));
+  assert.ok(Math.abs(ax.y.a + ax.y.b * 340 - 20) < 0.01, JSON.stringify(ax.y));
+  // synthetic image: white, a red curve SWL = 50 − R (2 px thick), a black grid line
+  const W = 600, H = 600, data = new Uint8ClampedArray(W * H * 4).fill(255);
+  const put = (x, y, c) => { const i = (y * W + x) * 4; data[i] = c[0]; data[i + 1] = c[1]; data[i + 2] = c[2]; };
+  for (let x = 0; x < W; x++) put(x, 340, [0, 0, 0]);
+  for (let R = 5; R <= 40; R += 0.01) { const x = Math.round(100 + 10 * R), y = Math.round(500 - 8 * (50 - R)); put(x, y, [200, 20, 20]); put(x, y + 1, [200, 20, 20]); }
+  const line = traceCurve(data, W, H, 250, Math.round(500 - 8 * 35), null);
+  assert.ok(line.length > 300, `traced ${line.length}`);
+  const vals = line.map(([x, y]) => [ax.x.a + ax.x.b * x, ax.y.a + ax.y.b * y]);
+  const s = sampleCurve(vals, 1);
+  const at = (R) => s.find((q) => q[0] === R)?.[1];
+  assert.ok(Math.abs(at(10) - 40) < 0.3 && Math.abs(at(30) - 20) < 0.3, JSON.stringify(s.slice(0, 8)));
+});
+
+test('load chart read by Claude: JSON answer parsed and merged into the chart', () => {
+  const r = parseClaudeChart('Here: ```json\n{"radius_unit":"m","load_unit":"kg","columns":["Hs 1 m","Hs 2 m"],"rows":[[4,20000,15000],[6,15000,null],[8,11000,8000]]}\n```');
+  assert.deepEqual(r.columns, ['Hs 1 m', 'Hs 2 m']);
+  assert.deepEqual(r.rows[1], [6, 15, null]);
+  const m = mergeChart({ columns: ['SWL'], rows: [[4, 18], [10, 9]] }, r.columns, r.rows, 'add');
+  assert.deepEqual(m.columns, ['SWL', 'Hs 1 m', 'Hs 2 m']);
+  assert.deepEqual(m.rows.map((q) => q[0]), [4, 6, 8, 10]);
+  assert.deepEqual(m.rows[0], [4, 18, 20, 15]);
+  assert.throws(() => parseClaudeChart('{"error":"blurred"}'));
+});
+
+test('overall dimensions read around a view frame, and 4 similar lift points', () => {
+  const crop = { x: 100, y: 100, w: 121, h: 52 };
+  const items = [{ str: '6 058', u: 150, v: 170, h: 3 }, { str: '2591', u: 80, v: 120, h: 3 }, { str: 'Ø44', u: 120, v: 120, h: 3 }, { str: '999', u: 900, v: 900, h: 3 }];
+  const t = dimTokens(items, crop);
+  assert.deepEqual(t.map((q) => q.val).sort(), [2591, 6058]);
+  assert.equal(rankDims(t, 6050)[0], 6058);
+  assert.equal(rankDims(t, 2600)[0], 2591);
+  const p = defaultProject();
+  const pts = fourSimilar(p.load, { sx: 5000, sy: 2000, z: 2591, c: { x: 3029, y: 1219 } });
+  assert.deepEqual(pts.map((q) => [q.id, q.x, q.y, q.z]), [['A', 529, 219, 2591], ['B', 5529, 219, 2591], ['C', 5529, 2219, 2591], ['D', 529, 2219, 2591]]);
+  assert.ok(pts.every((q) => q.padeyeStd === pts[0].padeyeStd && q.swl_t === pts[0].swl_t));
 });

@@ -1,5 +1,5 @@
 {
-  "schema": 5,
+  "schema": 6,
   "project": {
     "name": "Example — offshore container transfer from supply vessel",
     "liftId": "LP-003",
@@ -51,10 +51,6 @@
       "other": "",
       "primaryChecked": false,
       "secondaryChecked": false
-    },
-    "review": {
-      "done": false,
-      "ref": ""
     }
   },
   "rules": {},
@@ -333,40 +329,20 @@
     ],
     "steps": [
       {
-        "name": "Toolbox talk and radio check",
-        "note": "Crane operator, banksman on the platform, deck crew on the vessel, bridge.",
-        "responsible": "Lifting supervisor",
-        "sketch": false
+        "note": "Toolbox talk and radio check: crane operator, banksman on the platform, deck crew on the vessel, bridge.",
+        "responsible": "Lifting supervisor"
       },
       {
-        "name": "Pick from the supply vessel",
-        "radius_m": 24,
-        "slew_deg": 0,
-        "loadElevation_m": -12,
-        "heading_deg": 0,
-        "note": "Clean lift-off on a wave crest; tag lines handled by the vessel crew.",
-        "responsible": "Crane operator",
-        "sketch": true
+        "note": "Pick from the supply vessel (radius 24 m): clean lift-off on a wave crest; tag lines handled by the vessel crew.",
+        "responsible": "Crane operator"
       },
       {
-        "name": "Hoist and slew",
-        "radius_m": 18,
-        "slew_deg": 60,
-        "loadElevation_m": 3,
-        "heading_deg": 60,
-        "note": "Keep ≥ 1 m clearance above the handrail.",
-        "responsible": "Banksman",
-        "sketch": true
+        "note": "Hoist and slew: keep ≥ 1 m clearance above the handrail.",
+        "responsible": "Banksman"
       },
       {
-        "name": "Set down in laydown",
-        "radius_m": 12,
-        "slew_deg": 120,
-        "loadElevation_m": 0.2,
-        "heading_deg": 30,
-        "note": "Set down on timber dunnage.",
-        "responsible": "Crane operator",
-        "sketch": true
+        "note": "Set down in the laydown area on timber dunnage.",
+        "responsible": "Crane operator"
       }
     ]
   },

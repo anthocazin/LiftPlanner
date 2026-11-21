@@ -1,12 +1,11 @@
-// Guided set-up of the load from its drawing, in 5 steps:
-//   1 drawing (PDF / image)  2 scale  3 top / front / side views (a frame each)  4 simple shapes (optional)
-//   5 lift points & COG clicked on the views
+// Guided set-up of the load from its drawing, in 3 steps:
+//   1 drawing (PDF / image) and its scale  2 top / front / side views (a frame and an origin each,
+//   overall dimensions read on the drawing)  3 lift points & COG clicked on the views
 // The X, Y, Z coordinates are combined from the views: X from top + front, Y from top + side, Z from front + side.
 import { app } from './app.js';
 import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
-import { shapesCog, shapeVolume } from '../engine/shape.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const PT_MM = 25.4 / 72;
@@ -15,9 +14,9 @@ export const VIEW_DEF = {
   xz: { name: 'Front view', short: 'Front', axes: 'X → right, Z → up', h: 'X', v: 'Z', look: 'seen from the front (−Y)' },
   yz: { name: 'Side view', short: 'Side', axes: 'Y → right, Z → up', h: 'Y', v: 'Z', look: 'seen from the right (+X)' },
 };
-const STEPS = ['Drawing', 'Scale', 'Views', 'Shape (optional)', 'Lift points & COG'];
+const STEPS = ['Drawing & scale', 'Views', 'Lift points & COG'];
 
-export const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG', selShape: null, voidNext: false };
+export const setup = { step: 1, edit: null, tool: 'frame', page: 1, zoom: 1, tmp: [], drag: null, draft: null, item: 'COG', four: false };
 let pickViews = [];
 let root = null;
 
@@ -31,7 +30,7 @@ export function loadSetup() {
 }
 
 export function refreshSetup() {
-  const need = setup.step === 5 ? nextNeeded(setup.item) : null;
+  const need = setup.step === 3 ? nextNeeded(setup.item) : null;
   pickViews.forEach((v) => { v.classList.toggle('need', !!need && v.dataset.key === need); v.refresh(); });
   const st = document.getElementById('pick-status');
   if (st) st.replaceWith(pickStatus());
@@ -41,20 +40,18 @@ export function refreshSetup() {
 
 function rebuild() {
   build();
-  if (setup.step === 4) setTimeout(renderShapeTable, 0);
 }
 
 function stepDone(i) {
   const ld = L();
   if (i === 1) return !!app.drawSource || Object.values(ld.views || {}).some(Boolean);
-  if (i === 2) return scale().mmPerUnit > 0 || Object.values(ld.views || {}).some(Boolean);
-  if (i === 3) return Object.values(ld.views || {}).some(Boolean);
-  if (i === 4) return (ld.shapes || []).length > 0;
-  if (i === 5) return (ld.liftPoints || []).length > 0;
+  if (i === 2) return Object.values(ld.views || {}).some(Boolean);
+  if (i === 3) return (ld.liftPoints || []).length > 0;
   return false;
 }
 
 function build() {
+  if (!(setup.step >= 1 && setup.step <= 3)) setup.step = 1;
   root.innerHTML = '';
   pickViews = [];
   const head = el('div', { class: 'panel-head' },
@@ -65,15 +62,13 @@ function build() {
   );
   const body = el('div', { class: 'setup-body' });
   if (setup.step === 1) body.append(stepDrawing());
-  if (setup.step === 2) body.append(stepScale());
-  if (setup.step === 3) body.append(stepViews());
-  if (setup.step === 4) body.append(stepShape());
-  if (setup.step === 5) body.append(stepPoints());
-  if (setup.step !== 4) lvState.tool = null;
+  if (setup.step === 2) body.append(stepViews());
+  if (setup.step === 3) body.append(stepPoints());
+  lvState.tool = null;
   root.append(head, body);
 }
 
-const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(5, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
+const nextBtn = (txt = 'Next →') => el('button', { class: 'primary', onclick: () => { setup.step = Math.min(3, setup.step + 1); setup.edit = null; rebuild(); } }, txt);
 
 // ---------------- step 1: drawing
 function stepDrawing() {
@@ -103,7 +98,8 @@ function stepDrawing() {
     if (s) rows.push(el('div', { class: 'hit' }, el('span', {}, 'Scale: ', el('b', {}, `1:${s.value}`), el('span', { class: 'muted' }, ` — ${s.text}`)), el('button', { class: 'small', onclick: () => { setRatio(s.value); toast(`Scale 1:${s.value}`); rebuild(); } }, 'Use')));
     box.append(el('h3', {}, 'Read from the drawing'), rows.length ? el('div', {}, rows) : el('div', { class: 'muted' }, src?.kind === 'pdf' ? 'Nothing found in the text of the PDF (scanned drawing?): enter the values by hand.' : 'Images have no text: enter the values by hand.'));
   }
-  box.append(el('div', { class: 'row', style: { marginTop: '12px' } }, nextBtn(), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'No drawing? Go on anyway: the views will be a white grid and you can click or type the points.')));
+  if (src) box.append(el('h3', {}, 'Scale'), stepScale());
+  box.append(el('div', { class: 'row', style: { marginTop: '12px' } }, nextBtn('Next: views →'), el('span', { class: 'muted', style: { fontSize: '12px' } }, src ? 'No scale? Frame each view edge to edge and pick its overall dimension: the scale is set from it.' : 'No drawing? Go on anyway: the views will be a white grid and you can click or type the points.')));
   return box;
 }
 
@@ -125,7 +121,7 @@ function startEdit(k) {
   const same = v?.wizard && v.file === app.drawSource?.name;
   setup.draft = same ? { ...v.wizard } : { page: setup.page, crop: null, origin: null, flipH: !!v?.flipH };
   setup.page = setup.draft.page || setup.page;
-  setup.step = 3;
+  setup.step = 2;
   rebuild();
 }
 
@@ -179,15 +175,12 @@ function stepScale() {
       el('div', { class: 'scale-line' }, el('span', {}, 'Drawing scale'), el('b', {}, '1 :'), ratioIn, el('span', { class: 'muted' }, s.mmPerUnit ? `→ 1 mm on the paper = ${fmt(s.ratio, 0)} mm on the part` : 'as printed in the title block (sheet printed at 100 %)')),
       (app.drawScan?.scales || []).length ? el('div', { class: 'muted', style: { fontSize: '12px' } }, 'Found in the drawing: ', ...app.drawScan.scales.map((x) => el('button', { class: 'small', onclick: () => { setRatio(x.value); rebuild(); } }, `1:${x.value}`))) : null,
     );
-  box.append(
-    el('h3', {}, isPdf ? 'Or calibrate on a known dimension' : 'Calibrate on a known dimension'),
-    el('p', { class: 'muted', style: { fontSize: '12.5px' } }, 'Click both ends of a dimension you know (e.g. the overall length), then type its real length. Use it for images, scanned drawings or when the scale is not known.'),
-  );
-  if (src) {
-    setup.tool = 'cal';
-    box.append(pageViewer());
-  } else box.append(el('div', { class: 'note warn' }, 'Open the drawing (step 1) to calibrate on it.'));
-  box.append(el('div', { class: 'row', style: { marginTop: '10px' } }, el('span', {}, s.mmPerUnit ? `Scale: 1 drawing unit = ${fmt(s.mmPerUnit, 3)} mm` : 'Scale not set yet'), nextBtn()));
+  const cal = el('details', { class: 'sub', open: !isPdf || !s.mmPerUnit },
+    el('summary', {}, isPdf ? 'Or calibrate on a known dimension' : 'Calibrate on a known dimension'),
+    el('p', { class: 'muted', style: { fontSize: '12.5px' } }, 'Click both ends of a dimension you know (e.g. the overall length), then type its real length.'));
+  cal.addEventListener('toggle', () => { if (cal.open && !cal.querySelector('.pv-wrap,.pv-canvas')) { setup.tool = 'cal'; cal.append(pageViewer()); } });
+  if (cal.open) { setup.tool = 'cal'; cal.append(pageViewer()); }
+  box.append(cal, el('div', { class: 'muted', style: { fontSize: '12px', marginTop: '4px' } }, s.mmPerUnit ? `Scale: 1 drawing unit = ${fmt(s.mmPerUnit, 3)} mm` : 'Scale not set yet'));
   return box;
 }
 
@@ -201,20 +194,20 @@ function stepViews() {
     return el('div', { class: `view-card ${setup.edit === k ? 'on' : ''} ${v ? 'ok' : ''}` },
       el('div', { class: 'vc-head' }, el('b', {}, d.name), el('span', { class: 'muted' }, d.axes)),
       v?.image ? el('img', { src: v.image, alt: '' }) : el('div', { class: 'vc-empty' }, cubeIcon(k)),
-      v?.file ? el('div', { class: 'muted', style: { fontSize: '11px' } }, `${v.file}${v.page ? ` — page ${v.page}` : ''}${v.autoOrigin ? ' · origin: frame corner' : ' · origin clicked'}`) : null,
+      v?.file ? el('div', { class: 'muted', style: { fontSize: '11px' } }, `${v.file}${v.page ? ` — page ${v.page}` : ''}${v.autoOrigin ? ' · origin: frame corner' : ' · origin clicked'}${v.dimH || v.dimV ? ` · overall ${v.dimH ? `${VIEW_DEF[k].h} ${v.dimH}` : ''}${v.dimH && v.dimV ? ' × ' : ''}${v.dimV ? `${VIEW_DEF[k].v} ${v.dimV}` : ''} mm` : ''}`) : null,
       el('div', { class: 'row' },
         el('button', { class: `small ${v ? '' : 'primary'}`, disabled: !app.drawSource, title: app.drawSource ? `On ${app.drawSource.name}` : 'Open a drawing first (or choose a file for this view)', onclick: () => startEdit(k) }, v ? 'Redo' : 'Select on the drawing'),
         el('label', { class: 'btn small', title: 'A PDF or an image for this view only' }, 'Choose a file…', el('input', { type: 'file', accept: 'application/pdf,image/*', hidden: true, onchange: (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) openFile(f, k); } })),
         v ? el('button', { class: 'small danger', onclick: () => { ld.views[k] = null; app.recompute(); rebuild(); } }, 'Remove') : null),
     );
   })));
-  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Choose a file for each view (the same drawing or one image per view), or open the drawing in step 1. Without views you can still place the points on a white grid (step 5).'));
+  if (!app.drawSource) box.append(el('div', { class: 'note', style: { marginTop: '8px' } }, 'Choose a file for each view (the same drawing or one image per view), or open the drawing in step 1. Without views you can still place the points on a white grid (step 3).'));
   const dm = ld.dims_mm || {};
   if (ld.views.xz || ld.views.yz)
     box.append(el('div', { class: 'row', style: { marginTop: '8px', fontSize: '12.5px' } },
       el('span', {}, 'Size of the part: ', el('b', {}, `${fmt(dm.L, 0)} (X) × ${fmt(dm.W, 0)} (Y) × ${fmt(dm.H, 0)} (Z) mm`)),
-      el('span', { class: 'muted' }, 'Taken from the frames when the origin is the frame corner; otherwise type it on the Load page or use the button.'),
-      el('button', { class: 'small', title: 'Use the frames of the views as the outline of the part', onclick: () => { envelopeFromViews(true); app.recompute(); toast('Size of the part taken from the frames'); rebuild(); } }, 'Size from the frames'),
+      el('span', { class: 'muted' }, 'From the overall dimensions picked on the drawing (or the frames).'),
+      el('button', { class: 'small', title: 'Use the frames of the views as the outline of the part', onclick: () => { envelopeFromViews(true); applyDrawingDims(); app.recompute(); toast('Size of the part taken from the frames'); rebuild(); } }, 'Size from the frames'),
       el('button', { class: 'small', title: 'Exchange the front and the side view', onclick: () => { swapFrontSide(); toast('Front and side views exchanged'); rebuild(); } }, 'Swap front ↔ side')));
   if (setup.edit && app.drawSource) {
     const d = VIEW_DEF[setup.edit];
@@ -229,6 +222,7 @@ function stepViews() {
             ? el('span', {}, el('b', {}, '2. Origin: '), `click the origin of this view (the same reference point of the part in every view, ${d.h} and ${d.v} = 0) — or save directly to take the bottom-left corner of the frame.`)
             : el('span', {}, 'Frame and origin set: ', el('b', {}, 'save the view'), '.')),
       scaleLine(toolBtn),
+      dr.crop ? el('div', { id: 'dim-pick', class: 'dim-pick' }) : null,
       el('div', { class: 'toolbar' }, toolBtn('frame', '1. Frame'), toolBtn('origin', '2. Origin'),
         el('label', { class: 'check', style: { fontSize: '12px' }, title: 'For a view drawn from the other side (the part appears mirrored)' }, el('input', { type: 'checkbox', checked: !!dr.flipH, onchange: (e) => { dr.flipH = e.target.checked; drawOverlay(); } }), 'Mirrored view'),
         dr.origin ? el('button', { class: 'small', onclick: () => { dr.origin = null; setup.tool = 'origin'; rebuild(); } }, 'Use the frame corner') : null,
@@ -239,8 +233,9 @@ function stepViews() {
         el('button', { class: 'primary small', disabled: !dr.crop, onclick: saveView }, 'Save view')),
       pageViewer(),
     );
+    if (dr.crop) setTimeout(fillDimPick, 0);
   }
-  box.append(el('div', { class: 'row', style: { marginTop: '10px' } }, nextBtn('Next: shape (optional) →')));
+  box.append(el('div', { class: 'row', style: { marginTop: '10px' } }, nextBtn('Next: lift points & COG →')));
   return box;
 }
 
@@ -274,10 +269,110 @@ function envelopeFromViews(all = false) {
   if (rz) { ld.origin_mm.z = Math.round(rz[0]); ld.dims_mm.H = Math.round(rz[1] - rz[0]); }
 }
 
+// ---- overall dimensions read on the drawing (the dimension values printed around the view)
+const textCache = new Map();
+async function pageText(page) {
+  const src = app.drawSource;
+  if (!src) return [];
+  const key = `${src.name}:${page}`;
+  if (!textCache.has(key)) textCache.set(key, await src.text(page).catch(() => []));
+  return textCache.get(key);
+}
+
+/** Dimension values (mm) printed near a frame: [{ val, u, v }]. */
+export function dimTokens(items, crop) {
+  const m = 0.35 * Math.max(crop.w, crop.h) + 30;
+  const out = [];
+  for (const it of items) {
+    if (it.u < crop.x - m || it.u > crop.x + crop.w + m || it.v < crop.y - m || it.v > crop.y + crop.h + m) continue;
+    const str = String(it.str).replace(/(\d)[\s\u202f\u00a0](?=\d{3}\b)/g, '$1');
+    for (const t of str.split(/[\s()=]+/)) {
+      if (!/^\d{2,6}(?:[.,]\d+)?$/.test(t)) continue; // no Ø, R, M… prefixed values
+      const val = Number(t.replace(',', '.'));
+      if (val >= 20 && val <= 100000 && !out.some((o) => o.val === val)) out.push({ val, u: it.u, v: it.v });
+    }
+  }
+  return out;
+}
+
+/** Candidates for one axis: closest to the measured size first (or the largest values). */
+export function rankDims(tokens, measured) {
+  const list = tokens.map((t) => t.val);
+  if (measured > 0) return list.sort((a, b) => Math.abs(a - measured) - Math.abs(b - measured)).slice(0, 5);
+  return list.sort((a, b) => b - a).slice(0, 5);
+}
+
+async function fillDimPick() {
+  const box = document.getElementById('dim-pick');
+  const dr = setup.draft, k = setup.edit;
+  if (!box || !dr?.crop || !k) return;
+  const d = VIEW_DEF[k];
+  const s = scale();
+  const items = await pageText(dr.page || setup.page);
+  const toks = dimTokens(items, dr.crop);
+  const mH = s.mmPerUnit ? dr.crop.w * s.mmPerUnit : 0, mV = s.mmPerUnit ? dr.crop.h * s.mmPerUnit : 0;
+  const cH = rankDims(toks, mH), cV = rankDims(toks, mV);
+  // proposed automatically when a value matches the frame within 4 %
+  if (dr.dimH == null && cH[0] && mH && Math.abs(cH[0] - mH) < 0.04 * mH) dr.dimH = cH[0];
+  if (dr.dimV == null && cV[0] && mV && Math.abs(cV[0] - mV) < 0.04 * mV) dr.dimV = cV[0];
+  const axis = (key, label, cands, measured) => {
+    const chips = cands.map((v) => el('button', { class: `chip-btn ${dr[key] === v ? 'on' : ''}`, onclick: () => setDim(key, v) }, String(v)));
+    const inp = el('input', { type: 'number', min: 0, step: 'any', value: dr[key] ?? '', placeholder: 'mm', style: { width: '80px' }, onchange: (e) => setDim(key, Number(e.target.value) || null) });
+    return el('span', { class: 'dim-axis' }, el('b', {}, label), ...chips, inp, measured ? el('span', { class: 'muted' }, `(frame ≈ ${Math.round(measured)})`) : null);
+  };
+  box.innerHTML = '';
+  box.append(
+    el('span', { class: 'muted' }, cH.length || cV.length ? 'Overall dimensions on the drawing — click the right value:' : 'Overall dimensions (type them if the drawing has no text):'),
+    axis('dimH', `${d.h}:`, cH, mH), axis('dimV', `${d.v}:`, cV, mV));
+  const ref = dr.dimH || dr.dimV;
+  const meas = dr.dimH ? mH : mV;
+  if (ref && meas && Math.abs(ref - meas) > 0.03 * ref)
+    box.append(el('button', { class: 'small', title: 'Frame drawn edge to edge: the scale is set so that the frame measures the overall dimension', onclick: () => scaleFromDim() }, 'Set the scale from it'));
+}
+
+function setDim(key, v) {
+  const dr = setup.draft;
+  dr[key] = v || null;
+  if (v && !scale().mmPerUnit) scaleFromDim(true);
+  else fillDimPick();
+}
+
+/** Scale from the frame (edge to edge) and the overall dimension picked. */
+function scaleFromDim(quiet) {
+  const dr = setup.draft;
+  const s = scale();
+  const k = dr.dimH ? dr.dimH / dr.crop.w : dr.dimV ? dr.dimV / dr.crop.h : null;
+  if (!k) return;
+  s.mmPerUnit = k;
+  s.ratio = app.drawSource?.kind === 'pdf' ? Math.round((k / PT_MM) * 10) / 10 : null;
+  applyScaleToViews();
+  toast(`Scale set from the overall dimension${s.ratio ? ` (≈ 1:${s.ratio})` : ''}${quiet ? ' — the frame must be drawn edge to edge' : ''}`);
+  rebuild();
+}
+
+/** Overall size of the part from the dimensions picked on the drawing (centred on the frames). */
+function applyDrawingDims() {
+  const ld = L(), vs = ld.views || {};
+  const name = { x: 'L', y: 'W', z: 'H' };
+  ld.origin_mm = ld.origin_mm || { x: 0, y: 0, z: 0 };
+  ld.dims_mm = ld.dims_mm || { L: 0, W: 0, H: 0 };
+  for (const [k, v] of Object.entries(vs)) {
+    if (!v) continue;
+    const [A, B] = AXES[k];
+    const e = v.scaled !== false ? viewExtent(v) : null;
+    for (const [ax, val, lo, hi] of [[A, v.dimH, e?.a0, e?.a1], [B, v.dimV, e?.b0, e?.b1]]) {
+      if (!(val > 0)) continue;
+      ld.dims_mm[name[ax]] = Math.round(val);
+      if (lo != null) ld.origin_mm[ax] = Math.round((lo + hi) / 2 - val / 2);
+    }
+  }
+}
+
 /** Exchanges the front and the side view (and what was clicked on them). */
 export function swapFrontSide() {
   const ld = L(), vs = ld.views || (ld.views = {});
   [vs.xz, vs.yz] = [vs.yz || null, vs.xz || null];
+  applyDrawingDims();
   const items = [{ t: ld.cog_mm, picks: ld.cogPicks }, ...ld.liftPoints.map((p) => ({ t: p, picks: p.picks }))];
   for (const it of items) {
     if (!it.picks) continue;
@@ -317,10 +412,12 @@ async function saveView() {
     image: canvas.toDataURL('image/jpeg', 0.85), w: canvas.width, h: canvas.height, pxPerUnit,
     s: mmPerUnit ? mmPerUnit / pxPerUnit : 1 / pxPerUnit, ou: (org.u - dr.crop.x) * pxPerUnit, ov: (org.v - dr.crop.y) * pxPerUnit,
     flipH: !!dr.flipH, autoOrigin: !dr.origin, scaled: !!mmPerUnit, file: src.name, page: dr.page, wizard: { ...dr },
+    dimH: dr.dimH || null, dimV: dr.dimV || null,
   };
   const swapped = autoSwap();
   envelopeFromViews();
-  if (!mmPerUnit) toast('View saved — set the scale (step 2) so that it has the right size');
+  applyDrawingDims();
+  if (!mmPerUnit) toast('View saved — set the scale (Scale of this file, or pick the overall dimension) so that it has the right size');
   else toast(swapped ? 'The front and side views were exchanged: the front view is the one as wide as the top view' : `${VIEW_DEF[k].name} saved`);
   const nextK = Object.keys(VIEW_DEF).find((x) => !L().views[x]);
   setup.edit = null;
@@ -695,103 +792,61 @@ function stepPoints() {
           el('button', { class: 'small', onclick: addPoint }, '+ Lift point'),
           el('button', { class: 'small', title: 'Copy of the selected point on the other side in X (about the centre of the part)', onclick: () => mirror('x') }, '⇆ Mirror X'),
           el('button', { class: 'small', title: 'Copy of the selected point on the other side in Y', onclick: () => mirror('y') }, '⇅ Mirror Y'),
-          el('button', { class: 'small', title: 'The 3 other corners from the selected point (replaces the next points of the list)', onclick: () => mirror('xy') }, '4 symmetric points'),
+          el('button', { class: `small ${setup.four ? 'active' : ''}`, title: '4 identical lift points, symmetric about the centre', onclick: () => { setup.four = !setup.four; rebuild(); } }, '4 similar lift points…'),
           el('button', { class: 'small', disabled: !hasSize, title: hasSize ? 'COG at the centre of the overall size (weight evenly spread)' : 'Needs the size of the part (frames of the views)', onclick: () => { ld.cogBasis = 'geometric'; ld.cogPicks = { xy: [0, 0], xz: [0, 0], yz: [0, 0] }; app.recompute(); syncPicks(ld.cog_mm, ld.cogPicks); toast('COG at the geometric centre of the part'); window.__rerender(); } }, 'COG at the geometric centre'))),
       el('div', { class: 'pick-side' }, pickStatus(),
         el('div', { class: 'row', style: { fontSize: '12px' } },
           el('span', { class: 'muted' }, el('b', {}, 'Click'), ' = place the selected item · click a marker = select it · ', el('b', {}, 'drag'), ' = move the view or a marker · ', el('b', {}, 'wheel'), ' = zoom · ⤢ = full screen'),
           el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: lvState.showRig, onchange: (e) => { lvState.showRig = e.target.checked; refreshSetup(); } }), 'Show rigging')))),
+    setup.four ? fourPointsForm(() => { setup.four = false; setup.item = 'A'; window.__rerender(); }) : null,
     el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px', marginTop: '8px' } }, ...pickViews),
   );
 }
 
-// ---------------- step 4: shape (optional) → COG with a uniform weight
-const third = { xy: 'z', xz: 'y', yz: 'x' };
-function envRange(k) {
-  const ld = L(), o = ld.origin_mm || {}, d = ld.dims_mm || {};
-  const len = { x: +d.L || 0, y: +d.W || 0, z: +d.H || 0 }[k];
-  const o0 = +o[k] || 0;
-  return len > 0 ? [o0, o0 + len] : [0, 1000];
-}
-function createShape(tool, key, a, b) {
-  const ld = L();
-  ld.shapes = ld.shapes || [];
-  const [A, B] = AXES[key];
-  const k = third[key];
-  const [k0, k1] = envRange(k);
-  const id = `S${ld.shapes.length + 1}`;
-  let sh;
-  if (tool === 'box') sh = { id, type: 'box', name: `Box ${ld.shapes.length + 1}`, [`${A}0`]: a, [`${A}1`]: a, [`${B}0`]: b, [`${B}1`]: b, [`${k}0`]: k0, [`${k}1`]: k1 };
-  else sh = { id, type: 'cyl', name: `Cylinder ${ld.shapes.length + 1}`, axis: k, [`c${A}`]: a, [`c${B}`]: b, [`c${k}`]: k0, r: 1, L: k1 - k0 };
-  if (setup.voidNext) { sh.void = true; sh.name = `Void ${ld.shapes.length + 1}`; }
-  ld.shapes.push(sh);
-  setup.selShape = id;
-  return sh;
+// ---- 4 similar lift points (same pad eye, symmetric about the centre of the part or the COG)
+/** Creates (or replaces) A, B, C, D: spacing sx along X, sy along Y, height z, about centre c. */
+export function fourSimilar(ld, { sx, sy, z, c }) {
+  const tpl = ld.liftPoints[0] || { padeye: true, kind: 'padeye' };
+  const { id: _i, x: _x, y: _y, z: _z, picks: _p, ...props } = tpl;
+  const pos = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+  const ids = ['A', 'B', 'C', 'D'];
+  const keep = ld.liftPoints.filter((p) => !ids.includes(p.id) && p !== tpl);
+  const pts = pos.map(([i, j], n) => {
+    const p = { ...props, id: ids[n], used: true, x: Math.round(c.x + (i * sx) / 2), y: Math.round(c.y + (j * sy) / 2), z: Math.round(z) };
+    p.picks = { xy: [p.x, p.y], xz: [p.x, p.z], yz: [p.y, p.z] };
+    return p;
+  });
+  ld.liftPoints = [...pts, ...keep];
+  return pts;
 }
 
-function stepShape() {
-  lvState.mode = 'select';
-  const ld = L();
-  const vs = shownViews();
-  const shapes = { editable: true, selected: () => setup.selShape, onSelect: (id) => { setup.selShape = id; renderShapeTable(); }, onCreate: createShape, onChange: (end) => { if (end) renderShapeTable(); else updateShapeNumbers(); } };
-  pickViews = vs.map((k) => loadView(k, { editable: false, height: 330, title: VIEW_DEF[k].name, shapes }));
-  const toolBtn = (t, txt, title) => el('button', { class: `small ${lvState.tool === t ? 'active' : ''}`, title, onclick: () => { lvState.tool = lvState.tool === t ? null : t; rebuild(); } }, txt);
-  const g = shapesCog(ld.shapes || []);
-  return el('div', {},
-    el('p', { class: 'muted', style: { fontSize: '12.5px', margin: '0 0 6px' } },
-      'Optional — draw the part with simple shapes; with the weight spread evenly, LiftPlanner finds the COG. ',
-      el('b', {}, 'Box'), ': drag a rectangle in a view. ', el('b', {}, 'Cylinder'), ': drag from its centre (its axis is perpendicular to the view). ',
-      'The third dimension takes the overall size: adjust it in another view by dragging the shape or its orange corner, or type it in the table.'),
-    el('div', { class: 'toolbar' },
-      toolBtn('box', '+ Box', 'Drag a rectangle on a view'), toolBtn('cyl', '+ Cylinder', 'Drag from the centre on a view'),
-      el('label', { class: 'check', style: { fontSize: '12px' } }, el('input', { type: 'checkbox', checked: setup.voidNext, onchange: (e) => { setup.voidNext = e.target.checked; } }), 'next shape is a hole / void'),
-      el('span', { class: 'spacer' }),
-      el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: ld.cogBasis === 'shape', disabled: !g, onchange: (e) => { ld.cogBasis = e.target.checked ? 'shape' : 'estimated'; app.recompute(); rebuild(); } }), el('b', {}, 'Use the COG of the shape')),
-    ),
-    el('div', { class: `grid ${vs.length === 3 ? 'g3' : 'g2'}`, style: { gap: '8px' } }, ...pickViews),
-    el('div', { id: 'shape-table', style: { marginTop: '8px' } }),
-    el('div', { class: 'row', style: { marginTop: '8px' } }, nextBtn('Next: lift points & COG →')),
-  );
+export function fourPointsForm(onDone) {
+  const ld = L(), o = ld.origin_mm || {}, d = ld.dims_mm || {}, g = ld.cog_mm || {};
+  const hasSize = +d.L > 0 && +d.W > 0;
+  const A = ld.liftPoints.find((p) => p.id === 'A');
+  const geo = { x: (+o.x || 0) + (+d.L || 0) / 2, y: (+o.y || 0) + (+d.W || 0) / 2 };
+  const st = {
+    centre: hasSize ? 'geo' : 'cog',
+    sx: A && hasSize ? Math.round(2 * Math.abs(A.x - geo.x)) || Math.max(0, d.L - 300) : hasSize ? Math.max(0, d.L - 300) : 2000,
+    sy: A && hasSize ? Math.round(2 * Math.abs(A.y - geo.y)) || Math.max(0, d.W - 300) : hasSize ? Math.max(0, d.W - 300) : 1500,
+    z: A ? +A.z || 0 : (+o.z || 0) + (+d.H || 0),
+  };
+  const num = (key, label) => el('label', { class: 'field' }, el('span', { class: 'lbl' }, label), el('input', { type: 'number', step: 'any', value: st[key], oninput: (e) => { st[key] = Number(e.target.value) || 0; } }));
+  const cSel = el('select', { onchange: (e) => { st.centre = e.target.value; } },
+    el('option', { value: 'geo', selected: st.centre === 'geo', disabled: !hasSize }, 'Geometric centre of the part'),
+    el('option', { value: 'cog', selected: st.centre === 'cog' }, 'COG'));
+  return el('div', { class: 'four-form' },
+    el('b', {}, '4 similar lift points (A, B, C, D)'),
+    el('span', { class: 'muted', style: { fontSize: '12px' } }, `Same pad eye as point ${ld.liftPoints[0]?.id || 'A'}; A at −X −Y, then B, C, D anticlockwise seen from above.`),
+    el('div', { class: 'row', style: { gap: '10px', alignItems: 'flex-end' } },
+      num('sx', 'Distance between points along X (mm)'), num('sy', 'Distance along Y (mm)'), num('z', 'Height Z of the points (mm)'),
+      el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Centred on'), cSel),
+      el('button', { class: 'primary small', onclick: () => {
+        const c = st.centre === 'geo' && hasSize ? geo : { x: +g.x || 0, y: +g.y || 0 };
+        fourSimilar(ld, { sx: st.sx, sy: st.sy, z: st.z, c });
+        app.recompute();
+        toast('Lift points A, B, C, D created');
+        onDone?.();
+      } }, 'Create A, B, C, D'),
+      el('button', { class: 'small', onclick: () => onDone?.() }, 'Cancel')));
 }
-
-function shapeRow(sh, i) {
-  const num = (k, w = '74px') => el('input', { type: 'number', step: 'any', 'data-k': k, value: Math.round(Number(sh[k]) || 0), style: { width: w }, onchange: (e) => { sh[k] = Number(e.target.value) || 0; app.recompute(); renderShapeTable(); } });
-  const dims = sh.type === 'box'
-    ? ['x', 'y', 'z'].map((k) => el('span', { class: 'sh-dim' }, `${k.toUpperCase()} `, num(`${k}0`), ' → ', num(`${k}1`)))
-    : [el('span', { class: 'sh-dim' }, 'axis ', el('select', { onchange: (e) => { sh.axis = e.target.value; app.recompute(); renderShapeTable(); } }, ['x', 'y', 'z'].map((a) => el('option', { value: a, selected: (sh.axis || 'z') === a }, a.toUpperCase())))),
-      el('span', { class: 'sh-dim' }, 'base centre ', num('cx', '64px'), num('cy', '64px'), num('cz', '64px')),
-      el('span', { class: 'sh-dim' }, 'Ø ', el('input', { type: 'number', step: 'any', value: Math.round(2 * (Number(sh.r) || 0)), style: { width: '64px' }, onchange: (e) => { sh.r = (Number(e.target.value) || 0) / 2; app.recompute(); renderShapeTable(); } }), ' length ', num('L', '70px'))];
-  return el('div', { class: `sh-row ${setup.selShape === sh.id ? 'on' : ''}`, onclick: (e) => { if (e.target.tagName === 'DIV' || e.target.tagName === 'B') { setup.selShape = sh.id; pickViews.forEach((v) => v.refresh()); renderShapeTable(); } } },
-    el('b', {}, sh.void ? '◌' : '■'),
-    el('input', { type: 'text', value: sh.name || '', style: { width: '110px' }, onchange: (e) => { sh.name = e.target.value; pickViews.forEach((v) => v.refresh()); } }),
-    el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: !!sh.void, onchange: (e) => { sh.void = e.target.checked; app.recompute(); renderShapeTable(); } }), 'void'),
-    ...dims,
-    el('span', { class: 'muted' }, `${fmt(shapeVolume(sh) / 1e9, 3)} m³`),
-    el('button', { class: 'small danger', onclick: () => { L().shapes.splice(i, 1); setup.selShape = null; app.recompute(); renderShapeTable(); } }, '✕'));
-}
-
-function renderShapeTable() {
-  const box = document.getElementById('shape-table');
-  if (!box) return;
-  const ld = L();
-  const list = ld.shapes || [];
-  const g = shapesCog(list);
-  box.innerHTML = '';
-  if (!list.length) { box.append(el('div', { class: 'muted', style: { fontSize: '12px' } }, 'No shape yet. Example: a skid = one box for the frame + one cylinder for a tank.')); pickViews.forEach((v) => v.refresh()); return; }
-  box.append(...list.map(shapeRow));
-  if (g)
-    box.append(el('div', { class: 'note info', style: { marginTop: '6px' } },
-      el('b', {}, `Shape COG: X ${Math.round(g.x)} · Y ${Math.round(g.y)} · Z ${Math.round(g.z)} mm`), ` — volume ${fmt(g.volume_m3, 3)} m³, weight spread evenly. `,
-      ld.cogBasis === 'shape' ? el('span', {}, '(used as the COG)') : el('button', { class: 'small', onclick: () => { ld.cogBasis = 'shape'; app.recompute(); rebuild(); } }, 'Use it'),
-      ' ', el('button', { class: 'small', title: 'Overall envelope = bounding box of the solids', onclick: () => { const b = g.box; ld.origin_mm = { x: Math.round(b.x0), y: Math.round(b.y0), z: Math.round(b.z0) }; ld.dims_mm = { L: Math.round(b.x1 - b.x0), W: Math.round(b.y1 - b.y0), H: Math.round(b.z1 - b.z0) }; app.recompute(); toast('Envelope set from the shapes'); } }, 'Set the envelope from the shapes')));
-  pickViews.forEach((v) => v.refresh());
-}
-function updateShapeNumbers() {
-  const sh = (L().shapes || []).find((q) => q.id === setup.selShape);
-  const row = document.querySelector('.sh-row.on');
-  if (!sh || !row) return;
-  row.querySelectorAll('input[data-k]').forEach((i) => (i.value = Math.round(Number(sh[i.dataset.k]) || 0)));
-}
-
-// table of shapes rendered after the step is in the DOM
-

@@ -18,6 +18,16 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.7
+
+- **Load, simpler**: 3 steps — 1 drawing & scale, 2 views, 3 lift points & COG (the shape builder is gone). For each view: a frame, an origin, and the **overall dimensions read on the drawing** (the dimension values around the frame, the one matching the frame proposed; with no scale, picking it sets the scale).
+- **4 similar lift points**: A, B, C, D with the same pad eye, from the distances between points along X and Y, the height, centred on the geometric centre or the COG (Load page and step 3).
+- **Load chart reader** for PDF (vector or scanned) and images: **curve / abaque** (axes read from the axis labels or calibrated by two clicks each, the curve followed by its colour, SWL every metre — the values are drawn back on the chart to check), **table** (text of the PDF), or **Ask Claude** (your own Anthropic API key, kept in the browser only).
+- **Second crane** on the lift plan (name, configuration, role, radius, SWL — or from *My cranes*), printed in the report and *not* used in the calculation; one click exchanges the two cranes.
+- **Report editable**: click any field (title, reference, description, load, crane, weather, steps, communications, certificates, names…) — it is written into the project, so the other pages follow; tick boxes clickable; *+ Add a step*.
+- Report: no orange warnings (only what fails is printed), steps = details + responsible, technical review removed, sign-off table aligned (Prepared / Checked / Approved × name, date, signature).
+- Wire rope D/d rule removed; crane checked at the working radius of the Crane page.
+
 ## What's new in v0.6
 
 - **Views by a simple frame**: frame each view edge to edge — the frame gives the size of the part and its bottom-left corner is the origin (another reference point stays possible). A front view that is clearly the side view (same width as the depth of the top view) is exchanged automatically; *Swap front ↔ side* button.
@@ -49,7 +59,7 @@ The current project and the inventory are saved automatically in the browser. **
 
 ## Features
 
-**Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (step, details, responsible, crane radius, load height), design lift conditions, the **safety measures tick list**, further measures, communications and technical review of the template.
+**Project** — lifting plan identification (title, reference, revision, vessel / site, client, lift location), **report header lines and logos** (company left, client right, saved as your defaults in the browser), environment, **nature of the lift** (quay → vessel, vessel → quay, vessel ↔ vessel / platform, over live plant, splash zone), **step-by-step sequence** (details, responsible), design lift conditions, the **safety measures tick list**, further measures and communications of the template.
 
 **Load** — the page is visual:
 - **Import into LiftPlanner** wizard (PDF or image): choose the page and frame of the **XY plan** and **XZ elevation** views, calibrate in two clicks on the outline of the part (or on a known dimension, or with the drawing scale 1:n), set the origin; the overall dimensions are read from the outline.
@@ -65,11 +75,11 @@ The current project and the inventory are saved automatically in the browser. **
 - Design to a **target angle to the vertical (30°, up to 45°)** or a fixed hook height; same size on every leg (default) or per leg; sling length of each leg (nearest standard, rounded up, made to measure) or matched set.
 - Object views with the drawing and the rigging overlaid (plan and elevations); spreader bar (top + bottom assemblies).
 
-**Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), D/d of wire slings, connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at every step.
+**Checks** — DAF **on / off** (DNV-ST-N001 per environment, or imposed), SKL, COG factor; every part of every leg; **angle to the vertical on all legs** (warning > 30°, fail > 45°, editable); **EN 13414-1 / EN 818-4 / EN 1492 mode factor K** (set WLL = K × leg WLL, also used to size slings and chains); padeyes, shackle side load (Green Pin curve), connecting link / chain grade and size, master link congestion, load tilt with the selected lengths, slack legs, stability, crane at the working radius.
 
 **Drawings** — rigging schematic, rigging on the load in plan XY and elevations XZ / YZ (on the imported drawing when there is one), rigging detail to scale (chains drawn link by link). SVG / PNG export.
 
-**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, technical review, rigging schematic and detail, views XY / XZ / YZ (chosen), your own drawings if any, concise calculation summary (legs, padeye fit, issues only), checklift, sign-off → *Print / Save as PDF*.
+**Report** — laid out like the company lifting plan template: header with logos, lifting plan block, load / crane details, description, safety measures, communications, **equipment table (Qty / Item / EWL / SWL / Configuration / Cert.)**, step-by-step with responsible, rigging schematic and detail, views XY / XZ / YZ (chosen), your own drawings if any, concise calculation summary (legs, padeye fit, failed checks only), checklift, sign-off — every field editable in the report → *Print / Save as PDF*.
 
 **Inventory** — **equipment for this lift with exact quantities**, an *on hand* tick and the certificate number per line (CSV export); your own certified fleet; browser of the built-in catalogue.
 
@@ -117,7 +127,6 @@ js/engine/            pure calculation code (testable under Node)
   crane.js            load chart (SWL vs radius, range)
   checks.js           checks
   compat.js           part-to-part compatibility (with the explanation)
-  shape.js            simple shapes → volume and COG
   compute.js          orchestration, equipment list, lift category
 js/catalog/           equipment data + selection rules
 js/draw/              SVG generators (schematic, detail, capacity curve)

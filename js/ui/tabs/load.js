@@ -8,7 +8,7 @@ import { pointKind } from '../../engine/rigging.js';
 import { drawPadeyeFit } from '../../draw/detail.js';
 import { figure } from '../figure.js';
 import { lvState } from '../loadview.js';
-import { loadSetup, refreshSetup } from '../loadsetup.js';
+import { loadSetup, refreshSetup, fourPointsForm } from '../loadsetup.js';
 
 const views = [];
 
@@ -43,11 +43,11 @@ export function render(root) {
       field({ label: 'COG X', path: `${L}cog_mm.x`, unit: 'mm' }),
       field({ label: 'COG Y', path: `${L}cog_mm.y`, unit: 'mm' }),
       field({ label: 'COG Z', path: `${L}cog_mm.z`, unit: 'mm' }),
-      field({ label: 'COG basis', path: `${L}cogBasis`, type: 'select', options: [['drawing', 'From the drawing'], ['geometric', 'Geometric centre of the part'], ['shape', 'Calculated from the shapes'], ['estimated', 'Estimated'], ['obvious', 'Obvious']], onchange: () => window.__rerender() }),
+      field({ label: 'COG basis', path: `${L}cogBasis`, type: 'select', options: [['drawing', 'From the drawing'], ['geometric', 'Geometric centre of the part'], ['estimated', 'Estimated'], ['obvious', 'Obvious']], onchange: () => window.__rerender() }),
     ),
     el('div', { class: 'row', style: { fontSize: '12px' } },
       el('button', { class: 'small', title: 'COG = centre of the overall size (weight evenly spread)', onclick: () => { load.cogBasis = 'geometric'; app.recompute(); window.__rerender(); toast('COG at the geometric centre of the part'); } }, 'COG at the geometric centre'),
-      el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : load.cogBasis === 'shape' ? 'The COG follows the shapes drawn in step 4.' : '')),
+      el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : '')),
     el('details', { class: 'sub' },
       el('summary', {}, 'Overall size of the part (geometric centre, symmetries)'),
       el('div', { class: 'fields' },
@@ -58,7 +58,7 @@ export function render(root) {
         field({ label: 'Envelope origin Y', path: `${L}origin_mm.y`, unit: 'mm' }),
         field({ label: 'Envelope origin Z', path: `${L}origin_mm.z`, unit: 'mm' }),
       ),
-      el('p', { class: 'muted', style: { fontSize: '12px' } }, 'The load does not need to be a box: the envelope is only the dashed outline. The calculation uses the lift points and the COG.'),
+      el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Used for the geometric centre and the symmetries. The calculation uses the lift points and the COG.'),
     ),
   );
 
@@ -69,9 +69,10 @@ export function render(root) {
       el('h2', {}, 'Lift points'),
       el('div', { class: 'row' },
         el('button', { class: 'small', onclick: () => addAt(null) }, '+ Point'),
-        el('button', { class: 'small', title: 'Creates 4 points at the top corners of the envelope, 300 mm from the edges', onclick: corners }, '4 top corners'),
+        el('button', { class: 'small primary', title: '4 identical lift points, symmetric about the centre of the part or the COG', onclick: () => { const b = document.getElementById('four-box'); b.innerHTML = ''; b.append(fourPointsForm(() => { b.innerHTML = ''; window.__rerender(); })); } }, '4 similar lift points…'),
       ),
     ),
+    el('div', { id: 'four-box' }),
     el('div', { class: 'tbl-wrap', id: 'lp-table' }),
   );
 
@@ -116,18 +117,6 @@ function addAt(key, a, b) {
   toast(`Point ${p.id} added${key ? ` — set its ${key === 'xy' ? 'Z in the XZ view' : 'Y in the XY view'} or in the table` : ''}`);
 }
 
-function corners() {
-  const ld = app.project.load;
-  const o = ld.origin_mm, d = ld.dims_mm;
-  const m = 300;
-  const z = (o.z || 0) + (d.H || 0);
-  const tpl = newPoint(ld.liftPoints);
-  const mk = (id, x, y) => ({ ...tpl, id, x, y, z });
-  ld.liftPoints = [mk('A', o.x + m, o.y + m), mk('B', o.x + d.L - m, o.y + m), mk('C', o.x + d.L - m, o.y + d.W - m), mk('D', o.x + m, o.y + d.W - m)];
-  lvState.selected = 'A';
-  app.recompute();
-  window.__rerender();
-}
 
 function renderPoints() {
   const box = document.getElementById('lp-table');

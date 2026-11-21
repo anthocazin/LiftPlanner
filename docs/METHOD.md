@@ -93,7 +93,7 @@ Every joint between two parts of a leg (lift point → … → master link) is c
 | Shackle | bow: inside width at the bow 2 × R (bearing for a sling), pin: jaw width (what goes on the pin) and pin Ø |
 | Round sling | bunches on its bearing: width taken ≈ 0.5 × flat width |
 | Flat webbing sling | must lie flat: needs a bearing ≥ its width |
-| Wire rope sling | eye: D/d ≥ 1 over the bearing (warning), eye width ≈ 2 d along the bar |
+| Wire rope sling | eye width ≈ 2 d along the bar |
 | Chain / connecting link / hook / master link | bar Ø (must enter the jaw / the eye) and inside width |
 
 Master link congestion: Σ of the widths taken by every leg on the bottom bar ≤ inside width. A master link marked *SWL not known* is assumed suitable: it is used for the geometry only, not checked and left out of the equipment list.

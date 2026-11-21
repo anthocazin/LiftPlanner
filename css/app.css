@@ -159,8 +159,6 @@ table.compact td, table.compact th { padding: 3px 5px; }
 .report .head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid var(--accent); padding-bottom: 6px; }
 .report .figs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .report .figs .drawing { border-color: #ccc; }
-.report .sign { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #ccc; margin-top: 10px; }
-.report .sign > div { padding: 6px; min-height: 60px; border-right: 1px solid #ccc; }
 .report .disclaimer { font-size: 9.5px; color: #555; margin-top: 10px; border-top: 1px solid #ccc; padding-top: 6px; }
 .page-break { break-before: page; }
 .print-only { display: none; }
@@ -274,7 +272,6 @@ table.data tbody tr { cursor: default; }
 }
 .report.tpl .drawing.detail svg { max-height: 125mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
 .report.tpl .drawing.pfit svg { max-height: 58mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
-.report.tpl table.tb.sign th { width: 33.3%; }
 
 /* ---------- v0.4: load set-up stepper, 3D viewer, schematic, shapes ---------- */
 .setup .panel-head { flex-wrap: wrap; gap: 8px; }
@@ -362,3 +359,35 @@ details.inline-adv[open] { display: inline-flex; }
 .pop .menu-item i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
 #schem g.slot { cursor: pointer; }
 #schem g.slot:hover rect { fill: #fff3e6; stroke: #e8822a; }
+
+/* v0.7 — editable report, aligned sign-off, chart reader, overall dimensions */
+.report .ed { outline: none; border-radius: 2px; min-width: 1.5em; display: inline-block; cursor: text; }
+.report .ed.multi { display: block; white-space: pre-wrap; min-height: 1.3em; }
+.report .ed:hover { background: #fff6e8; box-shadow: 0 0 0 1px #f0c48f; }
+.report .ed:focus { background: #fffbe6; box-shadow: 0 0 0 1.5px #e8822a; }
+.report .ed:empty::before { content: attr(data-ph); color: #b3b9c0; font-style: italic; }
+.report .ed-tick { cursor: pointer; }
+.report table.steps td { position: relative; }
+.report .ed-del { position: absolute; right: 2px; top: 2px; border: 0; background: none; color: #c0392b; cursor: pointer; font-size: 11px; opacity: 0; }
+.report table.steps tr:hover .ed-del { opacity: 1; }
+.report .ed-add { margin: -4px 0 10px; }
+.report.tpl table.tb.steps th.resp { width: 22%; }
+.report.tpl table.tb.signoff { table-layout: fixed; }
+.report.tpl table.tb.signoff col.h { width: 13%; }
+.report.tpl table.tb.signoff th, .report.tpl table.tb.signoff td { width: auto; text-align: center; vertical-align: middle; }
+.report.tpl table.tb.signoff th:first-child { text-align: left; }
+.report.tpl table.tb.signoff td { height: 20px; }
+.report.tpl table.tb.signoff tr.sig td { height: 44px; }
+.report.tpl .crane2 { margin-top: 6px; padding-top: 4px; border-top: 1px dashed #aaa; }
+@media print {
+  .report .ed:empty::before { content: ''; }
+  .report .ed, .report .ed:hover { background: none; box-shadow: none; }
+  .report table.print-empty { display: none; }
+  .report.tpl table.tb.avoid-break { break-inside: avoid; }
+}
+.dim-pick { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12px; background: #f3f7fb; border: 1px solid #d6e2ee; border-radius: 6px; padding: 6px 8px; margin: 0 0 6px; }
+.dim-pick .dim-axis { display: inline-flex; gap: 4px; align-items: center; }
+.chip-btn { border: 1px solid #c9d3dd; background: #fff; border-radius: 12px; padding: 1px 8px; font-size: 12px; cursor: pointer; }
+.chip-btn.on { background: #e8822a; color: #fff; border-color: #e8822a; font-weight: 700; }
+.four-form { display: flex; flex-direction: column; gap: 6px; background: #fff8f0; border: 1px solid #f0c48f; border-radius: 8px; padding: 8px 10px; margin: 8px 0; }
+.four-form .field { min-width: 150px; }

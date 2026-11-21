@@ -1,6 +1,6 @@
 // Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const DEFAULT_CHECKLIST = [
   'Lifting equipment inspected, certificates valid and identified (serial numbers)',
@@ -73,7 +73,7 @@ export function defaultProject() {
     environment: 'onshore',
     flags: { quayToVessel: false, vesselToQuay: false, vesselToVessel: false, overLive: false, subsea: false, heavyThreshold_t: 50 },
     factors: { applyDAF: true, dafMode: 'dnv', dafManual: 1.1, sklMode: 'auto', sklManual: 1.25, cogFactor: 1.0, extraFactor: 1.0 },
-    safety: { measures: {}, further: '', comms: { primary: 'UHF radio', secondary: 'Hand signals', other: '', primaryChecked: false, secondaryChecked: false }, review: { done: false, ref: '' } },
+    safety: { measures: {}, further: '', comms: { primary: 'UHF radio', secondary: 'Hand signals', other: '', primaryChecked: false, secondaryChecked: false }, },
     rules: {},
     load: {
       name: 'Pump skid P-101',
@@ -146,17 +146,16 @@ export function defaultProject() {
     storyboard: {
       crane: { x: 0, y: 0, heading_deg: 0, footprint: { L: 12, W: 3 } },
       map: null,
-      shapes: [],
       obstacles: [
         { name: 'Trailer', x: 10, y: 0, sx: 12, sy: 2.6, h: 1.5, rot_deg: 0, color: '#9aa5b1' },
         { name: 'Wall / fence', x: 9, y: 10, sx: 0.4, sy: 8, h: 3.5, rot_deg: 30, color: '#c0794f' },
         { name: 'Foundation', x: -5.5, y: 15, sx: 6.5, sy: 3, h: 0.3, rot_deg: 20, color: '#7f8c8d' },
       ],
       steps: [
-        { name: 'Toolbox talk, permit and rigging inspection', note: 'TBT held, PTW in place, rigging inspected and laid out as per sketch.', responsible: 'Lifting supervisor', sketch: false },
-        { name: 'Pick from trailer', radius_m: 10, slew_deg: 0, loadElevation_m: 1.5, heading_deg: 0, note: 'Take the weight progressively, lift 300 mm and hold: check the load is level.', responsible: 'Crane operator', sketch: true, phase: 'pick' },
-        { name: 'Slew over the wall', radius_m: 14, slew_deg: 60, loadElevation_m: 4.0, heading_deg: 30, note: 'Keep ≥ 0.5 m clearance above the wall. Tag lines held.', responsible: 'Banksman', sketch: true },
-        { name: 'Set down on foundation', radius_m: 16, slew_deg: 110, loadElevation_m: 0.3, heading_deg: 20, note: 'Slow set-down, guide onto the dowels.', responsible: 'Crane operator', sketch: true, phase: 'final' },
+        { note: 'Toolbox talk, permit and rigging inspection: TBT held, PTW in place, rigging inspected and laid out as per sketch.', responsible: 'Lifting supervisor' },
+        { note: 'Pick from the trailer: take the weight progressively, lift 300 mm and hold, check the load is level.', responsible: 'Crane operator' },
+        { note: 'Slew over the wall: keep ≥ 0.5 m clearance above the wall, tag lines held.', responsible: 'Banksman' },
+        { note: 'Set down on the foundation: slow set-down, guide onto the dowels.', responsible: 'Crane operator' },
       ],
     },
     weather: { hsMax_m: null, windMax_ms: 9.8, windGust_ms: 12, visibility: 'Good', notes: '' },
@@ -196,6 +195,7 @@ export function migrate(data) {
   if (v < 3) migrateV2(out, old);
   if (v < 4) migrateV3(out);
   if (v < 5) migrateV4(out);
+  if (v < 6) migrateV5(out);
   // the site map (storyboard) is gone: the radius already measured on it is kept
   (out.storyboard?.steps || []).forEach((st) => { delete st.pos; delete st.aiSketch; });
   out.schema = SCHEMA_VERSION;
@@ -300,6 +300,24 @@ function migrateV4(out) {
   r.assemblyTop = drop(r.assemblyTop);
   Object.values(r.legs || {}).forEach((l) => { if (l?.parts) l.parts = drop(l.parts); });
   if (out.load) out.load.cogEnvelope_mm = { dx: 0, dy: 0 };
+}
+
+/** v5 → v6: no shape model (COG kept as estimated), steps = details + responsible, no technical review. */
+function migrateV5(out) {
+  const ld = out.load || {};
+  if (ld.cogBasis === 'shape') ld.cogBasis = 'estimated';
+  delete ld.shapes;
+  const sb = out.storyboard || {};
+  const steps = sb.steps || [];
+  let rMax = 0;
+  for (const st of steps) {
+    if (st.name && !String(st.note || '').includes(st.name)) st.note = [st.name, st.note].filter(Boolean).join(' — ');
+    delete st.name;
+    if (+st.radius_m > rMax) rMax = +st.radius_m;
+    for (const k of ['radius_m', 'loadElevation_m', 'slew_deg', 'heading_deg', 'sketch', 'phase']) delete st[k];
+  }
+  // the largest step radius governed the crane check: it becomes the radius of the crane
+  if (out.crane && rMax > (+out.crane.radius_m || 0)) out.crane.radius_m = rMax;
 }
 
 /** Path access "a.b.0.c". */

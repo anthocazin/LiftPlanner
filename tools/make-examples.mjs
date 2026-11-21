@@ -74,10 +74,10 @@ c.storyboard = {
     { name: 'Laydown area', x: -6, y: 10, sx: 10, sy: 8, h: 0, rot_deg: 0, color: '#7f8c8d' },
   ],
   steps: [
-    { name: 'Toolbox talk and radio check', note: 'Crane operator, banksman on the platform, deck crew on the vessel, bridge.', responsible: 'Lifting supervisor', sketch: false },
-    { name: 'Pick from the supply vessel', radius_m: 24, slew_deg: 0, loadElevation_m: -12, heading_deg: 0, note: 'Clean lift-off on a wave crest; tag lines handled by the vessel crew.', responsible: 'Crane operator', sketch: true },
-    { name: 'Hoist and slew', radius_m: 18, slew_deg: 60, loadElevation_m: 3, heading_deg: 60, note: 'Keep ≥ 1 m clearance above the handrail.', responsible: 'Banksman', sketch: true },
-    { name: 'Set down in laydown', radius_m: 12, slew_deg: 120, loadElevation_m: 0.2, heading_deg: 30, note: 'Set down on timber dunnage.', responsible: 'Crane operator', sketch: true },
+    { note: 'Toolbox talk and radio check: crane operator, banksman on the platform, deck crew on the vessel, bridge.', responsible: 'Lifting supervisor' },
+    { note: 'Pick from the supply vessel (radius 24 m): clean lift-off on a wave crest; tag lines handled by the vessel crew.', responsible: 'Crane operator' },
+    { note: 'Hoist and slew: keep ≥ 1 m clearance above the handrail.', responsible: 'Banksman' },
+    { note: 'Set down in the laydown area on timber dunnage.', responsible: 'Crane operator' },
   ],
 };
 c.weather = { hsMax_m: 1.5, windMax_ms: 15, windGust_ms: 18, visibility: 'Daylight, > 1 NM', notes: 'Forecast checked 12 h before; stop if Hs > 1.5 m or gusts > 18 m/s.' };

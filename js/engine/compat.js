@@ -56,8 +56,6 @@ function joint(low, high) {
       add('warn', `${s.name} (${s.width} mm wide) is wider than the bearing of ${bearingName} (${Math.round(bearingWidth)} mm)`, 'A flat webbing sling must lie flat on its bearing; folded, it loses capacity. Use a bigger shackle / a wider bearing or a round sling.');
     if (s.kind === 'round' && bearingWidth && s.width * 0.5 > bearingWidth)
       add('warn', `${s.name} (${s.width} mm flat) is too wide for the bearing of ${bearingName} (${Math.round(bearingWidth)} mm)`, 'A round sling bunches up to about half its flat width on a bearing; if it does not fit, use a bigger shackle or link.');
-    if (s.kind === 'wire' && bearingDia && bearingDia / s.rope < 1)
-      add('warn', `${s.name}: bearing Ø${bearingDia} mm < rope Ø${s.rope} mm (D/d = ${(bearingDia / s.rope).toFixed(2)})`, 'A wire rope sling bent over a bearing thinner than the rope (D/d < 1) loses strength: use a larger shackle or a thimble.');
   };
   if (low.kind === 'pin' && ringLike(high)) pinOnRing(low, high);
   else if (high.kind === 'pin' && ringLike(low)) pinOnRing(high, low);

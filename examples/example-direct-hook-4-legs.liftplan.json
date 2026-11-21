@@ -1,5 +1,5 @@
 {
-  "schema": 5,
+  "schema": 6,
   "project": {
     "name": "Example — pump skid lift",
     "liftId": "LP-001",
@@ -51,10 +51,6 @@
       "other": "",
       "primaryChecked": false,
       "secondaryChecked": false
-    },
-    "review": {
-      "done": false,
-      "ref": ""
     }
   },
   "rules": {},
@@ -303,7 +299,6 @@
       }
     },
     "map": null,
-    "shapes": [],
     "obstacles": [
       {
         "name": "Trailer",
@@ -338,42 +333,20 @@
     ],
     "steps": [
       {
-        "name": "Toolbox talk, permit and rigging inspection",
-        "note": "TBT held, PTW in place, rigging inspected and laid out as per sketch.",
-        "responsible": "Lifting supervisor",
-        "sketch": false
+        "note": "Toolbox talk, permit and rigging inspection: TBT held, PTW in place, rigging inspected and laid out as per sketch.",
+        "responsible": "Lifting supervisor"
       },
       {
-        "name": "Pick from trailer",
-        "radius_m": 10,
-        "slew_deg": 0,
-        "loadElevation_m": 1.5,
-        "heading_deg": 0,
-        "note": "Take the weight progressively, lift 300 mm and hold: check the load is level.",
-        "responsible": "Crane operator",
-        "sketch": true,
-        "phase": "pick"
+        "note": "Pick from the trailer: take the weight progressively, lift 300 mm and hold, check the load is level.",
+        "responsible": "Crane operator"
       },
       {
-        "name": "Slew over the wall",
-        "radius_m": 14,
-        "slew_deg": 60,
-        "loadElevation_m": 4,
-        "heading_deg": 30,
-        "note": "Keep ≥ 0.5 m clearance above the wall. Tag lines held.",
-        "responsible": "Banksman",
-        "sketch": true
+        "note": "Slew over the wall: keep ≥ 0.5 m clearance above the wall, tag lines held.",
+        "responsible": "Banksman"
       },
       {
-        "name": "Set down on foundation",
-        "radius_m": 16,
-        "slew_deg": 110,
-        "loadElevation_m": 0.3,
-        "heading_deg": 20,
-        "note": "Slow set-down, guide onto the dowels.",
-        "responsible": "Crane operator",
-        "sketch": true,
-        "phase": "final"
+        "note": "Set down on the foundation: slow set-down, guide onto the dowels.",
+        "responsible": "Crane operator"
       }
     ]
   },

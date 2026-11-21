@@ -14,7 +14,6 @@ const RULES = [
   ['maxTiltWarn_deg', 'Load tilt: warn above', '°'],
   ['maxTiltFail_deg', 'Load tilt: reject above', '°'],
   ['lengthMismatchWarn_mm', 'Allowed length mismatch (spreader)', 'mm'],
-  ['minBendingRatio', 'Wire rope / grommet: minimum D/d over the bearing', '×'],
   ['maxOutOfPlane_deg', 'Allowed out-of-plane angle on a padeye', '°'],
 ];
 

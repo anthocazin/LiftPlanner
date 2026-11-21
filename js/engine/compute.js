@@ -4,7 +4,6 @@ import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks
 import { isLengthPart } from './rigging.js';
 import { setUserCatalog, itemWeight_t, niceName } from '../catalog/index.js';
 import { chartRange } from './crane.js';
-import { shapesCog } from './shape.js';
 
 export function buildBOM(rig, project) {
   const lines = new Map();
@@ -86,12 +85,7 @@ export function geometricCentre(ld) {
 /** Computes the whole project. */
 export function computeProject(project) {
   setUserCatalog(project.inventory || []);
-  // COG from the simple shape model (uniform weight)
   const ld = project.load || {};
-  if (ld.cogBasis === 'shape' && (ld.shapes || []).length) {
-    const g = shapesCog(ld.shapes);
-    if (g) ld.cog_mm = { x: Math.round(g.x), y: Math.round(g.y), z: Math.round(g.z) };
-  }
   // COG at the geometric centre of the part (overall size)
   if (ld.cogBasis === 'geometric') {
     const c = geometricCentre(ld);
@@ -114,22 +108,17 @@ export function computeProject(project) {
   const zMin = (Number(project.load?.origin_mm?.z) || 0) / 1000;
   const hookAboveBottom = rig.hook.z - zMin; // hook height above the underside of the load
   res.hookAboveBottom = hookAboveBottom;
-  const steps = project.storyboard?.steps?.length
-    ? project.storyboard.steps
-    : [{ name: 'Max radius', radius_m: crane.radius_m, loadElevation_m: null }];
-  steps.forEach((st, i) => {
-    const R = Number(st.radius_m);
-    const label = st.name || `Step ${i + 1}`;
-    if (!(R > 0)) {
-      res.steps.push({ step: st, label, checks: [] });
-      return;
+  // crane checked at the working radius of the crane page
+  {
+    const R = Number(crane.radius_m);
+    const label = 'Working radius';
+    if (R > 0) {
+      const cc = craneCheck(crane, res.shlCrane, R, label);
+      cc.checks.forEach((c) => (c.ref = { tab: 'crane' }));
+      checks.push(...cc.checks);
+      res.steps.push({ step: { name: label, radius_m: R }, label, checks: cc.checks, capacity: cc.capacity, requiredHook: null });
     }
-    const cc = craneCheck(crane, res.shlCrane, R, label);
-    const requiredHook = st.loadElevation_m != null && st.loadElevation_m !== '' ? Number(st.loadElevation_m) + hookAboveBottom : null;
-    cc.checks.forEach((c) => (c.ref = { tab: 'crane' }));
-    checks.push(...cc.checks);
-    res.steps.push({ step: st, label, checks: cc.checks, capacity: cc.capacity, requiredHook });
-  });
+  }
 
   res.bom = buildBOM(rig, project);
   res.status = worstStatus(checks);

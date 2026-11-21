@@ -61,10 +61,10 @@ export function render(root) {
     null,
     el('div', { class: 'panel-head' },
       el('h2', {}, 'Step-by-step details of the lifting operation'),
-      el('div', { class: 'row' }, el('button', { class: 'small', onclick: () => addStep(false) }, '+ Step'), el('button', { class: 'small', onclick: () => addStep(true) }, '+ Crane step (radius)')),
+      el('div', { class: 'row' }, el('button', { class: 'small', onclick: () => addStep() }, '+ Step')),
     ),
     el('div', { id: 'seq-table', class: 'tbl-wrap' }),
-    el('p', { class: 'muted', style: { fontSize: '12px' } }, 'The steps are printed in the report. Give a crane radius to the steps where the crane holds the load: the SWL of the load chart is checked at every radius (the largest radius governs).'),
+    el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Printed in the report (and editable there). The crane is checked at the working radius of the Crane page.'),
   );
 
   const weather = panel(
@@ -78,7 +78,7 @@ export function render(root) {
     ),
   );
 
-  const s = app.project.safety || (app.project.safety = { measures: {}, further: '', comms: {}, review: {} });
+  const s = app.project.safety || (app.project.safety = { measures: {}, further: '', comms: {} });
   const measures = el('div', { class: 'measures' });
   SAFETY_MEASURES.forEach((m) =>
     measures.append(el('label', { class: 'check', style: { fontSize: '12.5px' } }, el('input', { type: 'checkbox', checked: !!s.measures?.[m], onchange: (e) => { s.measures = s.measures || {}; s.measures[m] = e.target.checked; app.persist(); } }), m)));
@@ -94,11 +94,6 @@ export function render(root) {
       field({ label: 'Other', path: 'safety.comms.other', type: 'text' }),
       field({ label: 'Primary checked', path: 'safety.comms.primaryChecked', type: 'checkbox' }),
       field({ label: 'Secondary checked', path: 'safety.comms.secondaryChecked', type: 'checkbox' }),
-    ),
-    el('h3', {}, 'Technical review'),
-    el('div', { class: 'fields' },
-      field({ label: 'Technical review conducted', path: 'safety.review.done', type: 'checkbox' }),
-      field({ label: 'Details / reference', path: 'safety.review.ref', type: 'text', cls: 'span2' }),
     ),
   );
 
@@ -163,12 +158,9 @@ function loadBrand() {
   }
 }
 
-function addStep(crane) {
+function addStep() {
   const steps = (app.project.storyboard.steps = app.project.storyboard.steps || []);
-  const last = [...steps].reverse().find((s) => Number(s.radius_m) > 0);
-  steps.push(crane
-    ? { name: 'New crane step', note: '', responsible: 'Crane operator', sketch: true, radius_m: last?.radius_m ?? app.project.crane.radius_m ?? 10, slew_deg: last?.slew_deg ?? 0, loadElevation_m: last?.loadElevation_m ?? 1, heading_deg: last?.heading_deg ?? 0 }
-    : { name: 'New step', note: '', responsible: '', sketch: false });
+  steps.push({ note: '', responsible: '' });
   app.recompute();
   renderSequence();
 }
@@ -180,14 +172,10 @@ function renderSequence() {
   const tb = el('tbody');
   steps.forEach((st, i) => {
     const P = `storyboard.steps.${i}.`;
-    const num = (k, w = '64px') => el('input', { type: 'number', step: 'any', value: st[k] ?? '', style: { width: w }, onchange: (e) => { st[k] = e.target.value === '' ? null : Number(e.target.value); app.recompute(); } });
     tb.append(el('tr', {},
       el('td', { class: 'num' }, String(i + 1)),
-      el('td', {}, el('input', { type: 'text', value: st.name || '', onchange: (e) => app.set(`${P}name`, e.target.value) })),
-      el('td', { style: { minWidth: '280px' } }, el('textarea', { rows: 2, style: { width: '100%', font: 'inherit', fontSize: '12.5px', border: '1px solid var(--line)', borderRadius: '4px' }, onchange: (e) => app.set(`${P}note`, e.target.value) }, st.note || '')),
+      el('td', { style: { minWidth: '420px', width: '70%' } }, el('textarea', { rows: 2, style: { width: '100%', font: 'inherit', fontSize: '12.5px', border: '1px solid var(--line)', borderRadius: '4px' }, onchange: (e) => app.set(`${P}note`, e.target.value) }, st.note || '')),
       el('td', {}, el('input', { type: 'text', value: st.responsible || '', onchange: (e) => app.set(`${P}responsible`, e.target.value) })),
-      el('td', {}, num('radius_m')),
-      el('td', {}, num('loadElevation_m')),
       el('td', { style: { whiteSpace: 'nowrap' } },
         el('button', { class: 'small', title: 'Up', onclick: () => { if (i > 0) { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; app.recompute(); renderSequence(); } } }, '↑'),
         el('button', { class: 'small', title: 'Down', onclick: () => { if (i < steps.length - 1) { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; app.recompute(); renderSequence(); } } }, '↓'),
@@ -196,7 +184,7 @@ function renderSequence() {
   });
   box.innerHTML = '';
   box.append(el('table', { class: 'data compact' },
-    el('thead', {}, el('tr', {}, ['#', 'Step', 'Details', 'Responsible', 'Crane radius (m)', 'Load height (m)', ''].map((h) => el('th', {}, h)))), tb));
+    el('thead', {}, el('tr', {}, ['#', 'Details', 'Responsible', ''].map((h) => el('th', {}, h)))), tb));
 }
 
 function renderChecklist() {
