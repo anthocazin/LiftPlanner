@@ -164,7 +164,7 @@ table.compact td, table.compact th { padding: 3px 5px; }
 .print-only { display: none; }
 
 @media print {
-  @page { size: A4; margin: 10mm; }
+  @page { size: A4; margin: 0; } /* no browser header / footer (URL, date): the margins are inside the report */
   body { background: #fff; }
   .no-print, main { display: none !important; }
   .print-only { display: block !important; }
@@ -269,9 +269,22 @@ table.data tbody tr { cursor: default; }
   .report.tpl table.tb { break-inside: auto; }
   .report.tpl table.tb tr { break-inside: avoid; }
   .page-break { break-before: page; }
+  /* page margins inside the report: left / right by padding, top / bottom by the repeated header / footer */
+  .report.tpl { padding: 0 10mm !important; }
+  .report.tpl table.pt > thead > tr > td { padding-top: 8mm !important; }
+  .report.tpl table.pt > tfoot > tr > td { padding-bottom: 6mm !important; }
 }
-.report.tpl .drawing.detail svg { max-height: 125mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
-.report.tpl .drawing.pfit svg { max-height: 58mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.detail svg { max-height: 105mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.pfit svg { max-height: 52mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.schem-r svg { max-height: 105mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .figs.rig2 { grid-template-columns: 1.55fr 1fr; align-items: stretch; }
+.report.tpl .figs.rig2 > div { display: flex; flex-direction: column; }
+.report.tpl .figs.rig2 > div > .drawing { flex: 1; display: flex; align-items: center; justify-content: center; }
+.report.tpl .figs > div > .sub-t { margin-top: 0; }
+.report.tpl .figs.lone { grid-template-columns: 1fr 1fr; }
+.report.tpl td.cols2 { column-count: 2; column-gap: 14px; }
+.report.tpl .own-dwg { margin-bottom: 6px; }
+.report.tpl .legs-t table { font-size: 8.5px; }
 
 /* ---------- v0.4: load set-up stepper, 3D viewer, schematic, shapes ---------- */
 .setup .panel-head { flex-wrap: wrap; gap: 8px; }

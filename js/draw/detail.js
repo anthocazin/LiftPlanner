@@ -339,7 +339,7 @@ export function drawRiggingDetail(project, res, opts = {}) {
     }
     x += colW + labelW + 24;
   }
-  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened). Catalogue data to be confirmed against the certificates of the equipment used.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened).', { 'font-size': 9.5, fill: '#5d6b7a' });
   return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Rigging detail' });
 }
 
@@ -371,7 +371,7 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   };
   let body = '';
   // ---------------- FACE view (left)
-  const fx = W * 0.28, fy = H - 46; // base centre on screen
+  const fx = W * 0.28, fy = H - (W >= 640 ? 46 : 60); // base centre on screen (room for 2 lines of text when narrow)
   const X = (x) => fx + x * k, Y = (y) => fy - y * k;
   // tangent points from the base corners to the circle (centre (0, A), radius R)
   const tan = (sx) => {
@@ -444,6 +444,9 @@ export function drawPadeyeFit(point, shackle, opts = {}) {
   body += dimLine(XS(-e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, XS(e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, '', { color: jawCol }) + text(XS(-e / 2 - ew) - 4, Y(pinY) + d.eyeDia / 2 * k + 14, `jaw ${e}`, { 'text-anchor': 'end', 'font-size': 10.5, fill: jawCol, 'font-weight': 600 });
   body += text(sx, 16, 'Side view — shackle in its plane', { 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
   const clr = Dh ? Dh - pin : null;
-  body += text(W / 2, H - 6, `pin Ø${pin} in hole Ø${Dh || '?'}${clr != null ? ` (clearance ${clr.toFixed(1)} mm)` : ''} · padeye T ${T || '?'} mm in jaw ${e} mm (${T ? Math.round((T / e) * 100) : '?'} %) · inside length ${d.insideLength} mm`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
+  const l1 = `pin Ø${pin} in hole Ø${Dh || '?'}${clr != null ? ` (clearance ${clr.toFixed(1)} mm)` : ''}`;
+  const l2 = `padeye T ${T || '?'} mm in jaw ${e} mm (${T ? Math.round((T / e) * 100) : '?'} %) · inside length ${d.insideLength} mm`;
+  if (W >= 640) body += text(W / 2, H - 6, `${l1} · ${l2}`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
+  else body += text(W / 2, H - 18, l1, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' }) + text(W / 2, H - 5, l2, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
   return svgDoc(W, H, body, { title: 'Padeye / shackle fit' });
 }

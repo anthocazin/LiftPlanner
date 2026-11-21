@@ -171,7 +171,7 @@ table.compact td, table.compact th { padding: 3px 5px; }
 .print-only { display: none; }
 
 @media print {
-  @page { size: A4; margin: 10mm; }
+  @page { size: A4; margin: 0; } /* no browser header / footer (URL, date): the margins are inside the report */
   body { background: #fff; }
   .no-print, main { display: none !important; }
   .print-only { display: block !important; }
@@ -276,9 +276,22 @@ table.data tbody tr { cursor: default; }
   .report.tpl table.tb { break-inside: auto; }
   .report.tpl table.tb tr { break-inside: avoid; }
   .page-break { break-before: page; }
+  /* page margins inside the report: left / right by padding, top / bottom by the repeated header / footer */
+  .report.tpl { padding: 0 10mm !important; }
+  .report.tpl table.pt > thead > tr > td { padding-top: 8mm !important; }
+  .report.tpl table.pt > tfoot > tr > td { padding-bottom: 6mm !important; }
 }
-.report.tpl .drawing.detail svg { max-height: 125mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
-.report.tpl .drawing.pfit svg { max-height: 58mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.detail svg { max-height: 105mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.pfit svg { max-height: 52mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .drawing.schem-r svg { max-height: 105mm; width: auto; max-width: 100%; display: block; margin: 0 auto; }
+.report.tpl .figs.rig2 { grid-template-columns: 1.55fr 1fr; align-items: stretch; }
+.report.tpl .figs.rig2 > div { display: flex; flex-direction: column; }
+.report.tpl .figs.rig2 > div > .drawing { flex: 1; display: flex; align-items: center; justify-content: center; }
+.report.tpl .figs > div > .sub-t { margin-top: 0; }
+.report.tpl .figs.lone { grid-template-columns: 1fr 1fr; }
+.report.tpl td.cols2 { column-count: 2; column-gap: 14px; }
+.report.tpl .own-dwg { margin-bottom: 6px; }
+.report.tpl .legs-t table { font-size: 8.5px; }
 
 /* ---------- v0.4: load set-up stepper, 3D viewer, schematic, shapes ---------- */
 .setup .panel-head { flex-wrap: wrap; gap: 8px; }
@@ -4671,7 +4684,7 @@ function drawRiggingDetail(project, res, opts = {}) {
     }
     x += colW + labelW + 24;
   }
-  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened). Catalogue data to be confirmed against the certificates of the equipment used.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened).', { 'font-size': 9.5, fill: '#5d6b7a' });
   return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Rigging detail' });
 }
 
@@ -4703,7 +4716,7 @@ function drawPadeyeFit(point, shackle, opts = {}) {
   };
   let body = '';
   // ---------------- FACE view (left)
-  const fx = W * 0.28, fy = H - 46; // base centre on screen
+  const fx = W * 0.28, fy = H - (W >= 640 ? 46 : 60); // base centre on screen (room for 2 lines of text when narrow)
   const X = (x) => fx + x * k, Y = (y) => fy - y * k;
   // tangent points from the base corners to the circle (centre (0, A), radius R)
   const tan = (sx) => {
@@ -4776,7 +4789,10 @@ function drawPadeyeFit(point, shackle, opts = {}) {
   body += dimLine(XS(-e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, XS(e / 2), Y(pinY) + d.eyeDia / 2 * k + 10, '', { color: jawCol }) + text(XS(-e / 2 - ew) - 4, Y(pinY) + d.eyeDia / 2 * k + 14, `jaw ${e}`, { 'text-anchor': 'end', 'font-size': 10.5, fill: jawCol, 'font-weight': 600 });
   body += text(sx, 16, 'Side view — shackle in its plane', { 'text-anchor': 'middle', 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
   const clr = Dh ? Dh - pin : null;
-  body += text(W / 2, H - 6, `pin Ø${pin} in hole Ø${Dh || '?'}${clr != null ? ` (clearance ${clr.toFixed(1)} mm)` : ''} · padeye T ${T || '?'} mm in jaw ${e} mm (${T ? Math.round((T / e) * 100) : '?'} %) · inside length ${d.insideLength} mm`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
+  const l1 = `pin Ø${pin} in hole Ø${Dh || '?'}${clr != null ? ` (clearance ${clr.toFixed(1)} mm)` : ''}`;
+  const l2 = `padeye T ${T || '?'} mm in jaw ${e} mm (${T ? Math.round((T / e) * 100) : '?'} %) · inside length ${d.insideLength} mm`;
+  if (W >= 640) body += text(W / 2, H - 6, `${l1} · ${l2}`, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
+  else body += text(W / 2, H - 18, l1, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' }) + text(W / 2, H - 5, l2, { 'text-anchor': 'middle', 'font-size': 10, fill: '#5d6b7a' });
   return svgDoc(W, H, body, { title: 'Padeye / shackle fit' });
 }
 
@@ -7256,7 +7272,8 @@ function schematicSvg(project, res, { width = 900, interactive = false, highligh
   const pts = [...used]; // in the order of the list (A, B, C…)
   const nCol = pts.length;
   const colW = Math.min(230, (W - 40) / nCol);
-  const x0 = (W - colW * nCol) / 2 + colW / 2;
+  // icons on the left of their column, labels on the right: the whole group is centred
+  const x0 = (W - colW * nCol) / 2 + colW * 0.22;
   let s = '';
   const drops = [];
   const head = rig?.head;
@@ -8209,7 +8226,7 @@ function buildReport() {
   const rep = el('div', { class: 'report tpl' },
     el('table', { class: 'pt' },
       el('thead', {}, el('tr', {}, el('td', {}, header(p)))),
-      el('tfoot', {}, el('tr', {}, el('td', {}, el('div', { class: 'rfoot' }, `${pr.liftId || ''} · Rev. ${pr.revision || '-'} · ${pr.date || ''}`, el('span', {}, 'LiftPlanner — check against the equipment certificates'))))),
+      el('tfoot', {}, el('tr', {}, el('td', {}, el('div', { class: 'rfoot' }, `${pr.liftId || ''} · Rev. ${pr.revision || '-'} · ${pr.date || ''}`)))),
       el('tbody', {}, el('tr', {}, body)),
     ),
   );
@@ -8316,53 +8333,45 @@ function buildReport() {
       el('td', { class: 'c' }, ed(`storyboard.steps.${i}.responsible`, { ph: 'Responsible' })))),
   ), act(el('button', { class: 'small no-print ed-add' }, '+ Add a step'), () => { steps.push({ note: '', responsible: '' }); setTimeout(() => { const all = document.querySelectorAll('#report-preview table.steps [data-ed].multi'); all[all.length - 1]?.focus(); }, 30); }));
 
-  // ---- Rigging: arrangement, detail, then the views
+  // ---- Drawings: they follow on without forced page break, two per row
+  const sub = (t) => el('div', { class: 'sub-t' }, t);
   const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  if (['schem', 'detail', 'xy', 'xz', 'yz'].some(figOn) || ownDw.length) {
-    add(el('div', { class: 'page-break' }));
-    add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
-  }
   const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
-  if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
-  if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  const views = [
-    figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
-    figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
-    figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-  ].filter(Boolean);
-  for (let i = 0; i < views.length; i += 2) {
-    const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));
-    add(el('div', { class: 'avoid-break' }, i === 0 ? el('div', { class: 'sub-t' }, 'Rigging on the load') : null, row));
+  const det = figOn('detail') ? drawRiggingDetail(p, res, { height: 560 }) : null;
+  const halves = [];
+  if (figOn('xy')) halves.push(() => fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })));
+  if (figOn('xz')) halves.push(() => fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })));
+  if (figOn('yz')) halves.push(() => fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })));
+  const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
+  const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
+  if (pts.length && figOn('padeye')) {
+    const pq = pts[0], lg = legOf(pq.id);
+    const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
+    if (sh) halves.push(() => el('div', {}, sub(`Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 460, height: 230 }), 'pfit')));
   }
-  // ---- the user's own drawings (only when some were added)
-  const own = ownDw;
-  if (own.length)
-    add(el('div', { class: 'avoid-break own-dwg' },
-      el('div', { class: 'sub-t' }, 'Additional drawings'),
-      own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null)),
-    ));
-  const capFig = () => (figOn('capacity') ? el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 }))) : null);
-  if (!opts.calc && figOn('capacity')) add(capFig());
+  if (figOn('capacity')) halves.push(() => el('div', {}, sub('Crane capacity'), fig(drawCapacityChart(p, res, { width: 480, height: 250 }))));
+  const blocks = [];
+  if (sch.svg && det)
+    blocks.push(el('div', { class: 'figs rig2' },
+      el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')),
+      el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail'))));
+  else if (sch.svg) blocks.push(el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')));
+  else if (det) blocks.push(el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail')));
+  for (let i = 0; i < halves.length; i += 2) blocks.push(el('div', { class: 'figs' }, halves.slice(i, i + 2).map((f) => f())));
+  // the user's own drawings (only when some were added)
+  ownDw.forEach((d) => blocks.push(el('div', { class: 'own-dwg' }, el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null))));
+  // the section title stays with its first drawing (no title alone at the bottom of a page)
+  blocks.forEach((b, i) => add(el('div', { class: 'avoid-break' }, i === 0 ? bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories') : null, b)));
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
-    add(el('div', { class: 'page-break' }));
-    add(bar('Calculation summary'));
     const f = r.factors;
-    add(el('table', { class: 'tb kvt' },
+    add(el('div', { class: 'avoid-break' }, bar('Calculation summary'), el('table', { class: 'tb kvt' },
       el('tr', {}, el('th', {}, 'Design weight'), el('td', {}, `${fmt(r.W)} t`), el('th', {}, 'Rigging weight'), el('td', {}, `${fmt(r.rigWeight)} t`), el('th', {}, 'Static hook load'), el('td', {}, `${fmt(res.shlCrane)} t`)),
       el('tr', {}, el('th', {}, 'DAF'), el('td', {}, f.dafOn ? fmt(f.daf) : 'not applied'), el('th', {}, 'SKL · COG factor'), el('td', {}, `${fmt(f.skl)} · ${fmt(f.cog)}`), el('th', {}, 'Leg factor'), el('td', {}, fmt(r.fac, 3))),
       el('tr', {}, el('th', {}, 'Rig height'), el('td', {}, `${fmt(r.riggingHeight)} m above the lift points`), el('th', {}, 'Max crane util.'), el('td', {}, res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'), el('th', {}, 'Est. tilt'), el('td', {}, r.tilt ? `${fmt(r.tilt.tilt_deg)}°` : '—')),
-    ));
-    if (figOn('capacity')) add(capFig());
-    add(el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), legsTable(res));
-    const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
-    const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
-    if (pts.length && figOn('padeye')) {
-      const pq = pts[0], lg = legOf(pq.id);
-      const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
-      if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));
-    }
+    )));
+    add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), el('div', { class: 'legs-t' }, legsTable(res))));
     // no warnings in the report (they stay on the Checks page): only what fails, in plain text
     const shownChecks = res.checks.filter((c) => !c.hideInReport && c.status !== 'warn' && c.status !== 'info');
     const fails = shownChecks.filter((c) => c.status === 'fail');
@@ -8375,7 +8384,7 @@ function buildReport() {
   // ---- Checklift + sign-off
   add(el('table', { class: 'tb avoid-break' },
     el('tr', {}, el('th', { class: 'sec' }, 'Performing the lift: Checklift')),
-    el('tr', {}, el('td', {}, CHECKLIFT.map((t) => el('div', {}, `→ ${t}`)))),
+    el('tr', {}, el('td', { class: 'cols2' }, CHECKLIFT.map((t) => el('div', {}, `→ ${t}`)))),
   ));
   const who = [['Prepared by', 'preparedBy'], ['Checked by', 'checkedBy'], ['Approved by', 'approvedBy']];
   add(el('table', { class: 'tb signoff avoid-break' },
@@ -8385,7 +8394,6 @@ function buildReport() {
     el('tr', {}, el('th', {}, 'Date'), who.map(() => el('td', {}, ''))),
     el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(() => el('td', {}, ''))),
   ));
-  add(el('div', { class: 'disclaimer' }, 'Lift plan prepared with LiftPlanner (planning aid). Equipment data from manufacturer / distributor catalogues (DS Levage 2025): check every item against its certificate. The plan must be reviewed by a competent person before the lift.'));
   return rep;
 }
 

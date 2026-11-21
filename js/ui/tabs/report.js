@@ -141,7 +141,7 @@ export function buildReport() {
   const rep = el('div', { class: 'report tpl' },
     el('table', { class: 'pt' },
       el('thead', {}, el('tr', {}, el('td', {}, header(p)))),
-      el('tfoot', {}, el('tr', {}, el('td', {}, el('div', { class: 'rfoot' }, `${pr.liftId || ''} · Rev. ${pr.revision || '-'} · ${pr.date || ''}`, el('span', {}, 'LiftPlanner — check against the equipment certificates'))))),
+      el('tfoot', {}, el('tr', {}, el('td', {}, el('div', { class: 'rfoot' }, `${pr.liftId || ''} · Rev. ${pr.revision || '-'} · ${pr.date || ''}`)))),
       el('tbody', {}, el('tr', {}, body)),
     ),
   );
@@ -248,53 +248,45 @@ export function buildReport() {
       el('td', { class: 'c' }, ed(`storyboard.steps.${i}.responsible`, { ph: 'Responsible' })))),
   ), act(el('button', { class: 'small no-print ed-add' }, '+ Add a step'), () => { steps.push({ note: '', responsible: '' }); setTimeout(() => { const all = document.querySelectorAll('#report-preview table.steps [data-ed].multi'); all[all.length - 1]?.focus(); }, 30); }));
 
-  // ---- Rigging: arrangement, detail, then the views
+  // ---- Drawings: they follow on without forced page break, two per row
+  const sub = (t) => el('div', { class: 'sub-t' }, t);
   const ownDw = (p.report?.drawings || []).filter((d) => safeImg(d.image));
-  if (['schem', 'detail', 'xy', 'xz', 'yz'].some(figOn) || ownDw.length) {
-    add(el('div', { class: 'page-break' }));
-    add(bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'));
-  }
   const sch = figOn('schem') ? schematicSvg(p, res, { width: 760 }) : {};
-  if (sch.svg) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging arrangement'), fig(sch.svg, 'schem-r')));
-  if (figOn('detail')) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Rigging detail (components to scale)'), fig(drawRiggingDetail(p, res, { height: 560 }), 'detail')));
-  const views = [
-    figOn('xy') && (() => staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })),
-    figOn('xz') && (() => staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })),
-    figOn('yz') && (() => staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })),
-  ].filter(Boolean);
-  for (let i = 0; i < views.length; i += 2) {
-    const row = el('div', { class: 'figs' }, views.slice(i, i + 2).map((f) => fig(f())));
-    add(el('div', { class: 'avoid-break' }, i === 0 ? el('div', { class: 'sub-t' }, 'Rigging on the load') : null, row));
+  const det = figOn('detail') ? drawRiggingDetail(p, res, { height: 560 }) : null;
+  const halves = [];
+  if (figOn('xy')) halves.push(() => fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' })));
+  if (figOn('xz')) halves.push(() => fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' })));
+  if (figOn('yz')) halves.push(() => fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' })));
+  const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
+  const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
+  if (pts.length && figOn('padeye')) {
+    const pq = pts[0], lg = legOf(pq.id);
+    const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
+    if (sh) halves.push(() => el('div', {}, sub(`Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 460, height: 230 }), 'pfit')));
   }
-  // ---- the user's own drawings (only when some were added)
-  const own = ownDw;
-  if (own.length)
-    add(el('div', { class: 'avoid-break own-dwg' },
-      el('div', { class: 'sub-t' }, 'Additional drawings'),
-      own.map((d) => el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null)),
-    ));
-  const capFig = () => (figOn('capacity') ? el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Crane capacity'), fig(drawCapacityChart(p, res, { width: 620, height: 260 }))) : null);
-  if (!opts.calc && figOn('capacity')) add(capFig());
+  if (figOn('capacity')) halves.push(() => el('div', {}, sub('Crane capacity'), fig(drawCapacityChart(p, res, { width: 480, height: 250 }))));
+  const blocks = [];
+  if (sch.svg && det)
+    blocks.push(el('div', { class: 'figs rig2' },
+      el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')),
+      el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail'))));
+  else if (sch.svg) blocks.push(el('div', {}, sub('Rigging arrangement'), fig(sch.svg, 'schem-r')));
+  else if (det) blocks.push(el('div', {}, sub('Rigging detail (to scale)'), fig(det, 'detail')));
+  for (let i = 0; i < halves.length; i += 2) blocks.push(el('div', { class: 'figs' }, halves.slice(i, i + 2).map((f) => f())));
+  // the user's own drawings (only when some were added)
+  ownDw.forEach((d) => blocks.push(el('div', { class: 'own-dwg' }, el('figure', { class: 'own' }, el('img', { src: d.image, alt: '' }), d.caption ? el('figcaption', {}, d.caption) : null))));
+  // the section title stays with its first drawing (no title alone at the bottom of a page)
+  blocks.forEach((b, i) => add(el('div', { class: 'avoid-break' }, i === 0 ? bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories') : null, b)));
 
   // ---- Calculation summary (concise)
   if (opts.calc) {
-    add(el('div', { class: 'page-break' }));
-    add(bar('Calculation summary'));
     const f = r.factors;
-    add(el('table', { class: 'tb kvt' },
+    add(el('div', { class: 'avoid-break' }, bar('Calculation summary'), el('table', { class: 'tb kvt' },
       el('tr', {}, el('th', {}, 'Design weight'), el('td', {}, `${fmt(r.W)} t`), el('th', {}, 'Rigging weight'), el('td', {}, `${fmt(r.rigWeight)} t`), el('th', {}, 'Static hook load'), el('td', {}, `${fmt(res.shlCrane)} t`)),
       el('tr', {}, el('th', {}, 'DAF'), el('td', {}, f.dafOn ? fmt(f.daf) : 'not applied'), el('th', {}, 'SKL · COG factor'), el('td', {}, `${fmt(f.skl)} · ${fmt(f.cog)}`), el('th', {}, 'Leg factor'), el('td', {}, fmt(r.fac, 3))),
       el('tr', {}, el('th', {}, 'Rig height'), el('td', {}, `${fmt(r.riggingHeight)} m above the lift points`), el('th', {}, 'Max crane util.'), el('td', {}, res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'), el('th', {}, 'Est. tilt'), el('td', {}, r.tilt ? `${fmt(r.tilt.tilt_deg)}°` : '—')),
-    ));
-    if (figOn('capacity')) add(capFig());
-    add(el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), legsTable(res));
-    const pts = ld.liftPoints.filter((q) => q.used !== false && pointKind(q) === 'padeye');
-    const legOf = (id) => r.legs.find((l) => l.pointId === id && l.level !== 'top');
-    if (pts.length && figOn('padeye')) {
-      const pq = pts[0], lg = legOf(pq.id);
-      const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
-      if (sh) add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, `Padeye / shackle fit (point ${pq.id}${pts.length > 1 ? ', same for similar points' : ''})`), fig(drawPadeyeFit(pq, sh, { width: 600, height: 240 }), 'pfit')));
-    }
+    )));
+    add(el('div', { class: 'avoid-break' }, el('div', { class: 'sub-t' }, 'Leg forces and assemblies'), el('div', { class: 'legs-t' }, legsTable(res))));
     // no warnings in the report (they stay on the Checks page): only what fails, in plain text
     const shownChecks = res.checks.filter((c) => !c.hideInReport && c.status !== 'warn' && c.status !== 'info');
     const fails = shownChecks.filter((c) => c.status === 'fail');
@@ -307,7 +299,7 @@ export function buildReport() {
   // ---- Checklift + sign-off
   add(el('table', { class: 'tb avoid-break' },
     el('tr', {}, el('th', { class: 'sec' }, 'Performing the lift: Checklift')),
-    el('tr', {}, el('td', {}, CHECKLIFT.map((t) => el('div', {}, `→ ${t}`)))),
+    el('tr', {}, el('td', { class: 'cols2' }, CHECKLIFT.map((t) => el('div', {}, `→ ${t}`)))),
   ));
   const who = [['Prepared by', 'preparedBy'], ['Checked by', 'checkedBy'], ['Approved by', 'approvedBy']];
   add(el('table', { class: 'tb signoff avoid-break' },
@@ -317,7 +309,6 @@ export function buildReport() {
     el('tr', {}, el('th', {}, 'Date'), who.map(() => el('td', {}, ''))),
     el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(() => el('td', {}, ''))),
   ));
-  add(el('div', { class: 'disclaimer' }, 'Lift plan prepared with LiftPlanner (planning aid). Equipment data from manufacturer / distributor catalogues (DS Levage 2025): check every item against its certificate. The plan must be reviewed by a competent person before the lift.'));
   return rep;
 }
 

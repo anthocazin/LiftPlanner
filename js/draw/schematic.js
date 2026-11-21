@@ -60,7 +60,8 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
   const pts = [...used]; // in the order of the list (A, B, C…)
   const nCol = pts.length;
   const colW = Math.min(230, (W - 40) / nCol);
-  const x0 = (W - colW * nCol) / 2 + colW / 2;
+  // icons on the left of their column, labels on the right: the whole group is centred
+  const x0 = (W - colW * nCol) / 2 + colW * 0.22;
   let s = '';
   const drops = [];
   const head = rig?.head;
