@@ -83,6 +83,11 @@ main#lt-main { max-width: 860px; margin: 0 auto; padding: 10px 10px 90px; }
 .lt-cut .modal-box { width: min(980px, 100%); max-height: 100%; display: flex; flex-direction: column; }
 .lt-cut-body { padding: 10px 12px; overflow: auto; }
 .lt-cut-cv canvas { display: block; max-width: 100%; max-height: 62vh; margin: 0 auto; touch-action: none; cursor: crosshair; border-radius: 6px; }
+.lt-cut-cv { position: relative; }
+.lt-cut-cv .lt-loupe { display: none; max-width: none; max-height: none; margin: 0; cursor: default; position: absolute; top: 6px; left: 6px; width: 150px; height: 150px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 16px #0006; pointer-events: none; background: #fff; }
+.lt-cut-cv .lt-loupe.right { left: auto; right: 6px; }
+.lt-hint.warn { color: var(--fail); font-weight: 700; }
+.lt-cut .chip { white-space: normal; }
 .lt-cut .chip.on { background: var(--orange); border-color: var(--orange); color: #fff; }
 .lt-cut .lt-row button { min-height: 38px; font-size: 14px; }
 
