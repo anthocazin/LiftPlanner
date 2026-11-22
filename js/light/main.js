@@ -7,7 +7,7 @@ import { isLengthPart } from '../engine/rigging.js';
 import { schematicSvg } from '../draw/schematic.js';
 import { openSignPad } from '../ui/signpad.js';
 import { brandLogo, setBrandLogo, shrinkLogo } from '../ui/brand.js';
-import { openCutout } from './cutout.js';
+import { openCutout, maskExtent } from './cutout.js';
 import { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFETY_MEASURES, DEFAULT_STEPS, DEFAULT_SAFETY } from './model.js';
 
 /** Length given for a leg: the sling / chain, or the leg (lift point → hook). */
@@ -176,6 +176,7 @@ async function addPhotos(files) {
   }
   if (!st.sketch && st.photos[0]) st.sketch = st.photos[0].id;
   activePt = 1;
+  sameScale();
   changed(true);
 }
 
@@ -209,10 +210,10 @@ function stepPhotos() {
   view.style.maxWidth = `min(100%, calc(64vh * ${(ph.w / ph.h).toFixed(4)}))`;
   wrap.append(chips, view,
     el('div', { class: 'lt-row' },
-      el('button', { class: 'primary', onclick: () => openCutout(ph, (mask) => { ph.mask = mask; changed(true); }) }, ph.mask ? '✂ Edit the cut-out' : '✂ Remove the background'),
+      el('button', { class: 'primary', onclick: () => openCutout(ph, (mask, obj) => { ph.mask = mask; ph.obj = mask ? obj : null; sameScale(); changed(true); }) }, ph.mask ? '✂ Edit the cut-out' : '✂ Remove the background'),
       ph.mask ? el('button', { onclick: () => { ph.mask = null; changed(true); } }, 'Put the background back') : null),
     el('div', { class: 'lt-row' },
-      el('select', { onchange: (e) => { ph.name = e.target.value; changed(true); } }, VIEWS.map((v) => el('option', { value: v, selected: v === ph.name }, v))),
+      el('select', { onchange: (e) => { ph.name = e.target.value; sameScale(); changed(true); } }, VIEWS.map((v) => el('option', { value: v, selected: v === ph.name }, v))),
       el('button', { onclick: () => { delete ph.points[activePt]; changed(true); } }, `Clear point ${legIds(st)[activePt - 1] || ''}`),
       el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) st.sketch = st.photos[0]?.id || null; cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
     el('p', { class: 'muted small' }, 'Tap the photo to place the point selected (it then goes to the next one); drag a point to move it.'));
@@ -335,15 +336,49 @@ function legend() {
 // ------------------------------------------------------------------ 4. sketch on a grid
 /** Sketch of a photo: its own placement on the grid, hook and legs (each view independent). */
 function boardFor(ph) {
-  let b = ph.board;
-  if (!b) {
-    const a = ph.w / ph.h;
-    const w = Math.min(760, 520 * a);
-    b = { w, x: (BOARD.w - w) / 2, y: BOARD.h - w / a - 40, hook: null, tops: {} };
-    ph.board = b;
-  }
-  b.tops = b.tops || {};
+  if (!ph.board) sameScale();
+  const b = ph.board;
+  b.labels = b.labels || {};
   return b;
+}
+
+const objOf = (ph) => ph.obj || { u0: 0, v0: 0, u1: 1, v1: 1 };
+/**
+ * Every view at about the same scale: the object (the part kept by the cut-out, else the whole photo)
+ * has the same height on the side, front and isometric views (the height of the load is common to
+ * them), and the top view the same width as the widest of them. st.sketchScale enlarges / reduces
+ * all of them. A view already placed keeps its position: photo, hook and leg names are scaled about
+ * the bottom of the object.
+ */
+function sameScale() {
+  const ph = st.photos;
+  if (!ph.length) return;
+  const isTop = (p) => p.name === 'Top view';
+  const aspect = (p) => { const o = objOf(p); return ((o.u1 - o.u0) * p.w) / Math.max(1e-6, (o.v1 - o.v0) * p.h); };
+  let H = 430 * (Number(st.sketchScale) || 1);
+  const side = ph.filter((p) => !isTop(p));
+  const widest = () => Math.max(0, ...side.map((p) => H * aspect(p)));
+  if (widest() > 900) H *= 900 / widest();
+  const Wtop = side.length ? widest() : 640 * (Number(st.sketchScale) || 1);
+  ph.forEach((p) => {
+    const o = objOf(p);
+    let objW = isTop(p) ? Wtop : H * aspect(p);
+    let objH = objW / aspect(p);
+    if (objH > 600) { objW *= 600 / objH; objH = 600; } // a tall top view stays on the grid
+    const wNew = objW / (o.u1 - o.u0);
+    const hNew = (wNew * p.h) / p.w;
+    const old = p.board;
+    const ax = old ? old.x + (old.w * (o.u0 + o.u1)) / 2 : BOARD.w / 2;
+    const ay = old ? old.y + ((old.w * p.h) / p.w) * o.v1 : BOARD.h - 40;
+    const k = old ? wNew / old.w : 1;
+    const tr = (q) => (q ? { x: Math.min(BOARD.w, Math.max(0, ax + (q.x - ax) * k)), y: Math.min(BOARD.h, Math.max(0, ay + (q.y - ay) * k)) } : q);
+    const nb = {
+      w: wNew, x: ax - (wNew * (o.u0 + o.u1)) / 2, y: ay - hNew * o.v1,
+      hook: tr(old?.hook || null),
+      labels: Object.fromEntries(Object.entries(old?.labels || {}).map(([id, q]) => [id, tr(q)])),
+    };
+    if (old) { delete old.tops; Object.assign(old, nb); } else p.board = nb;
+  });
 }
 
 /** The sketch: grid, photo (cut out or not), lift points, legs and hook, in board units. */
@@ -361,12 +396,11 @@ function boardSvg(ph, b, live) {
   if (b.hook) {
     const h = b.hook;
     b.labels = b.labels || {};
-    let lines = '', badges = '', handles = '';
+    let lines = '', badges = '';
     ids.forEach((id, i) => {
       const a = P(i + 1);
       if (!a) return;
-      const t = b.tops[id] || h;
-      if (b.tops[id]) lines += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="2.5" stroke-dasharray="10 8"/>`;
+      const t = h;
       lines += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
       // name of the leg in a badge (letter, lift point number, length), movable; a leader line when moved
       const L = givenLen(id);
@@ -376,12 +410,8 @@ function boardSvg(ph, b, live) {
       const bw = txt.length * 21 + 26;
       if (b.labels[id]) lines += `<line x1="${anchor.x}" y1="${anchor.y}" x2="${pos.x}" y2="${pos.y}" stroke="#b4561a" stroke-width="2.5"/><circle cx="${anchor.x}" cy="${anchor.y}" r="5" fill="#b4561a"/>`;
       badges += `<g><rect x="${pos.x - bw / 2}" y="${pos.y - 26}" width="${bw}" height="50" rx="10" fill="#fff" stroke="#e8822a" stroke-width="4" ${live ? `data-m="l:${id}" class="lt-move"` : ''}/><text x="${pos.x}" y="${pos.y + 13}" font-size="36" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#b4561a" pointer-events="none">${esc(txt)}</text></g>`;
-      if (live) {
-        const c = b.tops[id] ? t : { x: a.x * 0.3 + t.x * 0.7, y: a.y * 0.3 + t.y * 0.7 };
-        handles += `<circle cx="${c.x}" cy="${c.y}" r="${r * 0.9}" fill="#fff" stroke="#e8822a" stroke-width="4" data-m="t:${id}" class="lt-drag"/>`;
-      }
     });
-    s += lines + handles + badges;
+    s += lines + badges;
     s += `<path d="M${h.x} ${h.y - 70}V${h.y - 18}" stroke="#1c2733" stroke-width="4"/><circle cx="${h.x}" cy="${h.y}" r="${r * 1.3}" fill="#f2b705" stroke="#1c2733" stroke-width="3" ${live ? 'data-m="hook" class="lt-drag"' : ''}/>` + label(h.x + r * 2, h.y - r * 0.4, 'Hook', '#7a5a10', fs);
   }
   s += pointMarks(ids, P, r, fs, false);
@@ -395,15 +425,16 @@ function stepSketch() {
   if (!st.photos.length) { wrap.append(el('p', { class: 'muted' }, 'Add a photo first (step 1).')); return wrap; }
   const ph = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
   st.sketch = ph.id;
+  const old = st.photos.filter((p) => p.mask && !p.obj);
+  if (old.length) Promise.all(old.map(async (p) => { p.obj = (await maskExtent(p)) || { u0: 0, v0: 0, u1: 1, v1: 1 }; })).then(() => { sameScale(); changed(true); });
+  if (!st.scaled) { sameScale(); st.scaled = true; save(); }
   const b = boardFor(ph);
-  const bh = () => (b.w * ph.h) / ph.w;
   const clamp = (p) => ({ x: Math.min(BOARD.w, Math.max(0, p.x)), y: Math.min(BOARD.h, Math.max(0, p.y)) });
   const view = interactive(() => boardSvg(ph, b, true), {
     cls: 'lt-boardbox',
     onTap: (p, m) => { if (!b.hook && (!m || m === 'photo')) { b.hook = clamp(p); changed(true); } },
     onDrag: (m, p, d) => {
       if (m === 'hook') b.hook = clamp(p);
-      else if (m.startsWith('t:')) b.tops[m.slice(2)] = clamp(p);
       else if (m.startsWith('l:')) { b.labels = b.labels || {}; b.labels[m.slice(2)] = clamp(p); }
       else if (m === 'photo') { b.x += d.dx; b.y += d.dy; }
     },
@@ -413,21 +444,18 @@ function stepSketch() {
   wrap.append(
     thumbs(ph.id, (p) => { st.sketch = p.id; changed(true); }),
     el('p', { class: 'muted small' }, 'Each view has its own sketch: choose the photo above.'),
-    el('p', { class: 'muted small' }, b.hook ? 'Drag the hook anywhere on the grid (above the photo too), drag the photo to move it, drag the round handle of a leg to lengthen or shorten it, drag the name of a leg to put it where it is clearly visible.' : 'Tap where the crane hook is — above the photo if needed: the legs are drawn from the lift points to it. Drag the photo to move it.'),
+    el('p', { class: 'muted small' }, b.hook ? 'Drag the hook anywhere on the grid (above the photo too), drag the photo to move it, drag the name of a leg to put it where it is clearly visible.' : 'Tap where the crane hook is — above the photo if needed: the legs are drawn from the lift points to it. Drag the photo to move it.'),
     view,
     el('div', { class: 'lt-row' },
-      el('label', { class: 'lt-range' }, 'Photo size ', el('input', { type: 'range', min: '20', max: '100', value: String(Math.round((b.w / BOARD.w) * 100)), oninput: (e) => {
-        const cx = b.x + b.w / 2, bottom = b.y + bh();
-        b.w = (Number(e.target.value) / 100) * BOARD.w;
-        b.x = cx - b.w / 2;
-        b.y = bottom - bh();
-        view.innerHTML = boardSvg(ph, b, true);
-      }, onchange: () => changed() }))),
+      el('label', { class: 'lt-range' }, 'Size of all the views ', el('input', { type: 'range', min: '40', max: '160', value: String(Math.round((Number(st.sketchScale) || 1) * 100)), oninput: (e) => {
+        st.sketchScale = Number(e.target.value) / 100;
+        sameScale();
+        view.innerHTML = boardSvg(ph, ph.board, true);
+      }, onchange: () => changed(true) }))),
     missing.length ? el('p', { class: 'note warn small' }, `Points not placed on this photo: ${missing.join(', ')} — place them in step 1.`) : '',
     el('div', { class: 'lt-row' },
       el('button', { onclick: () => { const pts = legIds(st).map((_, i) => ph.points[i + 1]).filter(Boolean); if (!pts.length || !b.hook) return; b.hook.x = b.x + (pts.reduce((a, q) => a + q.u, 0) / pts.length) * b.w; changed(true); } }, 'Hook above the middle'),
-      el('button', { onclick: () => { b.hook = null; b.tops = {}; changed(true); } }, 'Place the hook again'),
-      el('button', { onclick: () => { b.tops = {}; changed(true); } }, 'Legs back to the hook'),
+      el('button', { onclick: () => { b.hook = null; changed(true); } }, 'Place the hook again'),
       el('button', { onclick: () => { b.labels = {}; changed(true); } }, 'Leg names back in place')),
     '');
   return wrap;

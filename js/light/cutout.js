@@ -71,7 +71,7 @@ function keepLargest(mask, w, h) {
 
 const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
 
-/** Opens the editor; onSave(maskDataUrl | null). */
+/** Opens the editor; onSave(maskDataUrl | null, extent of the object { u0, v0, u1, v1 } | null). */
 export async function openCutout(ph, onSave) {
   const img = await loadImg(ph.img);
   const w = ph.w, h = ph.h;
@@ -262,7 +262,7 @@ export async function openCutout(ph, onSave) {
   const save = () => {
     if (pts.length >= 3) apply(); // a line left open is closed
     const all = mask.every((v) => v === 1);
-    if (all) { onSave(null); close(); return; }
+    if (all) { onSave(null, null); close(); return; }
     const c = document.createElement('canvas');
     c.width = w;
     c.height = h;
@@ -270,7 +270,10 @@ export async function openCutout(ph, onSave) {
     const id = x.createImageData(w, h);
     for (let p = 0; p < w * h; p++) { const v = mask[p] ? 255 : 0; id.data[p * 4] = v; id.data[p * 4 + 1] = v; id.data[p * 4 + 2] = v; id.data[p * 4 + 3] = 255; }
     x.putImageData(id, 0, 0);
-    onSave(c.toDataURL('image/png'));
+    // extent of the object kept (fractions of the photo): used to show every view at the same scale
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let p = 0; p < w * h; p++) if (mask[p]) { const px = p % w, py = (p - px) / w; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; }
+    onSave(c.toDataURL('image/png'), x1 >= 0 ? { u0: x0 / w, v0: y0 / h, u1: (x1 + 1) / w, v1: (y1 + 1) / h } : null);
     close();
   };
   const box = el('div', { class: 'modal lt-cut' }, el('div', { class: 'modal-box' },
@@ -287,4 +290,19 @@ export async function openCutout(ph, onSave) {
         el('button', { onclick: auto }, '✨ Auto (plain background)')))));
   document.body.append(box);
   draw();
+}
+
+/** Extent of the object kept by a mask (for masks saved before the extent was recorded). */
+export async function maskExtent(ph) {
+  if (!ph.mask) return null;
+  const m = await loadImg(ph.mask);
+  const w = Math.min(400, ph.w), h = Math.round((w * ph.h) / ph.w);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const x = c.getContext('2d');
+  x.drawImage(m, 0, 0, w, h);
+  const d = x.getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let p = 0; p < w * h; p++) if (d[p * 4] > 127) { const px = p % w, py = (p - px) / w; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; }
+  return x1 >= 0 ? { u0: x0 / w, v0: y0 / h, u1: (x1 + 1) / w, v1: (y1 + 1) / h } : null;
 }
