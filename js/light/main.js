@@ -69,6 +69,7 @@ function shell() {
         el('button', { onclick: () => { if (confirm('Start a new lift plan? The current one is cleared from this device.')) { st = newState(); cur = null; activePt = 1; changed(); go('photos'); } } }, 'New'),
         el('button', { onclick: saveFile }, 'Save'),
         el('label', { class: 'btn' }, 'Open', el('input', { type: 'file', accept: '.json,application/json', hidden: true, onchange: openFile })),
+        el('button', { id: 'lt-install', onclick: installApp }, 'Install the app'),
         el('a', { class: 'btn', href: '../', title: 'Full version (drawings, pad eyes, COG, report…)' }, 'Full version')))),
     el('nav', { class: 'lt-steps no-print', id: 'lt-steps' }),
     el('main', { id: 'lt-main', class: 'no-print' }),
@@ -684,6 +685,24 @@ function checkUpdate() {
     document.body.append(el('div', { id: 'lt-update', class: 'lt-update no-print' }, `New version ${v.version || ''} available`,
       el('button', { onclick: () => location.reload() }, 'Reload')));
   }).catch(() => {});
+}
+
+// ------------------------------------------------------------------ installable app (PWA)
+let installEvt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; });
+window.addEventListener('appinstalled', () => { installEvt = null; toast('App installed'); });
+const standalone = () => window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
+function installApp() {
+  if (standalone()) return toast('The app is already installed');
+  if (installEvt) { installEvt.prompt(); installEvt.userChoice.finally(() => { installEvt = null; }); return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  alert(ios
+    ? 'On iPhone / iPad: open this page in Safari, tap Share (the square with an arrow), then "Add to Home Screen".'
+    : 'In the browser menu (⋮), choose "Install app" or "Add to Home screen". In Chrome or Edge on a computer, the install icon is at the right of the address bar.');
+}
+// the published app works without network once opened (not for the development page or the file)
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol) && document.querySelector('meta[name="build"]')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 
 shell();

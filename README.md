@@ -18,6 +18,11 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.12.0 — Light as an app (PWA)
+
+- LiftPlanner Light can be **installed** on the phone, tablet or computer (menu ☰ → *Install the app*; on iPhone / iPad: Safari → Share → *Add to Home Screen*). It opens full screen with its own icon.
+- It **works without network** once opened: the page is kept by a service worker (the latest version is taken when there is a network). The lift plans stay on the device.
+
 ## What's new in v0.11.14
 
 - Light: sketches on a white background (no grid); in the report every view is cropped around the drawing and the views are centred on the page at the same scale; the rigging arrangement is centred on the hook.
