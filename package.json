@@ -1,6 +1,6 @@
 {
   "name": "liftplanner",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Offshore / onshore lift planning tool: rigging calculation, checks, real rigging hardware catalogue, drawings and storyboard",
   "type": "module",
   "private": true,

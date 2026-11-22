@@ -179,3 +179,26 @@ function boot() {
 }
 
 boot();
+
+// ---- new version published while the page is open: offer to reload (the project is saved locally)
+(() => {
+  const build = document.querySelector('meta[name="build"]')?.content;
+  if (!build || location.protocol === 'file:') return;
+  let shown = false;
+  const check = async () => {
+    if (shown) return;
+    try {
+      const v = await (await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' })).json();
+      if (!v.build || v.build === build) return;
+      shown = true;
+      document.body.append(el('div', { class: 'update-bar no-print' },
+        el('span', {}, 'A new version of LiftPlanner is available.'),
+        el('button', { class: 'primary small', onclick: () => location.reload() }, 'Reload'),
+        el('span', { class: 'muted' }, 'your project is kept')));
+    } catch { /* offline */ }
+  };
+  setInterval(check, 3 * 60 * 1000);
+  window.addEventListener('focus', check);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  setTimeout(check, 15000);
+})();
