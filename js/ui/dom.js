@@ -1,10 +1,34 @@
 // Small DOM helpers + binding of form fields to the application state.
 import { app } from './app.js';
 
+/**
+ * Number fields are text fields that take a decimal comma as well as a point (12,5 → 12.5) and
+ * spaces between thousands (1 501 → 1501): a number input of the browser drops the comma.
+ */
+function decimalInput(e) {
+  e.setAttribute('inputmode', 'decimal');
+  e.setAttribute('autocomplete', 'off');
+  e.dataset.num = '1';
+  e.addEventListener('input', () => {
+    const v = e.value;
+    const at = e.selectionStart ?? v.length;
+    const clean = (t) => t.replace(/,/g, '.').replace(/[\s\u00a0\u202f']/g, '').replace(/−/g, '-');
+    const a = clean(v.slice(0, at)), b = clean(v.slice(at));
+    if (a + b !== v) {
+      e.value = a + b;
+      try { e.setSelectionRange(a.length, a.length); } catch { /* ignore */ }
+    }
+  });
+}
+
 export function el(tag, attrs = {}, ...children) {
   const e = document.createElement(tag);
+  const isNum = tag === 'input' && attrs?.type === 'number';
+  if (isNum) decimalInput(e);
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v == null || v === false) continue;
+    if (isNum && k === 'type') { e.type = 'text'; continue; }
+    if (isNum && k === 'step') continue;
     if (k === 'class') e.className = v;
     else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
     else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
@@ -16,6 +40,7 @@ export function el(tag, attrs = {}, ...children) {
     if (c == null || c === false) continue;
     e.append(c instanceof Node ? c : document.createTextNode(String(c)));
   }
+  if (isNum) e.classList.add('num-in');
   return e;
 }
 
@@ -26,7 +51,7 @@ export const fmt1 = (v) => fmt(v, 1);
 const parse = (type, raw) => {
   if (type === 'number') {
     if (raw === '' || raw == null) return null;
-    const n = Number(String(raw).replace(',', '.'));
+    const n = Number(String(raw).replace(',', '.').replace(/[\s\u00a0\u202f']/g, ''));
     return isFinite(n) ? n : null;
   }
   return raw;

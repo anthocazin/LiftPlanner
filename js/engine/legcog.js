@@ -93,6 +93,12 @@ export function cogFromLegs(project, rules) {
     }
     hook = hookFromLegs(pts.map((p) => p.pos), L);
     if (!hook) return { error: 'COG deduced from the leg lengths: the legs given cannot meet (lengths too short for the distance between the points?)' };
+    // the hook must be above the lift points (the COG of a hung load is inside them)
+    const xs = pts.map((p) => p.pos.x), ys = pts.map((p) => p.pos.y);
+    const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), 0.5);
+    if (hook.x < Math.min(...xs) - 0.25 * span || hook.x > Math.max(...xs) + 0.25 * span || hook.y < Math.min(...ys) - 0.25 * span || hook.y > Math.max(...ys) + 0.25 * span || hook.rms > 0.05 * span + 0.05) {
+      return { error: 'COG deduced from the leg lengths: the legs do not meet above the lift points — check the lengths (m) and the positions (mm)' };
+    }
     const next = { x: Math.round(hook.x * 1000), y: Math.round(hook.y * 1000), z: cog.z };
     const done = Math.hypot(next.x - cog.x, next.y - cog.y) < 0.5;
     cog = next;

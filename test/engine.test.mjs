@@ -498,3 +498,13 @@ test('COG deduced from the leg lengths (under the hook), slings sized for 30° a
   delete p.rigging.legs.B.Leff_m; delete p.rigging.legs.C.Leff_m;
   assert.ok(computeProject(p).checks.some((c) => c.status === 'fail' && /at least 3 legs/.test(c.label)));
 });
+
+test('COG from leg lengths: lengths that cannot meet above the points are reported, COG kept', () => {
+  const pts = [['A', 0, 0, 0], ['B', 4000, 0, 0], ['C', 4000, 3000, 0], ['D', 0, 3000, 0]];
+  const p = baseProject(pts, { x: 2000, y: 1500, z: -500 });
+  p.load.cogBasis = 'legs';
+  p.rigging.legs = { A: { Leff_m: 5853 }, B: { Leff_m: 6.145 }, C: { Leff_m: 5.863 }, D: { Leff_m: 5.555 } }; // 5,853 typed without its comma
+  const res = computeProject(p);
+  assert.ok(res.checks.some((c) => c.status === 'fail' && /do not meet above the lift points/.test(c.label)));
+  near(p.load.cog_mm.x, 2000, 0); near(p.load.cog_mm.y, 1500, 0);
+});

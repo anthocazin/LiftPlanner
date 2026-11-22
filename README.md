@@ -18,6 +18,12 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.2
+
+- **Decimal comma accepted everywhere** (5,853 = 5.853; spaces between thousands: 1 501 = 1501). A number field of the browser used to drop the comma (5,853 → 5853 m), which put the COG and the points kilometres away.
+- Import of a lift plan: leg lengths over 60 m or positions over 100 m are refused (units: m and mm); a COG deduced from lengths that do not meet above the lift points is reported and not used.
+- Views: a click that moves the mouse a little (trackpad) still places the point.
+
 ## What's new in v0.8.1
 
 - **COG of an imported lift plan deduced from the leg lengths**: the lift points are entered from any reference (a corner of the part, point A…) with the leg lengths; the hook is where the legs meet and the COG is straight under it — nothing else to enter (the COG can still be typed if known; its height is optional, only for the stability).

@@ -313,7 +313,7 @@ function update(res) {
   if (!document.querySelector('#lp-table')?.contains(document.activeElement)) {
     document.querySelectorAll('#lp-table tbody tr').forEach((tr, i) => {
       const p = app.project.load.liftPoints[i];
-      const ins = tr.querySelectorAll('input[type=number]');
+      const ins = tr.querySelectorAll('input[data-num]');
       if (p && ins.length >= 3) ['x', 'y', 'z'].forEach((k, j) => (ins[j].value = p[k] ?? ''));
     });
   }

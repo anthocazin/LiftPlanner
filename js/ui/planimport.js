@@ -37,6 +37,11 @@ export function applyPlanImport(p, d) {
   const ld = p.load;
   const rows = d.rows.filter((r) => r.id && [r.x, r.y, r.z].some((v) => num(v) != null));
   if (!rows.length) throw new Error('Enter at least one lift point');
+  // units: positions in mm, leg lengths in m
+  const big = rows.find((r) => num(r.len) > 60);
+  if (big) throw new Error(`Leg ${big.id}: ${num(big.len)} m? The leg lengths are in metres (e.g. 5.853 or 5,853).`);
+  const far = rows.find((r) => [r.x, r.y, r.z].some((v) => Math.abs(num(v) || 0) > 100000));
+  if (far) throw new Error(`Point ${far.id}: more than 100 m from the reference? The positions are in millimetres.`);
   if (num(d.weight) > 0) ld.weight_t = num(d.weight);
   const zs = rows.map((r) => num(r.z) || 0);
   if (d.cogMode === 'given') {
@@ -264,10 +269,10 @@ export function openPlanImport(onDone) {
     if (!m) { panner.startPan(ev); return; }
     const v = Number(m[0].replace('−', '-').replace(',', '.'));
     const a = st.active && side.contains(st.active) ? st.active : null;
-    if (!a || a.type !== 'number') return toast('Select a field on the left first, then click the value on the drawing');
+    if (!a || !a.dataset.num) return toast('Select a field on the left first, then click the value on the drawing');
     a.value = String(v);
     a.dispatchEvent(new Event('input'));
-    const all = [...side.querySelectorAll('input[type=number]')];
+    const all = [...side.querySelectorAll('input[data-num]')];
     const nx = all[all.indexOf(a) + 1];
     if (nx) { nx.focus(); st.active = nx; }
     toast(`${v} entered`);

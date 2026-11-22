@@ -259,7 +259,7 @@ export function loadView(key, opts = {}) {
     const [a, b] = toModel(ev);
     coord.textContent = `${A.toUpperCase()} ${Math.round(a)} · ${B.toUpperCase()} ${Math.round(b)} mm`;
     if (!drag) return;
-    const moved = Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 4;
+    const moved = Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) > 6;
     if (moved) drag.moved = true;
     if (!drag.moved) return;
     if (drag.kind === 'bg') {

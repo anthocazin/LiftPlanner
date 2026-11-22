@@ -97,7 +97,7 @@ table.data td.num, table.data th.num { text-align: right; font-variant-numeric: 
 table.data input, table.data select { font: inherit; width: 100%; min-width: 64px; border: 1px solid transparent; border-radius: 4px; padding: 3px 5px; background: transparent; }
 table.data input:hover, table.data select:hover { border-color: var(--line); }
 table.data input:focus, table.data select:focus { border-color: var(--info); outline: none; background: #fff; }
-table.data input[type=number] { text-align: right; }
+table.data input[type=number], table.data input[data-num] { text-align: right; }
 table.data tr.group td { background: #eef2f6; font-weight: 600; color: var(--navy-2); }
 table.compact td, table.compact th { padding: 3px 5px; }
 
@@ -330,7 +330,7 @@ table.data tbody tr { cursor: default; }
 .schem .clk { cursor: pointer; }
 .schem .clk:hover text { fill: var(--accent-2); }
 .pop { position: absolute; z-index: 60; background: #fff; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.18); padding: 10px; display: grid; gap: 6px; min-width: 230px; font-size: 12.5px; }
-.pop select, .pop input[type=number] { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; }
+.pop select, .pop input[type=number], .pop input[data-num] { font: inherit; padding: 4px 6px; border: 1px solid var(--line); border-radius: 5px; }
 .shapes-bar { border-top: 1px solid var(--line); padding-top: 6px; }
 .shape-props { display: inline-flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px; margin-left: 8px; }
 .shape-props input[type=number], .shape-props input[type=text] { padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
@@ -344,7 +344,7 @@ table.data tbody tr { cursor: default; }
 .lv-svg:active { cursor: grabbing; }
 .sh-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 5px 6px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 4px; font-size: 12px; }
 .sh-row.on { border-color: var(--accent); background: #fff6ee; }
-.sh-row input[type=number], .sh-row input[type=text], .sh-row select { padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+.sh-row input[data-num], .sh-row input[type=text], .sh-row select { padding: 2px 4px; border: 1px solid var(--line); border-radius: 4px; font: inherit; }
 .sh-dim { white-space: nowrap; }
 
 /* v0.5 — flat palette, clickable checks, own drawings in the report */
