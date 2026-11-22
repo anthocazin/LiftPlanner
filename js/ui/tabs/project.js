@@ -2,6 +2,7 @@
 // sequence (crane radius of every step, checked against the load chart), weather, safety
 // measures, communications.
 import { app } from '../app.js';
+import { brandLogo, setBrandLogo } from '../brand.js';
 import { el, field, panel, badge, toast } from '../dom.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { SAFETY_MEASURES } from '../../state.js';
@@ -111,19 +112,22 @@ export function render(root) {
 
 function logoField(key, labelTxt) {
   const logos = app.project.logos || (app.project.logos = { company: null, client: null });
-  const img = logos[key] ? el('img', { src: logos[key], style: { maxHeight: '60px', maxWidth: '200px', display: 'block', margin: '6px 0' } }) : el('div', { class: 'muted', style: { fontSize: '12px', margin: '6px 0' } }, 'No logo');
+  const dflt = key === 'company' && !logos[key] ? brandLogo() : null;
+  const shown = logos[key] || dflt;
+  const img = shown ? el('div', {}, el('img', { src: shown, style: { maxHeight: '60px', maxWidth: '200px', display: 'block', margin: '6px 0' } }), dflt ? el('div', { class: 'muted', style: { fontSize: '11px' } }, 'Logo kept in this browser, added automatically') : null) : el('div', { class: 'muted', style: { fontSize: '12px', margin: '6px 0' } }, 'No logo');
   const inp = el('input', {
     type: 'file', accept: 'image/*', hidden: true,
     onchange: async (e) => {
       const f = e.target.files?.[0];
       if (!f) return;
       logos[key] = await shrinkImage(f, 400);
+      if (key === 'company') setBrandLogo(logos[key]); // kept in this browser for the next lift plans
       app.recompute();
       window.__rerender();
     },
   });
   return el('div', { class: 'card' }, el('b', {}, labelTxt), img,
-    el('div', { class: 'row' }, el('label', { class: 'btn small' }, 'Choose image…', inp), logos[key] ? el('button', { class: 'small danger', onclick: () => { logos[key] = null; app.recompute(); window.__rerender(); } }, 'Remove') : null));
+    el('div', { class: 'row' }, el('label', { class: 'btn small' }, 'Choose image…', inp), shown ? el('button', { class: 'small danger', onclick: () => { logos[key] = null; if (key === 'company') setBrandLogo(null); app.recompute(); window.__rerender(); } }, 'Remove') : null));
 }
 
 async function shrinkImage(file, maxW) {

@@ -5,7 +5,8 @@ import { el, fmt, toast } from '../ui/dom.js';
 import { listByType, listSlingFamily, listChainFamily, niceName } from '../catalog/index.js';
 import { isLengthPart } from '../engine/rigging.js';
 import { schematicSvg } from '../draw/schematic.js';
-import { openSignPad, signatureFromName } from '../ui/signpad.js';
+import { openSignPad, openNameSignature } from '../ui/signpad.js';
+import { brandLogo, setBrandLogo, shrinkLogo } from '../ui/brand.js';
 import { openCutout } from './cutout.js';
 import { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFETY_MEASURES, DEFAULT_STEPS, DEFAULT_SAFETY } from './model.js';
 
@@ -496,9 +497,26 @@ function stepPlan() {
       el('div', { class: 'lt-sig' }, sigImg ? el('img', { src: sigImg, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
       signedTxt() ? el('p', { class: 'muted small' }, signedTxt()) : null,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { const u = signatureFromName(st.preparedBy); if (!u) return toast('Type the name first'); setSignature(u); } }, '✍ From the name'),
+        el('button', { onclick: () => { if (!openNameSignature(st.preparedBy, setSignature)) toast('Type the name first'); } }, '✍ From the name'),
         el('button', { onclick: () => openSignPad('Prepared by', (u) => setSignature(u), st.preparedBy) }, '✎ Draw'),
-        sigImg ? el('button', { class: 'danger', onclick: () => setSignature(null) }, 'Remove') : null)));
+        sigImg ? el('button', { class: 'danger', onclick: () => setSignature(null) }, 'Remove') : null)),
+    logoCard());
+}
+
+/** Company logo, kept in this browser and put at the top left of the report. */
+function logoCard() {
+  const u = brandLogo();
+  return el('section', { class: 'lt-card' }, el('h2', {}, 'Company logo'),
+    el('p', { class: 'muted small' }, 'Put automatically at the top left of the report. Kept on this device only.'),
+    el('div', { class: 'lt-sig' }, u ? el('img', { src: u, alt: '' }) : el('span', { class: 'muted' }, 'No logo')),
+    el('div', { class: 'lt-row' },
+      el('label', { class: 'btn' }, u ? 'Change' : 'Choose an image', el('input', { type: 'file', accept: 'image/*', hidden: true, onchange: async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        if (!setBrandLogo(await shrinkLogo(f))) toast('Storage full on this device');
+        render();
+      } })),
+      u ? el('button', { class: 'danger', onclick: () => { setBrandLogo(null); render(); } }, 'Remove') : null));
 }
 
 /** "Signed on …" with the date and time the signature was made. */
@@ -534,8 +552,11 @@ function printPlan() {
   const ul = (arr) => el('ul', {}, arr.filter(Boolean).map((t) => el('li', {}, t)));
   const bar = (t) => el('div', { class: 'bar' }, t);
   const drawing = (html, cls = '') => el('div', { class: `drawing ${cls}`, html });
-  const header = el('div', { class: 'rhead' }, el('div', { class: 'mid' },
-    el('div', { class: 'h1' }, st.project || ''), el('div', { class: 'h2' }, st.location || ''), el('div', { class: 'h3' }, st.title || '')));
+  const logo = brandLogo();
+  const header = el('div', { class: 'rhead' },
+    el('div', { class: 'logo' }, logo ? el('img', { src: logo, alt: '' }) : null),
+    el('div', { class: 'mid' }, el('div', { class: 'h1' }, st.project || ''), el('div', { class: 'h2' }, st.location || ''), el('div', { class: 'h3' }, st.title || '')),
+    el('div'));
   const footer = (n, N) => el('div', { class: 'rfoot' }, el('span', {}, [st.project, st.title, st.date].filter(Boolean).join(' · ')), el('span', {}, `Page ${n} / ${N}`));
   const swlMax = Number(c.swlMax_t) > 0 ? Number(c.swlMax_t) : null;
   const headTxt = st.head === 'hook' ? 'Legs directly on the crane hook' : st.head === 'crane' ? 'On the master link of the crane' : out.rig?.head?.masterlink ? `On ${niceName(out.rig.head.masterlink)}` : 'On a master link';

@@ -18,6 +18,11 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.11.2
+
+- **Signature from the name** redone: written in a signature font (3 styles to choose from, loaded from Google Fonts; without network, the handwriting font of the computer), with the date and time of signature.
+- **Company logo** kept in this browser (never in the repository) and added automatically at the top left of the reports — full version (Project page) and Light (Plan step).
+
 ## What's new in v0.11.0 — simpler
 
 - **Two ways of working**, chosen at the top of the Load page: **from the drawing** (lift points and COG entered in the app, sling lengths from the target angle) or the **engineering office lift plan** (leg lengths known, COG taken as centred, same force in every leg, slings sized at 30°). The COG fields only show from the drawing.

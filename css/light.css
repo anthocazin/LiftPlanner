@@ -161,7 +161,9 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 }
 /* template of the full version */
 .lt-rep { width: 190mm; font-family: Arial, Helvetica, sans-serif; font-size: 9.5px; color: #000; }
-.lt-rep .rhead { text-align: center; padding-bottom: 6px; margin-bottom: 6px; }
+.lt-rep .rhead { display: grid; grid-template-columns: 34mm 1fr 34mm; align-items: center; gap: 6px; padding-bottom: 6px; margin-bottom: 6px; }
+.lt-rep .rhead .mid { text-align: center; }
+.lt-rep .rhead .logo img { display: block; max-height: 22mm; max-width: 100%; }
 .lt-rep .rhead .h1 { font-weight: 700; font-size: 12px; color: #1c2733; min-height: 14px; }
 .lt-rep .rhead .h2 { font-size: 11px; color: #333; }
 .lt-rep .rhead .h3 { font-weight: 700; font-size: 12.5px; color: #1c2733; margin-top: 4px; }
@@ -211,3 +213,10 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 .lt-seg button.on { background: var(--navy); color: #fff; font-weight: 700; }
 .lt-seq-b input { flex: 1; min-height: 34px; font-size: 14px; }
 .lt-rep .blk { display: flow-root; }
+
+/* v0.11.2 — signature written from the name: choice of the style */
+.signname-list { display: flex; flex-direction: column; gap: 8px; min-width: min(560px, 86vw); }
+.signname-opt { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px 16px; border: 1px solid #d9dfe6; border-radius: 10px; background: #fff; cursor: pointer; min-height: 84px; }
+.signname-opt:hover { border-color: #e8822a; background: #fff8f1; }
+.signname-opt img { max-height: 70px; max-width: 78%; }
+.signname-opt span { font-size: 12px; color: #6b7785; }

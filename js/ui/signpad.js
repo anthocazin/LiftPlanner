@@ -53,81 +53,87 @@ export function openSignPad(title, onSave, name = '') {
   };
   const box = el('div', { id: 'signpad', class: 'modal' }, el('div', { class: 'modal-box sign-box' },
     el('div', { class: 'modal-head' }, el('h2', {}, 'Signature'), el('span', { class: 'muted' }, title), el('span', { class: 'spacer' }),
-      name ? el('button', { class: 'small', title: 'Signature written from the name, in a handwriting font', onclick: () => { onSave(signatureFromName(name)); close(); } }, `✍ From the name (${name})`) : null,
+      name ? el('button', { class: 'small', title: 'Signature written from the name', onclick: () => { close(); openNameSignature(name, onSave); } }, `✍ From the name (${name})`) : null,
       el('button', { class: 'small', onclick: clear }, 'Clear'), el('button', { class: 'small', onclick: close }, 'Cancel'), el('button', { class: 'primary', onclick: save }, 'Save')),
     el('div', { class: 'sign-body' }, el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Sign on the line with the mouse, a finger or a pen.'), cv)));
   document.body.append(box);
   clear();
 }
 
+// ---------------------------------------------------------------- signature written from the name
+// Signature fonts (Google Fonts, loaded when first needed; without network, the handwriting fonts of
+// the computer are used instead).
+export const SIGN_STYLES = [
+  { id: 'delafield', font: 'Mrs Saint Delafield', size: 150, label: 'Classic' },
+  { id: 'muellerhoff', font: 'Herr Von Muellerhoff', size: 150, label: 'Fast' },
+  { id: 'vibes', font: 'Great Vibes', size: 118, label: 'Elegant' },
+];
+const FALLBACK = "'Segoe Script', 'Snell Roundhand', 'Brush Script MT', 'Apple Chancery', 'URW Chancery L', cursive";
+let fontsReady = null;
+function loadSignFonts() {
+  if (fontsReady) return fontsReady;
+  if (!document.getElementById('sign-fonts')) {
+    const fam = SIGN_STYLES.map((x) => `family=${x.font.replace(/ /g, '+')}`).join('&');
+    document.head.append(el('link', { id: 'sign-fonts', rel: 'stylesheet', href: `https://fonts.googleapis.com/css2?${fam}&display=swap` }));
+  }
+  const all = Promise.all(SIGN_STYLES.map((x) => document.fonts.load(`80px "${x.font}"`, 'Ab').catch(() => null)));
+  fontsReady = Promise.race([all, new Promise((r) => setTimeout(r, 3000))]);
+  return fontsReady;
+}
+
 /**
- * Signature made from the name, like a hand signature: a large initial (long loop and tall stroke)
- * followed by a fast cursive scribble of the name, thin pen line. The same name always gives the same
- * signature. Transparent PNG.
+ * Signature written from the name in a signature font (style: one of SIGN_STYLES), dark blue ink,
+ * slightly rising, transparent PNG. Async: the font is loaded first.
  */
-export function signatureFromName(name) {
+export async function signatureFromName(name, style = SIGN_STYLES[0].id) {
   const n = String(name || '').trim();
   if (!n) return null;
-  const words = n.split(/\s+/);
-  const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
-  const rest = plain(words.length > 1 ? words[words.length - 1] : words[0].slice(1)).slice(0, 7) || 'a';
-  let seed = [...n].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 7);
-  const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  const j = (v) => v + (rnd() - 0.5) * 2 * 6;
-
+  await loadSignFonts();
+  const sty = SIGN_STYLES.find((x) => x.id === style) || SIGN_STYLES[0];
   const cv = document.createElement('canvas');
-  cv.width = 1400; cv.height = 420;
+  cv.width = 1800; cv.height = 420;
   const ctx = cv.getContext('2d');
-  const y0 = 250; // base line
-  const vx = 300 + rnd() * 40; // the tall stroke of the initial
-  // 1) initial: long thin loop to the left, closing on the tall stroke
-  const loop = [[vx + 14, y0 - 52], [vx - 70, y0 - 66], [190, y0 - 62], [70, y0 - 44], [48, y0 - 24], [110, y0 - 8], [260, y0 - 2], [vx + 20, y0 - 8], [vx + 60, y0 - 20]].map(([x, y]) => [j(x), j(y)]);
-  const stem = [[vx - 18, y0 - 205], [vx - 8, y0 - 130], [vx + 2, y0 - 50], [vx + 8, y0 + 12]].map(([x, y]) => [x + (rnd() - 0.5) * 4, y]);
-  // 2) the name, fast cursive: humps, tall loops for b d f h k l t, low loops for g j p q y
-  const pts = [[vx + 60, y0 - 20]];
-  let x = vx + 72;
-  for (const ch of rest) {
-    const w = 40 + rnd() * 14, hx = 42 + rnd() * 12;
-    if ('bdfhklt'.includes(ch)) {
-      pts.push([x + w * 0.2, y0 - hx * 0.6], [x + w * 0.55, y0 - 135 - rnd() * 25], [x + w * 0.3, y0 - 105], [x + w * 0.45, y0 - 8]);
-    } else if ('gjpqy'.includes(ch)) {
-      pts.push([x + w * 0.3, y0 - hx], [x + w * 0.5, y0 - 6], [x + w * 0.45, y0 + 70], [x + w * 0.25, y0 + 40], [x + w * 0.7, y0 - 4]);
-    } else if ('mnw'.includes(ch)) {
-      pts.push([x + w * 0.2, y0 - hx], [x + w * 0.4, y0 - 2], [x + w * 0.65, y0 - hx], [x + w * 0.9, y0 - 2]);
-      x += w * 0.35;
-    } else {
-      pts.push([x + w * 0.3, y0 - hx], [x + w * 0.62, y0 - 3]);
-    }
-    x += w;
-  }
-  pts.push([x + 26, y0 - 12], [x + 70, y0 - 30 - rnd() * 14]);
-
-  // Catmull-Rom spline drawn in short pieces, the width following the speed of the pen
-  const stroke = (P, w0) => {
-    if (P.length < 2) return;
-    const Q = [P[0], ...P, P[P.length - 1]];
-    let prev = null;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#1d2b4a';
-    for (let i = 1; i < Q.length - 2; i++) {
-      const [p0, p1, p2, p3] = [Q[i - 1], Q[i], Q[i + 1], Q[i + 2]];
-      for (let k = 0; k <= 12; k++) {
-        const t = k / 12, t2 = t * t, t3 = t2 * t;
-        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
-        const pt = [f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])];
-        if (prev) {
-          const v = Math.hypot(pt[0] - prev[0], pt[1] - prev[1]);
-          ctx.lineWidth = Math.max(1.6, w0 * (1.25 - Math.min(v, 30) / 40));
-          ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke();
-        }
-        prev = pt;
-      }
-    }
-  };
-  stroke(stem, 4.2);
-  stroke(loop, 3.6);
-  stroke(pts, 3.6);
+  ctx.font = `${sty.size}px "${sty.font}", ${FALLBACK}`;
+  const w = Math.min(ctx.measureText(n).width, 1700);
+  ctx.fillStyle = '#16264a';
+  ctx.save();
+  ctx.translate(50, 270);
+  ctx.rotate(-0.035);
+  ctx.fillText(n, 0, 0, 1700);
+  ctx.restore();
+  // a light pen stroke under the name, as on a real signature
+  ctx.strokeStyle = '#16264a';
+  ctx.lineCap = 'round';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(50 + w * 0.08, 318);
+  ctx.bezierCurveTo(50 + w * 0.4, 306, 50 + w * 0.75, 300, 50 + w * 0.98, 284);
+  ctx.stroke();
   return trimmed(cv);
+}
+
+/** Chooses the style of the signature written from the name; onSave(dataUrl). */
+export function openNameSignature(name, onSave) {
+  const n = String(name || '').trim();
+  if (!n) return false;
+  document.getElementById('signname')?.remove();
+  const list = el('div', { class: 'signname-list' }, el('p', { class: 'muted' }, 'Preparing the signatures…'));
+  const close = () => box.remove();
+  const box = el('div', { id: 'signname', class: 'modal' }, el('div', { class: 'modal-box sign-box' },
+    el('div', { class: 'modal-head' }, el('h2', {}, 'Signature'), el('span', { class: 'muted' }, n), el('span', { class: 'spacer' }), el('button', { class: 'small', onclick: close }, 'Cancel')),
+    el('div', { class: 'sign-body' }, el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 8px' } }, 'Choose the signature:'), list)));
+  document.body.append(box);
+  loadSignFonts().then(async () => {
+    // styles whose font is available (none without network: one signature in a font of the computer)
+    const loaded = new Set([...document.fonts].filter((f) => f.status === 'loaded').map((f) => f.family.replace(/["']/g, '')));
+    let styles = SIGN_STYLES.filter((x) => loaded.has(x.font));
+    if (!styles.length) styles = [{ ...SIGN_STYLES[0], label: '' }];
+    const urls = await Promise.all(styles.map((x) => signatureFromName(n, x.id)));
+    list.innerHTML = '';
+    styles.forEach((x, i) => list.append(el('button', { class: 'signname-opt', onclick: () => { onSave(urls[i]); close(); } },
+      el('img', { src: urls[i], alt: '' }), el('span', {}, x.label))));
+  });
+  return true;
 }
 
 /** The drawn part only (white space cut), at most 600 px wide, transparent PNG. */
