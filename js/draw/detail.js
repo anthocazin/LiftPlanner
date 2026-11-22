@@ -163,7 +163,7 @@ function chainDraw(item, y0, links, dispMax = 520) {
 }
 
 /** Builds the column of one leg (coordinates in mm, y down): from the hook down to the lift point. */
-function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
+function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {}) {
   const head = rig.head || {};
   const parts = [];
   const labels = [];
@@ -182,6 +182,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     const hs = Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35);
     parts.push(hookShape(0, hs));
     labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crane hook`, `static load ${fmt(rig.shl)} t`] });
+    var hookBottom = hs * 1.25; // eslint-disable-line no-var
     ext(hs * 1.6);
     if (head.topShackle) {
       const s = head.topShackle;
@@ -244,7 +245,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       continue;
     }
     if (p.kind === 'chain') {
-      const c = chainDraw(it, y, p.links || 1);
+      const c = chainDraw(it, y, p.links || 1, i === leg.li ? chainDisp : 520);
       parts.push(c.svg);
       ext(c.halfWidth + 10);
       labels.push({
@@ -316,7 +317,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     }
   }
   if (slingSvg) parts.push(slingSvg);
-  return { parts, labels, inline, height: y, minX, maxX, headN, headLabelsN, headY, top: fromHook ? -Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35) * 4.3 : -120 };
+  return { parts, labels, inline, height: y, minX, maxX, headN, headLabelsN, headY, hookBottom: fromHook ? hookBottom : 0, top: fromHook ? -Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35) * 4.3 : -120 };
 }
 
 function legSignature(l) {
@@ -385,59 +386,58 @@ export function drawRiggingFan(project, res, opts = {}) {
   const ids = (project.load.liftPoints || []).filter((q) => q.used !== false).map((q) => q.id);
   const legs = rig.legs.filter((l) => l.level === 'main').sort((a, b) => ids.indexOf(a.pointId) - ids.indexOf(b.pointId));
   if (!legs.length || rig.type === 'spreader') return drawRiggingDetail(project, res, opts);
-  const cols = legs.map((l) => buildColumn(l, rig, project, { slingDisp: 380 }));
+  // sling / chain bodies all cut by the same length: a shorter leg looks shorter
+  const Lof = (l) => Number(l.parts?.[l.li]?.length_m) || 0;
+  const Ls = legs.map(Lof);
+  const Lmax = Math.max(...Ls), Lmin = Math.min(...Ls.filter((v) => v > 0), Lmax);
+  const base = Math.max(420, (Lmax - Lmin) * 1000 + 260); // shown length of the longest body (mm)
+  const cut = Lmax * 1000 - base;
+  const cols = legs.map((l, i) => { const d = Math.max(200, Ls[i] * 1000 - cut); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d }); });
   const c0 = cols[0];
-  const gap = 46; // px between the master link and the top of the legs
+  const gap = 46; // px between the crane hook and the top of the legs
   const legSpan = Math.max(...cols.map((c) => c.height - c.headY));
-  const s = (Hpx - 120 - gap) / (c0.headY - c0.top + legSpan + 60);
+  const s = (Hpx - 120 - gap) / (c0.hookBottom - c0.top + legSpan + 60);
   const sig = (l) => l.parts.map((p) => `${p.kind}:${p.item?.id}:${p.length_m != null ? Number(p.length_m).toFixed(2) : ''}`).join('|');
   const first = new Map();
   legs.forEach((l) => { if (!first.has(sig(l))) first.set(sig(l), l.pointId); });
   const labelled = legs.map((l) => first.get(sig(l)) === l.pointId);
   const labelW = 190;
-  // columns side by side
-  let x = 70; // room for the length written left of the first leg
-  const lay = cols.map((c, i) => {
-    const w = (c.maxX - c.minX) * s;
-    const cx = x - c.minX * s;
-    x += w + (labelled[i] ? labelW : 26) + 18;
-    return { c, cx, l: legs[i], lab: labelled[i], w };
-  });
-  const headCx = (lay[0].cx + lay[lay.length - 1].cx) / 2;
-  const W = Math.round(Math.max(x, headCx + 320));
+  // columns evenly spaced; the group of the legs centred under the hook, the hook centred in the drawing
+  const half = Math.max(...cols.map((c) => Math.max(-c.minX, c.maxX))) * s;
+  const slot = 2 * half + labelW + 30;
+  const n = cols.length;
+  const span = (n - 1) * slot;
+  const W = Math.round(Math.max(span + 2 * (half + labelW + 30), 520));
+  const mid = W / 2;
+  const lay = cols.map((c, i) => ({ c, cx: mid - span / 2 + i * slot, l: legs[i], lab: labelled[i] }));
+  const headCx = mid;
   const oy = 30 - c0.top * s;
-  const headBottom = oy + c0.headY * s;
+  const headBottom = oy + c0.hookBottom * s;
   const legTop = headBottom + gap;
   let body = '';
-  // crane hook and master link, once
-  body += group(c0.parts.slice(0, c0.headN).join(''), { transform: `translate(${headCx.toFixed(1)} ${oy.toFixed(1)}) scale(${s.toFixed(5)})` });
+  // crane hook only (its master link belongs to the crane)
+  body += group(c0.parts[0], { transform: `translate(${headCx.toFixed(1)} ${oy.toFixed(1)}) scale(${s.toFixed(5)})` });
   const callout = (ax, ay, tx, ty, t, strong) => {
     let out = line(ax, ay, tx - 4, ty - 3, { stroke: '#8a96a3', 'stroke-width': 0.7 }) + circle(ax, ay, 1.8, { fill: '#555' });
     t.filter(Boolean).forEach((tt, i) => (out += text(tx, ty + i * 12, tt, { 'font-size': i === 0 ? 10.5 : 10, 'font-weight': i === 0 && strong ? 700 : i === 0 ? 600 : 400, fill: i === 0 ? '#1c2733' : '#4d5966' })));
     return out;
   };
-  let lastH = -1e9;
-  for (const lb of c0.labels.slice(0, c0.headLabelsN)) {
-    const ay = oy + lb.y * s, ty = Math.max(ay, lastH + 12 * lb.t.filter(Boolean).length + 4);
-    body += callout(headCx + lb.x * s + 4, ay, headCx + 150, ty, lb.t, lb.strong);
-    lastH = ty;
-  }
-  for (const { c, cx, l, lab, w } of lay) {
-    // link to the master link, then the leg to scale
+  const hl = c0.labels[0];
+  body += callout(headCx + hl.x * s + 4, oy + hl.y * s, headCx + 90, oy + hl.y * s, hl.t, false);
+  for (const { c, cx, l, lab } of lay) {
     const topY = legTop + 2;
     body += line(headCx, headBottom, cx, topY - 4, { stroke: '#9aa5b1', 'stroke-width': 1.4, 'stroke-dasharray': '4 3' });
     body += group(c.parts.slice(c.headN).join(''), { transform: `translate(${cx.toFixed(1)} ${(topY - c.headY * s).toFixed(1)}) scale(${s.toFixed(5)})` });
     const Y = (y) => topY + (y - c.headY) * s;
     for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 4, il.t, { 'text-anchor': 'end', 'font-size': 10.5, 'font-weight': 700, fill: '#173a5e' });
-    // leg name under its lift point
     const by = Y(c.height);
     body += text(cx, by + 16, l.pointId, { 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 800, fill: '#c0392b' });
     body += text(cx, by + 29, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': 9.5, fill: '#173a5e', 'font-weight': 600 });
     if (!lab) continue;
     const same = legs.filter((x2) => sig(x2) === sig(l)).map((x2) => x2.pointId);
-    body += text(cx + c.maxX * s + 16, topY - 10, same.length > 1 ? `Legs ${same.join(', ')}` : `Leg ${l.pointId}`, { 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
+    const tx = cx + half + 14;
+    body += text(tx, topY - 10, same.join(', '), { 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
     let last = -1e9;
-    const tx = cx + c.maxX * s + 16;
     for (const lb of [...c.labels.slice(c.headLabelsN)].sort((a, b) => a.y - b.y)) {
       const ay = Y(lb.y);
       const ty = Math.max(ay, last + 16);
@@ -445,8 +445,10 @@ export function drawRiggingFan(project, res, opts = {}) {
       last = ty + 12 * (lb.t.filter(Boolean).length - 1);
     }
   }
-  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened). Legs made alike are described once.', { 'font-size': 9.5, fill: '#5d6b7a' });
-  return svgDoc(W, Hpx, body, { title: 'Rigging arrangement to scale' });
+  const maxBy = Math.max(...lay.map(({ c }) => legTop + 2 + (c.height - c.headY) * s)) + 40;
+  const H = Math.max(Math.round(maxBy + 24), 300);
+  body += text(20, H - 10, 'Components to scale; sling and chain bodies cut by the same length (a shorter leg looks shorter). Legs made alike are described once.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  return svgDoc(W, H, body, { title: 'Rigging arrangement to scale' });
 }
 
 export { esc };

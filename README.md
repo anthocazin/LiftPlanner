@@ -18,6 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.9.1
+
+- Rigging arrangement to scale: **centred** (legs evenly spaced, the hook in the middle); **sling and chain bodies cut by the same length**, so a shorter leg looks shorter; **crane hook only** (its master link belongs to the crane); leg names without the word "Leg".
+
 ## What's new in v0.9.0
 
 - **Rigging arrangement to scale** (report and Drawings page): laid out like the rigging arrangement — crane hook and master link once, one column per leg joined to it — with every component to scale and callouts as in the rigging detail (legs made alike described once). It replaces the schematic and the separate detail in the report (both can still be ticked).
