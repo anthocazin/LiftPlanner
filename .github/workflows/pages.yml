@@ -36,7 +36,7 @@ jobs:
         # gets the new version; version.json lets an open page offer to reload.
         run: |
           mkdir -p _site
-          cp -r index.html version.json app.html css js vendor examples dist _site/
+          cp -r index.html version.json app.html light css js vendor examples dist _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

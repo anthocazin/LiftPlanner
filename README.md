@@ -18,6 +18,18 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## LiftPlanner Light (v0.10.0) — a lift plan on site in 5 minutes
+
+At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPlannerLight.html`](dist/LiftPlannerLight.html)), made for the phone:
+
+1. **Photos**: take one or more photos of the load (side, front…) and tap the lift points 1, 2, 3… on them.
+2. **Load & crane**: weight, **one factor** (1 by default), crane SWL at the min. and max. radius.
+3. **Rigging**: master link supplied / master link of the crane / legs on the hook, the parts of a leg (shackle, round sling, wire rope, webbing, chain, G-link, hook…) in auto or chosen size, the **length of each leg**, standard or made-to-measure lengths. The legs are sized at **30°** with the same force in every leg (COG taken as centred).
+4. **Sketch**: place the crane hook on a photo, legs A, B, C… are drawn from the points; drag their end to lengthen / shorten them.
+5. **Plan**: checks (SWL of every part, compatibility of the parts, crane at the max. radius), equipment list, prepared by + date + signature (written from the name or drawn), and a **one-page PDF**.
+
+No reference, procedure, approval, inventory, pad eye / shackle-on-pad-eye check or COG. Saved on the device automatically; **Save / Open** for a `.liftlight.json` file.
+
 ## What's new in v0.9.2
 
 - **Always the latest version**: the site is published with versioned file paths (no more mix of old cached code after an update), and an open page shows **"A new version of LiftPlanner is available — Reload"** when one is published (the project is kept).
