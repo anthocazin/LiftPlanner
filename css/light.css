@@ -210,3 +210,4 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 .lt-seg button { flex: 1; border: 0; border-radius: 0; min-height: 40px; font-size: 14px; white-space: normal; }
 .lt-seg button.on { background: var(--navy); color: #fff; font-weight: 700; }
 .lt-seq-b input { flex: 1; min-height: 34px; font-size: 14px; }
+.lt-rep .blk { display: flow-root; }

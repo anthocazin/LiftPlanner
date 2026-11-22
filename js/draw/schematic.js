@@ -46,10 +46,11 @@ function icon(kind, x, y, part, item) {
 }
 
 /**
- * opts: { width, interactive, highlight: { leg, part } | { head: true } | { point } }
+ * opts: { width, interactive, highlight: { leg, part } | { head: true } | { point }, lite (LiftPlanner Light: no
+ *   utilisation, no angle, a padeye drawn at every lift point, the lift point number next to its letter) }
  * → { svg, W, H, drops: [{ x, y, w, h, key, level, idx }] }
  */
-export function schematicSvg(project, res, { width = 900, interactive = false, highlight = null } = {}) {
+export function schematicSvg(project, res, { width = 900, interactive = false, highlight = null, lite = false } = {}) {
   const rig = res?.rig && !res.rig.error ? res.rig : null;
   const proj = project.rigging;
   const W = Math.max(520, width);
@@ -116,7 +117,7 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
       const util = rp?.item && leg ? Math.round((leg.Fdesign / (rp.item.wll_t * (rp.factor || 1))) * 100) : null;
       const lenTxt = rp?.item && isLengthPart(p) && rp.length_m != null ? `${fmt(rp.length_m, 2)} m${p.kind === 'chain' && rp.links ? ` (${rp.links} links)` : ''}${p.hitch === 'choke' ? ' choked' : ''} · ` : '';
       const need = i === leg?.li && p.kind === 'sling' && leg.slingLengthReq > 0 && Math.abs(leg.slingLengthReq - (rp?.length_m || 0)) > 0.03 ? ` · exact ${fmt(leg.slingLengthReq, 2)} m` : '';
-      const sub = rp?.item && leg ? (interactive ? `${lenTxt}min ${fmt(rp.reqWll)} t · ${util} %${need}` : `${lenTxt}${util} % of WLL`) : 'not found';
+      const sub = rp?.item && leg ? (lite ? `${lenTxt}min ${fmt(rp.reqWll)} t` : interactive ? `${lenTxt}min ${fmt(rp.reqWll)} t · ${util} %${need}` : `${lenTxt}${util} % of WLL`) : 'not found';
       const lblW = Math.max(colW - 14, 120);
       if (highlight && highlight.leg === c.key && highlight.part === i) s += ring(c.x - 22, yy - 3, lblW + 10, ic.h + 6);
       s += interactive ? `<g data-pop="${esc(c.key)}:${i}:${c.level}" class="clk">` : '<g>';
@@ -127,14 +128,19 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
       slot(i);
     }
     if (c.point) {
-      const kind = pointKind(c.point);
+      const kind = lite ? 'padeye' : pointKind(c.point);
       if (highlight?.point === c.point.id) s += ring(c.x - 44, yy - 2, 88, 80);
       if (kind === 'padeye') s += `<path d="M${c.x - 16} ${yy + 22} L${c.x - 10} ${yy + 4} A10 10 0 0 1 ${c.x + 10} ${yy + 4} L${c.x + 16} ${yy + 22} Z" fill="#c6ced6" stroke="#3c4652"/><circle cx="${c.x}" cy="${yy + 6}" r="3.5" fill="#fff" stroke="#3c4652"/>`;
       else if (kind === 'ring') s += `<ellipse cx="${c.x}" cy="${yy + 10}" rx="8" ry="10" fill="none" stroke="#3c4652" stroke-width="3.5"/><rect x="${c.x - 10}" y="${yy + 18}" width="20" height="5" fill="#9aa5b1"/>`;
       else s += `<rect x="${c.x - 24}" y="${yy + 4}" width="48" height="18" fill="#e8edf2" stroke="#3c4652" stroke-dasharray="4 3"/>`;
       s += `<rect x="${c.x - 40}" y="${yy + 22}" width="80" height="6" fill="#9aa5b1"/>`;
-      s += `<text x="${c.x}" y="${yy + 44}" font-size="13" font-weight="800" text-anchor="middle" fill="#c0392b">${esc(c.point.id)}</text>`;
+      s += `<text x="${c.x}" y="${yy + 44}" font-size="13" font-weight="800" text-anchor="middle" fill="#c0392b">${esc(c.point.id)}${lite ? ` (${pts.indexOf(c.point) + 1})` : ''}</text>`;
       const pl = kind === 'padeye' ? `pad eye ${c.point.swl_t ? `${fmt(c.point.swl_t, 1)}t` : '?'}` : kind === 'ring' ? `ring ${c.point.swl_t ? `${fmt(c.point.swl_t, 1)}t` : '?'}` : 'no pad eye';
+      if (lite) {
+        if (leg) s += `<text x="${c.x}" y="${yy + 58}" font-size="10.5" text-anchor="middle" fill="#173a5e" font-weight="600">${fmt(leg.Tstatic, 2)} t</text>`;
+        yy += 64;
+        return yy;
+      }
       s += `<text x="${c.x}" y="${yy + 58}" font-size="10" text-anchor="middle" fill="#5d6b7a">${pl}</text>`;
       if (leg) s += `<text x="${c.x}" y="${yy + 72}" font-size="10.5" text-anchor="middle" fill="#173a5e" font-weight="600">${fmt(leg.R, 2)} t (${(leg.share * 100).toFixed(0)} %) · ${leg.angleV.toFixed(0)}°</text>`;
       yy += 78;
