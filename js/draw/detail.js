@@ -250,7 +250,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
       ext(c.halfWidth + 10);
       labels.push({
         y: c.mid, x: c.halfWidth, strong: true,
-        t: [niceName(it), `Length ${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -c.halfWidth, y: c.mid, t: `${fmt(p.length_m, 2)} m` });
       y = c.end; bar = c.nextBar; barA = c.a;
@@ -396,21 +396,25 @@ export function drawRiggingFan(project, res, opts = {}) {
   const c0 = cols[0];
   const gap = 46; // px between the crane hook and the top of the legs
   const legSpan = Math.max(...cols.map((c) => c.height - c.headY));
-  const s = (Hpx - 120 - gap) / (c0.hookBottom - c0.top + legSpan + 60);
+  const s = (Hpx - 80 - gap) / (c0.hookBottom - c0.top + legSpan + 50);
   const sig = (l) => l.parts.map((p) => `${p.kind}:${p.item?.id}:${p.length_m != null ? Number(p.length_m).toFixed(2) : ''}`).join('|');
   const first = new Map();
   legs.forEach((l) => { if (!first.has(sig(l))) first.set(sig(l), l.pointId); });
   const labelled = legs.map((l) => first.get(sig(l)) === l.pointId);
-  const labelW = 190;
-  // columns evenly spaced; the group of the legs centred under the hook, the hook centred in the drawing
+  const FS = 15, LH = 17; // text size and line height
+  const labelW = 205;
+  // columns side by side (room for the callouts only where there are some), the whole centred,
+  // the hook above the middle of the legs
   const half = Math.max(...cols.map((c) => Math.max(-c.minX, c.maxX))) * s;
-  const slot = 2 * half + labelW + 30;
-  const n = cols.length;
-  const span = (n - 1) * slot;
-  const W = Math.round(Math.max(span + 2 * (half + labelW + 30), 520));
-  const mid = W / 2;
-  const lay = cols.map((c, i) => ({ c, cx: mid - span / 2 + i * slot, l: legs[i], lab: labelled[i] }));
-  const headCx = mid;
+  let xx = 70 + half;
+  const lay = cols.map((c, i) => {
+    const o = { c, cx: xx, l: legs[i], lab: labelled[i] };
+    xx += 2 * half + (labelled[i] ? labelW + 24 : 40);
+    return o;
+  });
+  const right = lay[lay.length - 1].cx + half + (labelled[lay.length - 1] ? labelW + 10 : 20);
+  const W = Math.round(Math.max(right + 20, 520));
+  const headCx = (lay[0].cx + lay[lay.length - 1].cx) / 2;
   const oy = 30 - c0.top * s;
   const headBottom = oy + c0.hookBottom * s;
   const legTop = headBottom + gap;
@@ -419,7 +423,7 @@ export function drawRiggingFan(project, res, opts = {}) {
   body += group(c0.parts[0], { transform: `translate(${headCx.toFixed(1)} ${oy.toFixed(1)}) scale(${s.toFixed(5)})` });
   const callout = (ax, ay, tx, ty, t, strong) => {
     let out = line(ax, ay, tx - 4, ty - 3, { stroke: '#8a96a3', 'stroke-width': 0.7 }) + circle(ax, ay, 1.8, { fill: '#555' });
-    t.filter(Boolean).forEach((tt, i) => (out += text(tx, ty + i * 12, tt, { 'font-size': i === 0 ? 10.5 : 10, 'font-weight': i === 0 && strong ? 700 : i === 0 ? 600 : 400, fill: i === 0 ? '#1c2733' : '#4d5966' })));
+    t.filter(Boolean).forEach((tt, i) => (out += text(tx, ty + i * LH, tt, { 'font-size': i === 0 ? FS : FS - 1.5, 'font-weight': i === 0 && strong ? 700 : i === 0 ? 600 : 400, fill: i === 0 ? '#1c2733' : '#4d5966' })));
     return out;
   };
   const hl = c0.labels[0];
@@ -429,25 +433,22 @@ export function drawRiggingFan(project, res, opts = {}) {
     body += line(headCx, headBottom, cx, topY - 4, { stroke: '#9aa5b1', 'stroke-width': 1.4, 'stroke-dasharray': '4 3' });
     body += group(c.parts.slice(c.headN).join(''), { transform: `translate(${cx.toFixed(1)} ${(topY - c.headY * s).toFixed(1)}) scale(${s.toFixed(5)})` });
     const Y = (y) => topY + (y - c.headY) * s;
-    for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 4, il.t, { 'text-anchor': 'end', 'font-size': 10.5, 'font-weight': 700, fill: '#173a5e' });
+    for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 5, il.t, { 'text-anchor': 'end', 'font-size': FS, 'font-weight': 700, fill: '#173a5e' });
     const by = Y(c.height);
-    body += text(cx, by + 16, l.pointId, { 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 800, fill: '#c0392b' });
-    body += text(cx, by + 29, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': 9.5, fill: '#173a5e', 'font-weight': 600 });
+    body += text(cx, by + 20, l.pointId, { 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 800, fill: '#c0392b' });
+    body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
     if (!lab) continue;
-    const same = legs.filter((x2) => sig(x2) === sig(l)).map((x2) => x2.pointId);
     const tx = cx + half + 14;
-    body += text(tx, topY - 10, same.join(', '), { 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
     let last = -1e9;
     for (const lb of [...c.labels.slice(c.headLabelsN)].sort((a, b) => a.y - b.y)) {
       const ay = Y(lb.y);
-      const ty = Math.max(ay, last + 16);
+      const ty = Math.max(ay, last + LH + 6);
       body += callout(cx + lb.x * s + 4, ay, tx, ty, lb.t, lb.strong);
-      last = ty + 12 * (lb.t.filter(Boolean).length - 1);
+      last = ty + LH * (lb.t.filter(Boolean).length - 1);
     }
   }
-  const maxBy = Math.max(...lay.map(({ c }) => legTop + 2 + (c.height - c.headY) * s)) + 40;
-  const H = Math.max(Math.round(maxBy + 24), 300);
-  body += text(20, H - 10, 'Components to scale; sling and chain bodies cut by the same length (a shorter leg looks shorter). Legs made alike are described once.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  const maxBy = Math.max(...lay.map(({ c }) => legTop + 2 + (c.height - c.headY) * s)) + 46;
+  const H = Math.max(Math.round(maxBy), 300);
   return svgDoc(W, H, body, { title: 'Rigging arrangement to scale' });
 }
 

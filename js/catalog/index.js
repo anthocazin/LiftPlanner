@@ -49,8 +49,8 @@ export function niceName(item, { length_m = null, links = null } = {}) {
     case 'wiresling': return `Wire sling Ø${item.dims?.ropeDia || '?'}${item.family === 'WIRE-ENDLESS' ? ' endless' : ''}${len}`;
     case 'grommet': return `Grommet ${w}${len}`;
     case 'webbing': return `Webbing sling ${w}${len}`;
-    case 'chain': return `Chain Ø${item.dims?.dia} G${item.grade}${len}`;
-    case 'connlink': return `G-link ${w} Ø${(item.chainDias || []).join('/')} G${item.grade || 80}`;
+    case 'chain': return `Chain Ø${item.dims?.dia} ${w}${len}`;
+    case 'connlink': return `G-link Ø${(item.chainDias || []).join('/')} ${w}`;
     case 'glink': return `Slingmax G-Link ${w}`;
     case 'masterlink': return item.sub ? `Quad masterlink ${w}` : String(item.id).endsWith('#sub') || item.integrated ? `Sub-link ${w}` : `Masterlink ${w}`;
     case 'padeye': return `Pad eye ${w}`;

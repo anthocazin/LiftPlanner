@@ -314,7 +314,7 @@ test('static load shared between the legs and lengths needed for the target / ma
 
 test('simple equipment names', () => {
   assert.equal(niceName(getItem('GP-G4163-17')), 'Shackle 17t');
-  assert.match(niceName(selectChain(5, 'direct', 'CH-G80')), /^Chain Ø13 G80$/);
+  assert.match(niceName(selectChain(5, 'direct', 'CH-G80')), /^Chain Ø13 5.3t$/);
   assert.match(niceName(selectSling(8, 'direct', 'RS-PES'), { length_m: 6 }), /^Roundsling 8t — 6 m$/);
 });
 

@@ -522,7 +522,7 @@ export function buildReport() {
     },
     schem: () => { const sv = schematicSvg(p, res, { width: 760 })?.svg; return sv ? [sub('Rigging arrangement'), fig(sv, 'schem-r')] : null; },
     detail: () => { const sv = drawRiggingDetail(p, res, { height: 560 }); return sv ? [sub('Rigging detail (to scale)'), fig(sv, 'detail')] : null; },
-    fan: () => { const sv = drawRiggingFan(p, res, { height: 560 }); return sv ? [sub('Rigging arrangement (to scale)'), fig(sv, 'fan')] : null; },
+    fan: () => { const sv = drawRiggingFan(p, res, { height: 720 }); return sv ? [sub('Rigging arrangement (to scale)'), fig(sv, 'fan')] : null; },
     xy: () => [fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' }))],
     xz: () => [fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' }))],
     yz: () => [fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' }))],
