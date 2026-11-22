@@ -1,7 +1,9 @@
 // LiftPlanner Light — field lift plan: the light state is turned into a project of the full
 // engine (equal share between the legs at 30°, one factor, no pad eye, no COG) and only the rigging
 // checks are kept (WLL of every part, parts compatible with each other) plus the crane.
-import { defaultProject } from '../state.js';
+import { defaultProject, SAFETY_MEASURES } from '../state.js';
+
+export { SAFETY_MEASURES };
 import { computeProject } from '../engine/compute.js';
 import { equalShareLayout } from '../engine/legcog.js';
 
@@ -38,8 +40,12 @@ export function newState() {
     factor: 1,
     crane: { name: '', swlMin_t: null, rMin_m: null, swlMax_t: null, rMax_m: null },
     nPoints: 4,
-    photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, hook: {u, v} | null, tops: { A: {u, v} } }
+    photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, mask: dataURL | null (white = kept) }
     sketch: null, // id of the photo used for the sketch
+    board: null, // sketch on a grid: { x, y, w } of the photo, hook {x, y}, tops { A: {x, y} } (board units)
+    steps: [...DEFAULT_STEPS],
+    safety: [...DEFAULT_SAFETY],
+    hidden: [], // warnings removed by the user
     head: 'masterlink',
     std: true, // standard sling lengths (nearest), otherwise made to measure
     assembly: [
@@ -50,6 +56,18 @@ export function newState() {
     lengths: {}, // { A: 4.5 }
   };
 }
+
+export const DEFAULT_STEPS = [
+  'Toolbox talk; rigging inspected (certificates, condition) and laid out as per the sketch.',
+  'Connect the rigging; take the weight slowly, lift 300 mm and hold: load level, rigging OK.',
+  'Lift and move the load, tag lines held, nobody under the load.',
+  'Slow set-down, load stable, then unrig.',
+];
+export const DEFAULT_SAFETY = ['Tag lines required', 'Route and lay-down area clear', 'Competent and sufficient personnel', 'Correct PPE', 'Toolbox talk required'];
+export const BOARD = { w: 1000, h: 1000 };
+
+/** Key of a warning, stable when only the numbers change. */
+export const checkKey = (c) => `${c.cat}|${c.item}|${String(c.label || '').replace(/[\d.,]+/g, '#')}`;
 
 export const legIds = (st) => LEG_IDS.slice(0, Math.max(1, Math.min(8, Number(st.nPoints) || 1)));
 
@@ -103,7 +121,9 @@ export function compute(st) {
   }
   checks.forEach((c) => { if (typeof c.item === 'string') c.item = c.item.replace(/^Leg /, ''); });
   const legs = (rig.legs || []).filter((l) => l.level !== 'top');
-  const all = [...crane, ...checks];
-  const status = !W ? 'empty' : all.some((c) => c.status === 'fail') || rig.error ? 'fail' : all.some((c) => c.status === 'warn') ? 'warn' : 'ok';
+  const hid = new Set(st.hidden || []);
+  const all = [...crane, ...checks].map((c) => ({ ...c, hidden: c.status !== 'fail' && hid.has(checkKey(c)) }));
+  const live = all.filter((c) => !c.hidden);
+  const status = !W ? 'empty' : live.some((c) => c.status === 'fail') || rig.error ? 'fail' : live.some((c) => c.status === 'warn') ? 'warn' : 'ok';
   return { project: p, res, rig, legs, checks: all, bom: res.bom || [], hook, rigW, perLeg: legs[0]?.Fdesign ?? null, status };
 }

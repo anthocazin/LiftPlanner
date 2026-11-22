@@ -1,31 +1,39 @@
-// LiftPlanner Light — a lift plan on site in 5 minutes: photos with the lift points, weight and
-// crane, rigging (legs and their lengths), sketch on the photo, checks and a one-page PDF.
+// LiftPlanner Light — a lift plan on site in 5 minutes: photos with the lift points (background
+// removable), weight and crane, rigging (legs and their lengths), sketch on a grid, step by step and
+// safety measures, checks and a short PDF.
 import { el, fmt, toast } from '../ui/dom.js';
 import { listByType, listSlingFamily, listChainFamily, niceName } from '../catalog/index.js';
 import { isLengthPart } from '../engine/rigging.js';
+import { drawRiggingFan } from '../draw/detail.js';
 import { openSignPad, signatureFromName } from '../ui/signpad.js';
-import { newState, compute, legIds, PALETTE, HEADS, ANGLE } from './model.js';
+import { openCutout } from './cutout.js';
+import { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFETY_MEASURES, DEFAULT_STEPS, DEFAULT_SAFETY } from './model.js';
 
 const LS = 'liftplanner.light.v1';
-const NS = 'http://www.w3.org/2000/svg';
-const STEPS = [['photos', '1 Photos'], ['load', '2 Load & crane'], ['rigging', '3 Rigging'], ['sketch', '4 Sketch'], ['plan', '5 Plan']];
+const STEPS = [['photos', '1 Photos'], ['load', '2 Load & crane'], ['rigging', '3 Rigging'], ['sketch', '4 Sketch'], ['safety', '5 Steps & safety'], ['plan', '6 Plan']];
 const VIEWS = ['Side view', 'Front view', 'Top view', 'Other'];
 const num = (v) => (v === '' || v == null || !isFinite(Number(String(v).replace(',', '.'))) ? null : Number(String(v).replace(',', '.')));
 const safeImg = (u) => (typeof u === 'string' && /^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=]+$/i.test(u) ? u : null);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
 let st = load();
-let step = location.hash.slice(1) && STEPS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : 'photos';
+let step = STEPS.some(([k]) => k === location.hash.slice(1)) ? location.hash.slice(1) : 'photos';
 let cur = st.photos[0]?.id || null; // photo being edited
 let activePt = 1;
 let out = compute(st);
 let saveTimer = null;
+let uid = 0;
 
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(LS) || 'null');
-    if (s && s.v === 1) return { ...newState(), ...s, crane: { ...newState().crane, ...(s.crane || {}) } };
+    if (s && s.v === 1) return fixState(s);
   } catch { /* new */ }
   return newState();
+}
+function fixState(s) {
+  const n = newState();
+  return { ...n, ...s, crane: { ...n.crane, ...(s.crane || {}) }, steps: Array.isArray(s.steps) ? s.steps : n.steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
 }
 function save() {
   clearTimeout(saveTimer);
@@ -74,7 +82,7 @@ function render() {
   STEPS.forEach(([k, t]) => nav.append(el('button', { class: k === step ? 'on' : '', onclick: () => go(k) }, t)));
   const m = document.getElementById('lt-main');
   m.innerHTML = '';
-  m.append(({ photos: stepPhotos, load: stepLoad, rigging: stepRigging, sketch: stepSketch, plan: stepPlan })[step]());
+  m.append(({ photos: stepPhotos, load: stepLoad, rigging: stepRigging, sketch: stepSketch, safety: stepSafety, plan: stepPlan })[step]());
   const i = STEPS.findIndex(([k]) => k === step);
   const f = document.getElementById('lt-foot');
   f.innerHTML = '';
@@ -83,7 +91,69 @@ function render() {
   status();
 }
 
-// ------------------------------------------------------------------ photos and marks
+// ------------------------------------------------------------------ drawing helpers
+/** The photo as SVG, background removed when there is a mask. */
+function photoSvg(ph, x, y, w, h, attrs = '') {
+  const img = safeImg(ph.img);
+  if (!img) return '';
+  const m = safeImg(ph.mask);
+  const id = `lm${++uid}`;
+  return (m ? `<defs><mask id="${id}" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}"><image href="${m}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none"/></mask></defs>` : '')
+    + `<image href="${img}" x="${x}" y="${y}" width="${w}" height="${h}" preserveAspectRatio="none" ${m ? `mask="url(#${id})"` : ''} ${attrs}/>`;
+}
+const label = (x, y, t, c, fs, anchor = 'start') => `<text x="${x}" y="${y}" font-size="${fs}" font-weight="800" text-anchor="${anchor}" font-family="Arial, sans-serif" fill="${c}" stroke="#fff" stroke-width="${fs * 0.22}" paint-order="stroke">${esc(t)}</text>`;
+function pointMarks(ids, P, r, fs, live) {
+  let s = '';
+  ids.forEach((id, i) => {
+    const a = P(i + 1);
+    if (!a) return;
+    s += `<circle cx="${a.x}" cy="${a.y}" r="${r}" fill="#d64541" stroke="#fff" stroke-width="${r * 0.25}" ${live ? `data-m="p:${i + 1}" class="lt-drag"` : ''}/>`;
+    s += `<text x="${a.x}" y="${a.y + fs * 0.33}" font-size="${fs * 0.9}" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#fff" pointer-events="none">${i + 1}</text>`;
+  });
+  return s;
+}
+/** Photo with its lift points (step 1, and the other photos of the PDF). */
+function photoMarked(ph, live) {
+  const m = Math.max(ph.w, ph.h);
+  const r = m * 0.022, fs = m * 0.04;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${ph.w} ${ph.h}" class="lt-psvg">${photoSvg(ph, 0, 0, ph.w, ph.h)}${pointMarks(legIds(st), (n) => (ph.points[n] ? { x: ph.points[n].u * ph.w, y: ph.points[n].v * ph.h } : null), r, fs, live)}</svg>`;
+}
+const svgPt = (svg, ev) => { const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; return p.matrixTransform(svg.getScreenCTM().inverse()); };
+
+/** Interactive SVG: drag of the marks, tap elsewhere. */
+function interactive(html, { onTap, onDrag, onEnd, cls = '' }) {
+  const box = el('div', { class: `lt-ia ${cls}` });
+  box.innerHTML = html();
+  let drag = null;
+  box.addEventListener('pointerdown', (ev) => {
+    const svg = box.querySelector('svg');
+    const m = ev.target.getAttribute?.('data-m');
+    ev.preventDefault();
+    const p = svgPt(svg, ev);
+    drag = { m, p0: p, last: p, moved: false };
+    box.setPointerCapture(ev.pointerId);
+  });
+  box.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const p = svgPt(box.querySelector('svg'), ev);
+    if (!drag.moved && Math.hypot(p.x - drag.p0.x, p.y - drag.p0.y) < 6) return;
+    drag.moved = true;
+    if (drag.m && onDrag) { onDrag(drag.m, p, { dx: p.x - drag.last.x, dy: p.y - drag.last.y }); box.innerHTML = html(); }
+    drag.last = p;
+  });
+  const end = () => {
+    if (!drag) return;
+    const d = drag;
+    drag = null;
+    if (!d.moved) onTap?.(d.p0, d.m);
+    else onEnd?.();
+  };
+  box.addEventListener('pointerup', end);
+  box.addEventListener('pointercancel', end);
+  return box;
+}
+
+// ------------------------------------------------------------------ 1. photos
 async function addPhotos(files) {
   for (const f of files) {
     const img = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = r.result; }; r.onerror = rej; r.readAsDataURL(f); });
@@ -92,7 +162,7 @@ async function addPhotos(files) {
     c.width = Math.round(img.naturalWidth * k);
     c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    const ph = { id: Math.random().toString(36).slice(2, 8), name: VIEWS[Math.min(st.photos.length, 3)], img: c.toDataURL('image/jpeg', 0.8), w: c.width, h: c.height, points: {}, hook: null, tops: {} };
+    const ph = { id: Math.random().toString(36).slice(2, 8), name: VIEWS[Math.min(st.photos.length, 3)], img: c.toDataURL('image/jpeg', 0.8), w: c.width, h: c.height, points: {}, mask: null };
     st.photos.push(ph);
     cur = ph.id;
   }
@@ -101,66 +171,9 @@ async function addPhotos(files) {
   changed(true);
 }
 
-/** SVG of the marks of a photo: lift points, and with `legs` the hook and the legs. */
-function marksSvg(ph, { legs = false, live = false } = {}) {
-  const m = Math.max(ph.w, ph.h);
-  const r = m * 0.022, fs = m * 0.04, sw = m * 0.006;
-  const P = (q) => ({ x: q.u * ph.w, y: q.v * ph.h });
-  const lab = (x, y, t, c) => `<text x="${x}" y="${y}" font-size="${fs}" font-weight="800" font-family="Arial, sans-serif" fill="${c}" stroke="#fff" stroke-width="${fs * 0.2}" paint-order="stroke">${t}</text>`;
-  let s = `<svg xmlns="${NS}" viewBox="0 0 ${ph.w} ${ph.h}" class="lt-ov">`;
-  const ids = legIds(st);
-  if (legs && ph.hook) {
-    const h = P(ph.hook);
-    ids.forEach((id, i) => {
-      const q = ph.points[i + 1];
-      if (!q) return;
-      const a = P(q), t = P(ph.tops?.[id] || ph.hook);
-      if (ph.tops?.[id]) s += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="${sw * 0.4}" stroke-dasharray="${sw * 2} ${sw * 1.5}"/>`;
-      s += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
-      const L = num(st.lengths?.[id]);
-      s += lab(a.x * 0.62 + t.x * 0.38 + r, a.y * 0.62 + t.y * 0.38, `${id}${L ? ` ${fmt(L, 2)} m` : ''}`, '#b4561a');
-      if (live && ph.tops?.[id]) s += `<circle cx="${t.x}" cy="${t.y}" r="${r * 0.8}" fill="#fff" stroke="#e8822a" stroke-width="${sw * 0.6}" data-m="t:${id}" class="lt-drag"/>`;
-      if (live && !ph.tops?.[id]) s += `<circle cx="${(a.x * 0.35 + t.x * 0.65)}" cy="${(a.y * 0.35 + t.y * 0.65)}" r="${r * 0.7}" fill="#fff" stroke="#e8822a" stroke-width="${sw * 0.6}" data-m="t:${id}" class="lt-drag"/>`;
-    });
-    s += `<circle cx="${h.x}" cy="${h.y}" r="${r * 1.1}" fill="#f2b705" stroke="#1c2733" stroke-width="${sw * 0.5}" ${live ? 'data-m="hook" class="lt-drag"' : ''}/>` + lab(h.x + r * 1.5, h.y - r * 0.5, 'Hook', '#7a5a10');
-  }
-  ids.forEach((id, i) => {
-    const q = ph.points[i + 1];
-    if (!q) return;
-    const a = P(q);
-    s += `<circle cx="${a.x}" cy="${a.y}" r="${r}" fill="#d64541" stroke="#fff" stroke-width="${sw * 0.6}" ${live && !legs ? `data-m="p:${i + 1}" class="lt-drag"` : ''}/>`;
-    s += `<text x="${a.x}" y="${a.y + fs * 0.35}" font-size="${fs * 0.9}" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#fff" pointer-events="none">${i + 1}</text>`;
-    if (legs && !ph.hook) s += lab(a.x + r * 1.3, a.y + r * 2.2, id, '#c0392b');
-  });
-  return `${s}</svg>`;
-}
+const thumbs = (selId, pick) => el('div', { class: 'lt-thumbs' }, st.photos.map((p) => el('button', { class: `lt-thumb ${p.id === selId ? 'on' : ''}`, onclick: () => pick(p) },
+  el('span', { class: `lt-th ${p.mask ? 'cut' : ''}`, html: `<svg viewBox="0 0 ${p.w} ${p.h}" preserveAspectRatio="xMidYMid slice">${photoSvg(p, 0, 0, p.w, p.h)}</svg>` }), el('span', {}, p.name))));
 
-/** Photo with its marks; a tap calls onTap({u, v}), dragging a mark calls onDrag(mark, {u, v}). */
-function photoView(ph, { legs = false, onTap, onDrag } = {}) {
-  const box = el('div', { class: 'lt-photo', style: `max-width: min(100%, calc(68vh * ${(ph.w / ph.h).toFixed(4)}))` }, el('img', { src: safeImg(ph.img) || '', alt: '', draggable: 'false' }));
-  box.insertAdjacentHTML('beforeend', marksSvg(ph, { legs, live: true }));
-  const pt = (ev) => { const b = box.getBoundingClientRect(); return { u: Math.min(1, Math.max(0, (ev.clientX - b.left) / b.width)), v: Math.min(1, Math.max(0, (ev.clientY - b.top) / b.height)) }; };
-  let drag = null;
-  box.addEventListener('pointerdown', (ev) => {
-    const m = ev.target.getAttribute?.('data-m');
-    ev.preventDefault();
-    if (m) { drag = { m }; box.setPointerCapture(ev.pointerId); return; }
-    onTap?.(pt(ev));
-  });
-  box.addEventListener('pointermove', (ev) => { if (drag) { onDrag?.(drag.m, pt(ev)); redrawMarks(box, ph, legs); } });
-  const end = () => { if (drag) { drag = null; changed(true); } };
-  box.addEventListener('pointerup', end);
-  box.addEventListener('pointercancel', end);
-  return box;
-}
-
-function redrawMarks(box, ph, legs) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = marksSvg(ph, { legs, live: true });
-  box.querySelector('svg').replaceWith(tmp.firstChild);
-}
-
-// ------------------------------------------------------------------ 1. photos
 function stepPhotos() {
   const ph = st.photos.find((p) => p.id === cur) || st.photos[0];
   if (ph) cur = ph.id;
@@ -175,18 +188,25 @@ function stepPhotos() {
       el('button', { onclick: () => { st.nPoints = Math.max(1, n - 1); changed(true); } }, '−'), el('b', {}, String(n)),
       el('button', { onclick: () => { st.nPoints = Math.min(8, n + 1); changed(true); } }, '+')));
   if (!ph) { wrap.append(el('p', { class: 'muted' }, 'Take one or more photos (side, front, top…), then tap each lift point on them: 1, 2, 3…')); return wrap; }
-  wrap.append(el('div', { class: 'lt-thumbs' }, st.photos.map((p) => el('button', { class: `lt-thumb ${p.id === cur ? 'on' : ''}`, onclick: () => { cur = p.id; render(); } }, el('img', { src: safeImg(p.img) || '', alt: '' }), el('span', {}, p.name)))));
+  wrap.append(thumbs(cur, (p) => { cur = p.id; render(); }));
   const chips = el('div', { class: 'lt-row lt-chips' }, el('span', {}, 'Tap point:'),
     legIds(st).map((_, i) => el('button', { class: `chip ${activePt === i + 1 ? 'on' : ''} ${ph.points[i + 1] ? 'set' : ''}`, onclick: () => { activePt = i + 1; render(); } }, String(i + 1))));
-  const view = photoView(ph, {
-    onTap: (q) => { ph.points[activePt] = q; activePt = Math.min(n, activePt + 1); changed(true); },
-    onDrag: (m, q) => { ph.points[Number(m.slice(2))] = q; redrawMarks(view, ph, false); },
+  const uv = (p) => ({ u: Math.min(1, Math.max(0, p.x / ph.w)), v: Math.min(1, Math.max(0, p.y / ph.h)) });
+  const view = interactive(() => photoMarked(ph, true), {
+    cls: `lt-photo ${ph.mask ? 'cut' : ''}`,
+    onTap: (p, m) => { if (m) return; ph.points[activePt] = uv(p); activePt = Math.min(n, activePt + 1); changed(true); },
+    onDrag: (m, p) => { if (m.startsWith('p:')) ph.points[Number(m.slice(2))] = uv(p); },
+    onEnd: () => changed(true),
   });
+  view.style.maxWidth = `min(100%, calc(64vh * ${(ph.w / ph.h).toFixed(4)}))`;
   wrap.append(chips, view,
+    el('div', { class: 'lt-row' },
+      el('button', { class: 'primary', onclick: () => openCutout(ph, (mask) => { ph.mask = mask; changed(true); }) }, ph.mask ? '✂ Edit the cut-out' : '✂ Remove the background'),
+      ph.mask ? el('button', { onclick: () => { ph.mask = null; changed(true); } }, 'Put the background back') : null),
     el('div', { class: 'lt-row' },
       el('select', { onchange: (e) => { ph.name = e.target.value; changed(true); } }, VIEWS.map((v) => el('option', { value: v, selected: v === ph.name }, v))),
       el('button', { onclick: () => { delete ph.points[activePt]; changed(true); } }, `Clear point ${activePt}`),
-      el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) st.sketch = st.photos[0]?.id || null; cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
+      el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) { st.sketch = st.photos[0]?.id || null; st.board = null; } cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
     el('p', { class: 'muted small' }, 'Tap the photo to place the point selected (it then goes to the next one); drag a point to move it.'));
   return wrap;
 }
@@ -231,6 +251,11 @@ function itemsFor(part) {
 }
 const kindLabel = (p) => PALETTE.find((x) => x.kind === p.kind && (!x.family || x.family === p.family) && (!x.hitch || x.hitch === (p.hitch || 'direct')))?.label || p.kind;
 
+function fanSvg(height = 560) {
+  if (!out.legs.length || !(Number(st.weight_t) > 0)) return '';
+  try { return drawRiggingFan(out.project, out.res, { height }) || ''; } catch { return ''; }
+}
+
 function stepRigging() {
   const ids = legIds(st);
   const leg0 = out.legs[0];
@@ -257,6 +282,7 @@ function stepRigging() {
       el('input', { type: 'number', value: st.lengths?.[id] ?? '', placeholder: 'm', onchange: (e) => { st.lengths = st.lengths || {}; st.lengths[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
       s?.length_m ? el('small', { class: 'muted' }, `${s.kind === 'chain' ? 'chain' : 'sling'} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
   }));
+  const fan = fanSvg();
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'On the crane hook'),
       el('select', { class: 'wide', onchange: (e) => { st.head = e.target.value; changed(true); } }, Object.entries(HEADS).map(([k, t]) => el('option', { value: k, selected: st.head === k }, t))),
@@ -269,32 +295,10 @@ function stepRigging() {
       lens,
       el('div', { class: 'lt-row' },
         el('button', { onclick: () => { const L = ids.map((id) => num(st.lengths?.[id])).find((v) => v > 0); if (!L) return toast('Type the length of one leg first'); ids.forEach((id) => { st.lengths[id] = L; }); changed(true); } }, 'Same length on every leg'),
-        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))));
-}
-
-// ------------------------------------------------------------------ 4. sketch
-function stepSketch() {
-  const wrap = el('section', { class: 'lt-card' }, el('h2', {}, 'Sketch on the photo'));
-  if (!st.photos.length) { wrap.append(el('p', { class: 'muted' }, 'Add a photo first (step 1).')); return wrap; }
-  const ph = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
-  st.sketch = ph.id;
-  ph.tops = ph.tops || {};
-  wrap.append(el('div', { class: 'lt-thumbs' }, st.photos.map((p) => el('button', { class: `lt-thumb ${p.id === ph.id ? 'on' : ''}`, onclick: () => { st.sketch = p.id; changed(true); } }, el('img', { src: safeImg(p.img) || '', alt: '' }), el('span', {}, p.name)))));
-  const view = photoView(ph, {
-    legs: true,
-    onTap: (q) => { if (!ph.hook) { ph.hook = q; changed(true); } },
-    onDrag: (m, q) => { if (m === 'hook') ph.hook = q; else ph.tops[m.slice(2)] = q; redrawMarks(view, ph, true); },
-  });
-  const missing = legIds(st).filter((_, i) => !ph.points[i + 1]);
-  wrap.append(
-    el('p', { class: 'muted small' }, ph.hook ? 'Drag the hook, or the round handle of a leg to make it longer or shorter on the sketch.' : 'Tap where the crane hook is: the legs are drawn from the lift points to it.'),
-    view,
-    missing.length ? el('p', { class: 'note warn small' }, `Points not placed on this photo: ${missing.map((id) => `${legIds(st).indexOf(id) + 1} (${id})`).join(', ')} — place them in step 1.`) : '',
-    el('div', { class: 'lt-row' },
-      el('button', { onclick: () => { ph.hook = null; ph.tops = {}; changed(true); } }, 'Place the hook again'),
-      el('button', { onclick: () => { ph.tops = {}; changed(true); } }, 'Legs back to the hook')),
-    legend());
-  return wrap;
+        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))),
+    el('section', { class: 'lt-card' }, el('h2', {}, 'Rigging arrangement (to scale)'),
+      fan ? el('div', { class: 'lt-fan', html: fan }) : el('p', { class: 'muted' }, 'Give the weight (step 2) and the lengths of the legs.'),
+      legend()));
 }
 
 /** What each leg is made of (identical legs grouped). */
@@ -311,20 +315,138 @@ function legend() {
     st.head !== 'hook' ? el('div', {}, el('b', {}, 'Hook:'), ` ${st.head === 'crane' ? 'master link of the crane' : h?.masterlink ? niceName(h.masterlink) : 'master link'}`) : null);
 }
 
-// ------------------------------------------------------------------ 5. plan
+// ------------------------------------------------------------------ 4. sketch on a grid
+function boardFor(ph) {
+  let b = st.board;
+  if (!b || b.photo !== ph.id) {
+    const a = ph.w / ph.h;
+    const w = Math.min(760, 520 * a);
+    b = { photo: ph.id, w, x: (BOARD.w - w) / 2, y: BOARD.h - w / a - 40, hook: b?.hook || null, tops: {} };
+    st.board = b;
+  }
+  b.tops = b.tops || {};
+  return b;
+}
+
+/** The sketch: grid, photo (cut out or not), lift points, legs and hook, in board units. */
+function boardSvg(ph, b, live) {
+  const bh = (b.w * ph.h) / ph.w;
+  const P = (n) => (ph.points[n] ? { x: b.x + ph.points[n].u * b.w, y: b.y + ph.points[n].v * bh } : null);
+  const r = 18, fs = 30, sw = 6;
+  const g = ++uid;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${BOARD.w} ${BOARD.h}" class="lt-board">`;
+  s += `<defs><pattern id="g${g}a" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#e3e8ee" stroke-width="1.2"/></pattern><pattern id="g${g}b" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#g${g}a)"/><path d="M100 0H0V100" fill="none" stroke="#c4ced9" stroke-width="2"/></pattern></defs>`;
+  s += `<rect width="${BOARD.w}" height="${BOARD.h}" fill="#fff"/><rect width="${BOARD.w}" height="${BOARD.h}" fill="url(#g${g}b)"/>`;
+  s += photoSvg(ph, b.x, b.y, b.w, bh, live ? 'data-m="photo" class="lt-move"' : '');
+  if (live) s += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${bh}" fill="none" stroke="#9aa7b4" stroke-width="2" stroke-dasharray="8 6" pointer-events="none"/>`;
+  const ids = legIds(st);
+  if (b.hook) {
+    const h = b.hook;
+    ids.forEach((id, i) => {
+      const a = P(i + 1);
+      if (!a) return;
+      const t = b.tops[id] || h;
+      if (b.tops[id]) s += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="2.5" stroke-dasharray="10 8"/>`;
+      s += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
+      const L = num(st.lengths?.[id]);
+      s += label(a.x * 0.6 + t.x * 0.4 + r, a.y * 0.6 + t.y * 0.4, `${id}${L ? ` ${fmt(L, 2)} m` : ''}`, '#b4561a', fs);
+      if (live) {
+        const c = b.tops[id] ? t : { x: a.x * 0.3 + t.x * 0.7, y: a.y * 0.3 + t.y * 0.7 };
+        s += `<circle cx="${c.x}" cy="${c.y}" r="${r * 0.9}" fill="#fff" stroke="#e8822a" stroke-width="4" data-m="t:${id}" class="lt-drag"/>`;
+      }
+    });
+    s += `<path d="M${h.x} ${h.y - 70}V${h.y - 18}" stroke="#1c2733" stroke-width="4"/><circle cx="${h.x}" cy="${h.y}" r="${r * 1.3}" fill="#f2b705" stroke="#1c2733" stroke-width="3" ${live ? 'data-m="hook" class="lt-drag"' : ''}/>` + label(h.x + r * 2, h.y - r * 0.4, 'Hook', '#7a5a10', fs);
+  }
+  s += pointMarks(ids, P, r, fs, false);
+  return `${s}</svg>`;
+}
+
+function stepSketch() {
+  const wrap = el('section', { class: 'lt-card' }, el('h2', {}, 'Sketch on a grid'));
+  if (!st.photos.length) { wrap.append(el('p', { class: 'muted' }, 'Add a photo first (step 1).')); return wrap; }
+  const ph = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
+  st.sketch = ph.id;
+  const b = boardFor(ph);
+  const bh = () => (b.w * ph.h) / ph.w;
+  const clamp = (p) => ({ x: Math.min(BOARD.w, Math.max(0, p.x)), y: Math.min(BOARD.h, Math.max(0, p.y)) });
+  const view = interactive(() => boardSvg(ph, b, true), {
+    cls: 'lt-boardbox',
+    onTap: (p, m) => { if (!b.hook && (!m || m === 'photo')) { b.hook = clamp(p); changed(true); } },
+    onDrag: (m, p, d) => {
+      if (m === 'hook') b.hook = clamp(p);
+      else if (m.startsWith('t:')) b.tops[m.slice(2)] = clamp(p);
+      else if (m === 'photo') { b.x += d.dx; b.y += d.dy; }
+    },
+    onEnd: () => changed(true),
+  });
+  const missing = legIds(st).filter((_, i) => !ph.points[i + 1]);
+  wrap.append(
+    thumbs(ph.id, (p) => { st.sketch = p.id; changed(true); }),
+    el('p', { class: 'muted small' }, b.hook ? 'Drag the hook anywhere on the grid (above the photo too), drag the photo to move it, drag the round handle of a leg to lengthen or shorten it.' : 'Tap where the crane hook is — above the photo if needed: the legs are drawn from the lift points to it. Drag the photo to move it.'),
+    view,
+    el('div', { class: 'lt-row' },
+      el('label', { class: 'lt-range' }, 'Photo size ', el('input', { type: 'range', min: '20', max: '100', value: String(Math.round((b.w / BOARD.w) * 100)), oninput: (e) => {
+        const cx = b.x + b.w / 2, bottom = b.y + bh();
+        b.w = (Number(e.target.value) / 100) * BOARD.w;
+        b.x = cx - b.w / 2;
+        b.y = bottom - bh();
+        view.innerHTML = boardSvg(ph, b, true);
+      }, onchange: () => changed() }))),
+    missing.length ? el('p', { class: 'note warn small' }, `Points not placed on this photo: ${missing.map((id) => `${legIds(st).indexOf(id) + 1} (${id})`).join(', ')} — place them in step 1.`) : '',
+    el('div', { class: 'lt-row' },
+      el('button', { onclick: () => { const pts = legIds(st).map((_, i) => ph.points[i + 1]).filter(Boolean); if (!pts.length || !b.hook) return; b.hook.x = b.x + (pts.reduce((a, q) => a + q.u, 0) / pts.length) * b.w; changed(true); } }, 'Hook above the middle'),
+      el('button', { onclick: () => { b.hook = null; b.tops = {}; changed(true); } }, 'Place the hook again'),
+      el('button', { onclick: () => { b.tops = {}; changed(true); } }, 'Legs back to the hook')),
+    legend());
+  return wrap;
+}
+
+// ------------------------------------------------------------------ 5. step by step and safety
+function stepSafety() {
+  const S = st.steps;
+  const list = el('ol', { class: 'lt-seq' }, S.map((t, i) => el('li', {},
+    el('textarea', { rows: '3', onchange: (e) => { S[i] = e.target.value; changed(); } }, t),
+    el('div', { class: 'lt-seq-b' },
+      el('button', { disabled: i === 0, onclick: () => { [S[i], S[i - 1]] = [S[i - 1], S[i]]; changed(true); } }, '↑'),
+      el('button', { class: 'danger', onclick: () => { S.splice(i, 1); changed(true); } }, '✕')))));
+  const all = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
+  let custom = '';
+  return el('div', {},
+    el('section', { class: 'lt-card' }, el('h2', {}, 'Step by step'), list,
+      el('div', { class: 'lt-row' },
+        el('button', { onclick: () => { S.push(''); changed(true); } }, '+ Step'),
+        el('button', { onclick: () => { if (confirm('Back to the default steps?')) { st.steps = [...DEFAULT_STEPS]; changed(true); } } }, 'Default steps'))),
+    el('section', { class: 'lt-card' }, el('h2', {}, 'Safety measures'),
+      el('p', { class: 'muted small' }, 'Tap to tick the measures that apply to this lift.'),
+      el('div', { class: 'lt-safety' }, all.map((m) => el('button', { class: `chip ${st.safety.includes(m) ? 'on' : ''}`, onclick: () => { st.safety = st.safety.includes(m) ? st.safety.filter((x) => x !== m) : [...st.safety, m]; changed(true); } }, `${st.safety.includes(m) ? '☑' : '☐'} ${m}`))),
+      el('div', { class: 'lt-row' },
+        el('input', { type: 'text', placeholder: 'Other measure…', oninput: (e) => { custom = e.target.value; } }),
+        el('button', { onclick: () => { const v = custom.trim(); if (v && !st.safety.includes(v)) { st.safety.push(v); changed(true); } } }, '+ Add'),
+        el('button', { onclick: () => { st.safety = [...DEFAULT_SAFETY]; changed(true); } }, 'Default'))));
+}
+
+// ------------------------------------------------------------------ 6. plan
+const ICON = { ok: '✓', warn: '!', fail: '✕', info: 'i' };
 function checkList(all = false) {
-  const bad = out.checks.filter((c) => c.status === 'fail' || c.status === 'warn');
-  const shown = all ? out.checks : bad;
+  const bad = out.checks.filter((c) => !c.hidden && c.status !== 'ok');
+  const shown = all ? out.checks.filter((c) => !c.hidden) : bad;
+  const hidden = out.checks.filter((c) => c.hidden);
+  const hide = (list) => { st.hidden = [...new Set([...(st.hidden || []), ...list.map(checkKey)])]; changed(true); };
+  const removable = bad.filter((c) => c.status !== 'fail');
   return el('div', { class: 'lt-checks' },
     !out.checks.length ? el('p', { class: 'muted' }, 'Give the weight and the lengths of the legs.') : null,
-    shown.map((c) => el('div', { class: `lt-chk ${c.status}` }, el('b', {}, { ok: '✓', warn: '!', fail: '✕', info: 'i' }[c.status] || '•'), el('span', {}, `${c.item}: ${c.label}${c.util != null ? ` — ${Math.round(c.util * 100)} %` : ''}`))),
-    !all && !bad.length && out.checks.length ? el('div', { class: 'lt-chk ok' }, el('b', {}, '✓'), el('span', {}, `All ${out.checks.length} checks OK (SWL of every part, parts compatible, crane)`)) : null);
+    shown.map((c) => el('div', { class: `lt-chk ${c.status}` }, el('b', {}, ICON[c.status] || '•'), el('span', {}, `${c.item}: ${c.label}${c.util != null ? ` — ${Math.round(c.util * 100)} %` : ''}`),
+      !all && c.status !== 'fail' ? el('button', { class: 'lt-x', title: 'Remove this warning', onclick: () => hide([c]) }, '✕') : null)),
+    !all && removable.length > 1 ? el('button', { class: 'lt-small', onclick: () => hide(removable) }, 'Remove all the warnings') : null,
+    !all && !bad.some((c) => c.status === 'fail' || c.status === 'warn') && out.checks.length ? el('div', { class: 'lt-chk ok' }, el('b', {}, '✓'), el('span', {}, `All ${out.checks.filter((c) => !c.hidden).length} checks OK (SWL of every part, parts compatible, crane)`)) : null,
+    !all && hidden.length ? el('p', { class: 'muted small' }, `${hidden.length} warning(s) removed. `, el('a', { href: '#', onclick: (e) => { e.preventDefault(); st.hidden = []; changed(true); } }, 'Show them again')) : null);
 }
 
 function stepPlan() {
   const sigImg = safeImg(st.signature);
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'Checks'), checkList(),
+      el('p', { class: 'muted small' }, 'A warning can be removed with ✕ (it is then left out of the PDF); a check that is not OK cannot.'),
       el('details', {}, el('summary', {}, 'All the checks'), checkList(true))),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Equipment'), equipmentTable()),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Prepared by'),
@@ -348,46 +470,62 @@ function equipmentTable() {
       el('td', {}, b.config || '')))));
 }
 
-// ------------------------------------------------------------------ PDF (one page)
+// ------------------------------------------------------------------ PDF (A4, no browser header / footer)
 function printPlan() {
   const pr = document.getElementById('lt-print');
   pr.innerHTML = '';
   const sk = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
   const others = st.photos.filter((p) => p !== sk);
-  const fig = (ph, legs) => { const i = el('div', { class: 'p-img' }, el('img', { src: safeImg(ph.img) || '', alt: '' })); i.insertAdjacentHTML('beforeend', marksSvg(ph, { legs })); return el('div', { class: 'p-fig' }, i, el('div', { class: 'p-cap' }, ph.name)); };
   const kv = (k, v) => el('tr', {}, el('th', {}, k), el('td', {}, v ?? '—'));
   const c = st.crane;
-  const bad = out.checks.filter((x) => x.status === 'fail' || x.status === 'warn');
+  const live = out.checks.filter((x) => !x.hidden);
+  const bad = live.filter((x) => x.status === 'fail' || x.status === 'warn');
   const sigImg = safeImg(st.signature);
-  pr.append(el('div', { class: 'p-page' },
-    el('div', { class: 'p-head' }, el('div', {}, el('h1', {}, 'LIFT PLAN'), el('div', {}, [st.title, st.location].filter(Boolean).join(' — ') || '—')), el('div', { class: 'p-date' }, st.date || '')),
-    el('div', { class: 'p-sketch' }, sk ? fig(sk, true) : el('div', { class: 'p-empty' }, 'No photo')),
-    el('div', { class: 'p-top' },
-      el('table', { class: 'p-kv' },
-        kv('Weight', st.weight_t ? `${fmt(st.weight_t)} t` : null), kv('Factor', `× ${fmt(st.factor, 2)}`),
-        kv('Rigging', out.rigW ? `${fmt(out.rigW)} t` : null), kv('Hook load × factor', out.hook ? `${fmt(out.hook)} t` : null),
-        kv('Legs', `${legIds(st).length} at ${ANGLE}° (sizing)`), kv('Force per leg', out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : null),
-        kv('Crane', c.name || null),
-        kv('SWL min. radius', c.swlMin_t ? `${fmt(c.swlMin_t)} t${c.rMin_m ? ` at ${c.rMin_m} m` : ''}` : null),
-        kv('SWL max. radius', c.swlMax_t ? `${fmt(c.swlMax_t)} t${c.rMax_m ? ` at ${c.rMax_m} m` : ''}` : null)),
+  const head = (n) => el('div', { class: 'p-head' },
+    el('div', {}, el('h1', {}, 'LIFT PLAN'), el('div', {}, [st.title, st.location].filter(Boolean).join(' — ') || '—')),
+    el('div', { class: 'p-date' }, st.date || '', el('br'), el('span', {}, `Page ${n} / 2`)));
+  const fan = fanSvg(620);
+  const p1 = el('div', { class: 'p-in' }, head(1),
+    el('div', { class: 'p-figs' },
+      el('div', { class: 'p-fig' }, el('div', { class: 'p-cap' }, 'Sketch'), sk ? el('div', { class: 'p-svg', html: boardSvg(sk, boardFor(sk), false) }) : el('div', { class: 'p-empty' }, 'No photo')),
       el('div', { class: 'p-side' },
+        el('table', { class: 'p-kv' },
+          kv('Weight', st.weight_t ? `${fmt(st.weight_t)} t` : null), kv('Factor', `× ${fmt(st.factor, 2)}`),
+          kv('Rigging', out.rigW ? `${fmt(out.rigW)} t` : null), kv('Hook load × factor', out.hook ? `${fmt(out.hook)} t` : null),
+          kv('Legs', `${legIds(st).length} at ${ANGLE}° (sizing)`), kv('Force per leg', out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : null),
+          kv('Crane', c.name || null),
+          kv('SWL min. radius', c.swlMin_t ? `${fmt(c.swlMin_t)} t${c.rMin_m ? ` at ${c.rMin_m} m` : ''}` : null),
+          kv('SWL max. radius', c.swlMax_t ? `${fmt(c.swlMax_t)} t${c.rMax_m ? ` at ${c.rMax_m} m` : ''}` : null)),
         legend(),
-        el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${out.checks.length} checks OK — SWL of every part, parts compatible, crane` : `${bad.length} point(s) to resolve`),
+        el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible, crane` : `${bad.length} point(s) to resolve`),
         bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null)),
-    others.length ? el('div', { class: 'p-others' }, others.slice(0, 3).map((p) => fig(p, false))) : null,
-    equipmentTable(),
-    el('div', { class: 'p-sign' }, el('div', {}, el('b', {}, 'Prepared by: '), st.preparedBy || '—', el('span', {}, `   Date: ${st.date || ''}`)), sigImg ? el('img', { src: sigImg, alt: '' }) : null)));
-  // one A4 page: measured at the printed width, scaled down when too tall
+    fan ? el('h3', {}, 'Rigging arrangement (to scale)') : null,
+    fan ? el('div', { class: 'p-svg p-fan', html: fan }) : null,
+    el('h3', {}, 'Equipment'), equipmentTable());
+  const allSafety = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
+  const p2 = el('div', { class: 'p-in' }, head(2),
+    el('h3', {}, 'Step by step'),
+    el('ol', { class: 'p-seq' }, st.steps.filter((t) => String(t).trim()).map((t) => el('li', {}, t))),
+    el('h3', {}, 'Safety measures'),
+    el('div', { class: 'p-safety' }, allSafety.map((m) => el('div', { class: st.safety.includes(m) ? 'on' : '' }, `${st.safety.includes(m) ? '☒' : '☐'} ${m}`))),
+    others.length ? el('h3', {}, 'Photos') : null,
+    others.length ? el('div', { class: 'p-others' }, others.slice(0, 3).map((p) => el('div', { class: 'p-fig' }, el('div', { class: 'p-svg', html: photoMarked(p, false) }), el('div', { class: 'p-cap' }, p.name)))) : null,
+    el('div', { class: 'p-sign' }, el('div', {}, el('b', {}, 'Prepared by: '), st.preparedBy || '—', el('span', {}, `Date: ${st.date || ''}`)), sigImg ? el('img', { src: sigImg, alt: '' }) : null));
+  pr.append(el('div', { class: 'p-page' }, p1), el('div', { class: 'p-page' }, p2));
+  // each page measured at the printed width and scaled down when too tall
   const imgs = [...pr.querySelectorAll('img')];
   Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; })))).then(() => {
-    const pg = pr.firstChild;
-    pg.style.zoom = '';
-    Object.assign(pr.style, { display: 'block', position: 'absolute', left: '-10000px', top: '0', width: '190mm' });
-    const mm = pr.getBoundingClientRect().width / 190;
-    const h = pg.getBoundingClientRect().height / mm;
+    Object.assign(pr.style, { display: 'block', position: 'absolute', left: '-10000px', top: '0' });
+    pr.querySelectorAll('.p-in').forEach((inn) => {
+      inn.style.zoom = '';
+      const mm = inn.getBoundingClientRect().width / 190;
+      const h = inn.getBoundingClientRect().height / mm;
+      if (h > 276) inn.style.zoom = String(Math.floor((276 / h) * 100) / 100);
+    });
     pr.removeAttribute('style');
-    if (h > 274) pg.style.zoom = String(Math.floor((274 / h) * 100) / 100);
-    setTimeout(() => window.print(), 50);
+    const t = document.title;
+    document.title = `Lift plan${st.title ? ` - ${st.title}` : ''}${st.date ? ` - ${st.date}` : ''}`;
+    setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 50);
   });
 }
 
@@ -408,7 +546,7 @@ function openFile(e) {
     try {
       const s = JSON.parse(r.result);
       if (s.v !== 1) throw new Error('not a LiftPlanner Light file');
-      st = { ...newState(), ...s };
+      st = fixState(s);
       cur = st.photos[0]?.id || null;
       changed();
       go('photos');
