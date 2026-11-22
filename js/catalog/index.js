@@ -41,8 +41,8 @@ export function niceName(item, { length_m = null, links = null } = {}) {
   if (!item) return '—';
   if (item.user && item.name) return item.name;
   const w = `${t1(item.wll_t)}t`;
-  // chains too are given by their length (the number of links stays internal)
-  const len = length_m != null ? ` — ${Math.round(length_m * 100) / 100} m` : '';
+  // chains: the length, and the number of links in brackets
+  const len = length_m != null ? ` — ${Math.round(length_m * 100) / 100} m${links ? ` (${links} links)` : ''}` : links ? ` — ${links} links` : '';
   switch (item.type) {
     case 'shackle': return `Shackle ${w}${item.wideBody ? ' wide body' : ''}`;
     case 'roundsling': return `Roundsling ${w}${item.family === 'RS-UHMWPE' ? ' UHMWPE' : ''}${len}`;
@@ -50,8 +50,8 @@ export function niceName(item, { length_m = null, links = null } = {}) {
     case 'grommet': return `Grommet ${w}${len}`;
     case 'webbing': return `Webbing sling ${w}${len}`;
     case 'chain': return `Chain Ø${item.dims?.dia} G${item.grade}${len}`;
-    case 'connlink': return `Connecting link Ø${(item.chainDias || []).join('/')} G${item.grade || 80}`;
-    case 'glink': return `G-Link ${w}`;
+    case 'connlink': return `G-link ${w} Ø${(item.chainDias || []).join('/')} G${item.grade || 80}`;
+    case 'glink': return `Slingmax G-Link ${w}`;
     case 'masterlink': return item.sub ? `Quad masterlink ${w}` : String(item.id).endsWith('#sub') || item.integrated ? `Sub-link ${w}` : `Masterlink ${w}`;
     case 'padeye': return `Pad eye ${w}`;
     case 'hook': return `Safety hook ${w}`;
@@ -227,6 +227,7 @@ export function selectShackle(requiredWll_t, ctx = {}, rules = {}, ranges = null
     if (s.wll_t < requiredWll_t) continue;
     if (ctx.minJaw && s.dims?.jawWidth < ctx.minJaw) continue; // the ring / master link bar must fit in the jaw
     if (ctx.maxPin && s.dims?.pinDia > ctx.maxPin) continue; // the pin must pass through the ring
+    if (ctx.maxBow && s.dims?.bowDia > ctx.maxBow) continue; // the bow must pass through the chain link / G-link
     const issues = shackleCompatibility(s, ctx, rules);
     if (issues.some((i) => i.level === 'fail')) continue;
     if (!firstOk) firstOk = s;

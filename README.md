@@ -18,6 +18,12 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.9
+
+- **Chains: length and links** — "Chain Ø16 G80 — 4.56 m (95 links)" everywhere.
+- **Shackle on a chain**: the bow (or the pin) that goes in a chain link or a G-link must pass through its inside — a shackle too big now gives an error (e.g. bow Ø38 of a 17 t shackle in a Ø16 chain, inside 26 mm), and "auto" picks a shackle that fits. A hook on a shackle: the bow or pin must enter the hook opening.
+- **Connecting link renamed G-link**, with its SWL in its name (e.g. "G-link 8t Ø16 G80").
+
 ## What's new in v0.8.8
 
 - **Chains given by their length** (m) everywhere — rigging, drawings, checks, report, inventory — instead of a number of links (the length is still a whole number of links).

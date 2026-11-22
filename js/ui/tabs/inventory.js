@@ -85,7 +85,7 @@ function renderNeed(res) {
       el('td', { style: { textAlign: 'center' } }, el('input', { type: 'checkbox', checked: !!c.onHand, onchange: (e) => { c.onHand = e.target.checked; app.persist(); renderNeed(app.result); } })),
       el('td', { class: 'num' }, el('b', {}, b.qty)),
       el('td', {}, b.name, inInv ? el('span', { class: 'muted' }, ' ★ inventory') : null),
-      el('td', { class: 'num' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m` : 'n/a'),
+      el('td', { class: 'num' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m${b.links ? ` (${b.links} links)` : ''}` : 'n/a'),
       el('td', { class: 'num' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
       el('td', { style: { fontSize: '12px' } }, b.config || [...new Set(b.where)].join(', ')),
       el('td', {}, el('input', { type: 'text', value: c.certNo || b.certNo || '', placeholder: 'cert. / serial no.', onchange: (e) => { c.certNo = e.target.value; app.persist(); } })),

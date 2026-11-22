@@ -12,7 +12,7 @@ function face(part, i, leg, side) {
     case 'shackle':
       return side === 'pin'
         ? { kind: 'pin', name: niceName(it), pin: d.pinDia, jaw: d.jawWidth, len: d.insideLength, along: d.eyeDia }
-        : { kind: 'bow', name: niceName(it), bowIn: d.bowWidth, bowBar: d.bowDia, len: d.insideLength, along: d.bowDia };
+        : { kind: 'bow', name: niceName(it), bowIn: d.bowWidth, bowBar: d.bowDia, pin: d.pinDia, len: d.insideLength, along: d.bowDia };
     case 'roundsling':
       return { kind: 'round', name: niceName(it), width: d.width, along: (d.width || 0) * 0.5 };
     case 'webbing':
@@ -49,6 +49,17 @@ function joint(low, high) {
   // shackle bow holds a ring
   const bowOnRing = (bow, ring) => {
     if (ring.bar > bow.bowIn) add('fail', `${ring.name} (bar Ø${ring.bar}) does not fit in the bow of ${bow.name} (inside ${bow.bowIn} mm)`, 'The ring bar must sit in the crown of the bow.');
+    if (ring.inW && bow.bowBar > ring.inW) {
+      const turn = bow.pin && bow.pin <= ring.inW;
+      add('fail', `Bow Ø${bow.bowBar} of ${bow.name} does not pass through ${ring.name} (inside ${Math.round(ring.inW)} mm)`,
+        turn ? 'The bow must go through the inside of the link: turn the shackle (pin through the link) or take a smaller shackle.'
+          : `The shackle is too big for the link: neither its bow (Ø${bow.bowBar}) nor its pin (Ø${bow.pin}) goes through it. Take a smaller shackle, or join the chain with a G-link.`);
+    }
+  };
+  // hook engaging a shackle (bow or pin)
+  const hookOnShackle = (hook, sh) => {
+    const bar = sh.kind === 'bow' ? sh.bowBar : sh.pin;
+    if (bar > hook.opening) add('fail', `${sh.name} (${sh.kind === 'bow' ? 'bow' : 'pin'} Ø${bar}) does not enter ${hook.name} (opening ${hook.opening} mm)`, 'The hook opening must be larger than the bar it engages: take a bigger hook or a smaller shackle.');
   };
   // sling on a bearing (bow, pin or ring bar)
   const slingOn = (s, bearingName, bearingWidth, bearingDia) => {
@@ -57,7 +68,9 @@ function joint(low, high) {
     if (s.kind === 'round' && bearingWidth && s.width * 0.5 > bearingWidth)
       add('warn', `${s.name} (${s.width} mm flat) is too wide for the bearing of ${bearingName} (${Math.round(bearingWidth)} mm)`, 'A round sling bunches up to about half its flat width on a bearing; if it does not fit, use a bigger shackle or link.');
   };
-  if (low.kind === 'pin' && ringLike(high)) pinOnRing(low, high);
+  if (low.kind === 'hook' && ['bow', 'pin'].includes(high.kind)) hookOnShackle(low, high);
+  else if (high.kind === 'hook' && ['bow', 'pin'].includes(low.kind)) hookOnShackle(high, low);
+  else if (low.kind === 'pin' && ringLike(high)) pinOnRing(low, high);
   else if (high.kind === 'pin' && ringLike(low)) pinOnRing(high, low);
   else if (low.kind === 'bow' && ringLike(high)) bowOnRing(low, high);
   else if (high.kind === 'bow' && ringLike(low)) bowOnRing(high, low);
@@ -65,7 +78,7 @@ function joint(low, high) {
   else if (sling(high) && low.kind === 'bow') slingOn(high, low.name, low.bowIn, low.bowBar);
   else if (sling(low) && high.kind === 'pin') slingOn(low, high.name, high.jaw, high.pin);
   else if (sling(high) && low.kind === 'pin') slingOn(high, low.name, low.jaw, low.pin);
-  else if (sling(low) && ringLike(high)) { if (high.glink && low.kind !== 'round') add('warn', `${high.name} is made for round slings`, 'G-Links are designed for round slings.'); else if (high.glink && low.width > high.inW) add('warn', `${low.name} wider than the G-Link (${high.inW} mm)`, 'The round sling must fit in the G-Link.'); else slingOn(low, high.name, high.inW, high.bar); }
+  else if (sling(low) && ringLike(high)) { if (high.glink && low.kind !== 'round') add('warn', `${high.name} is made for round slings`, 'Slingmax links are designed for round slings.'); else if (high.glink && low.width > high.inW) add('warn', `${low.name} wider than the Slingmax link (${high.inW} mm)`, 'The round sling must fit in the link.'); else slingOn(low, high.name, high.inW, high.bar); }
   else if (sling(high) && ringLike(low)) slingOn(high, low.name, low.inW, low.bar);
   else if (low.kind === 'hook' && ringLike(high)) { if (high.bar > low.opening) add('fail', `${high.name} (bar Ø${high.bar}) does not enter ${low.name} (opening ${low.opening} mm)`, 'The hook opening must be larger than the bar it engages.'); }
   else if (high.kind === 'hook' && ringLike(low)) { if (low.bar > high.opening) add('fail', `${low.name} does not enter ${high.name} (opening ${high.opening} mm)`, 'The hook opening must be larger than the bar it engages.'); }

@@ -41,7 +41,7 @@ export const PART_KINDS = {
   hook: 'Safety hook',
   shackle: 'Shackle',
   masterlink: 'Master link',
-  connlink: 'Connecting link',
+  connlink: 'G-link',
   glink: 'G-Link (Slingmax)',
   sling: 'Sling',
   chain: 'Chain',
@@ -226,8 +226,13 @@ function resolveParts(partsIn, F, ctx) {
       const neighbourBar = [parts[i - 1], parts[i + 1]].map((q) => (q?.kind === 'chain' ? q.item?.dims?.dia : q?.kind === 'connlink' ? q.item?.dims?.barThk : 0)).filter(Boolean);
       // pin side on a chain / link: the bar must fit in the jaw
       const pinNeighbour = loadSide ? parts[i - 1] : parts[i + 1];
+      const bowNeighbour = loadSide ? parts[i + 1] : parts[i - 1];
       const minJaw = Math.max(pctx.minJaw || 0, pinNeighbour && ['chain', 'connlink'].includes(pinNeighbour.kind) ? Math.max(...neighbourBar, 0) : 0);
-      p.item = isAuto(p.id) ? selectShackle(F / p.factor, { ...pctx, minJaw, slingWidth: sw }, rules, ranges) : getItem(p.id);
+      // the pin or the bow that goes in a chain link / G-link must pass through its inside
+      const inside = (q) => { const d = q?.item?.dims || {}; return q?.kind === 'chain' ? Math.max((d.width || 0) - 2 * (d.dia || 0), 0) : q?.kind === 'connlink' ? Math.max((d.width || 0) - 2 * (d.barThk || 0), 0) : 0; };
+      const pinIn = inside(pinNeighbour), bowIn = inside(bowNeighbour);
+      const maxPin = [pctx.maxPin, pinIn].filter((v) => v > 0).reduce((a, b) => Math.min(a, b), Infinity);
+      p.item = isAuto(p.id) ? selectShackle(F / p.factor, { ...pctx, minJaw, maxPin: isFinite(maxPin) ? maxPin : 0, maxBow: bowIn, slingWidth: sw }, rules, ranges) : getItem(p.id);
       p.ctx = pctx;
       const inHole = (atLoad && ctx.level !== 'top' && hasPadeye(point)) || (atLoad && ctx.level === 'top') || (atTop && ctx.level === 'bottom');
       p.role = inHole ? 'hole' : 'link';

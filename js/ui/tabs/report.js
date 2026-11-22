@@ -485,7 +485,7 @@ export function buildReport() {
     res.bom.filter((b) => !b.unknown).map((b) => el('tr', {},
       el('td', { class: 'c' }, String(b.qty)),
       el('td', {}, b.name),
-      el('td', { class: 'c' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m` : 'n/a'),
+      el('td', { class: 'c' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m${b.links ? ` (${b.links} links)` : ''}` : 'n/a'),
       el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'),
       el('td', {}, b.config || ''),
     )),

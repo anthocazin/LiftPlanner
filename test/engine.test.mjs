@@ -552,3 +552,17 @@ test('simplified method with standard slings: nearest standard length, legs laid
   p.rigging.design.roundLengths = 'exact';
   computeProject(p).rig.legs.forEach((l, i) => near(l.Leff, Ls[i], 0.0015));
 });
+
+test('shackle on a chain: its bow must pass through the chain link (auto picks one that does)', () => {
+  const pts = [['A', 0, 0, 0], ['B', 3000, 0, 0], ['C', 3000, 2000, 0], ['D', 0, 2000, 0]];
+  const p = baseProject(pts, { x: 1500, y: 1000, z: -500 });
+  p.load.weight_t = 12.5;
+  p.rigging.assembly = [{ kind: 'shackle', id: 'auto' }, { kind: 'chain', family: 'CH-G80', id: 'auto', hitch: 'direct' }, { kind: 'shackle', id: 'GP-G4163-17' }];
+  const res = computeProject(p);
+  assert.ok(res.checks.some((c) => c.status === 'fail' && /Bow Ø38 of Shackle 17t does not pass through Chain/.test(c.label)), 'fit of the 17 t shackle on the chain reported');
+  p.rigging.assembly[2].id = 'auto';
+  const r2 = computeProject(p);
+  const top = r2.rig.legs[0].parts[2].item, ch = r2.rig.legs[0].parts[1].item;
+  assert.ok(top.dims.bowDia <= ch.dims.width - 2 * ch.dims.dia, `auto shackle ${top.id} bow ${top.dims.bowDia} in chain Ø${ch.dims.dia}`);
+  assert.ok(!r2.checks.some((c) => c.status === 'fail' && /does not pass through Chain/.test(c.label)));
+});

@@ -16,7 +16,7 @@ const PALETTE = [
   { kind: 'sling', family: 'WEB', hitch: 'direct', label: 'Flat webbing sling' },
   { kind: 'sling', family: 'WIRE', hitch: 'direct', label: 'Steel wire rope sling' },
   { kind: 'chain', family: 'CH-G80', hitch: 'direct', label: 'Chain G80' },
-  { kind: 'connlink', family: 'CL-G80', label: 'Connecting link G80' },
+  { kind: 'connlink', family: 'CL-G80', label: 'G-link G80' },
   { kind: 'hook', label: 'Safety hook G80' },
   { kind: 'masterlink', label: 'Master link' },
   { head: 'masterlink', label: 'Masterlink (on the hook)' },
@@ -327,7 +327,7 @@ function openPop(ref, ev) {
     const sel = el('select', { onchange: (e) => { target().id = e.target.value; done(); } });
     sel.append(el('option', { value: 'auto' }, 'Auto size'));
     itemsFor(cur).forEach((it) => sel.append(el('option', { value: it.id, selected: it.id === cur.id }, `${it.user ? '★ ' : ''}${niceName(it)}`)));
-    const kindName = { connlink: 'connecting link', masterlink: 'master link', glink: 'G-Link', hook: 'safety hook', sling: 'sling', chain: 'chain G80', shackle: 'shackle' }[cur.kind] || cur.kind;
+    const kindName = { connlink: 'G-link', masterlink: 'master link', glink: 'G-Link', hook: 'safety hook', sling: 'sling', chain: 'chain G80', shackle: 'shackle' }[cur.kind] || cur.kind;
     box.append(el('b', {}, `${linked ? 'All legs' : `Leg ${key}`} — ${kindName}`), sel);
     if (cur.kind === 'sling') {
       const fam = el('select', { onchange: (e) => { const t = target(); t.family = e.target.value; t.id = 'auto'; done(); } });

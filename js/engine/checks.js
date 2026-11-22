@@ -61,7 +61,7 @@ export function riggingChecks(rig, project, rules) {
       if (isLengthPart(p)) {
         const wll = it.wll_t * (p.factor || 1);
         const what = p.kind === 'chain'
-          ? `${niceName(it)} — length ${(p.length_m || 0).toFixed(2)} m`
+          ? `${niceName(it)} — length ${(p.length_m || 0).toFixed(2)} m (${p.links} links)`
           : `${niceName(it)} — EWL ${(p.length_m || 0).toFixed(2)} m`;
         push(out, {
           cat: p.kind === 'chain' ? 'Chains' : 'Slings', item: name, label: `${what}${p.hitch === 'choke' ? ' (choked ×0.8)' : ''}${p.defaulted ? ' — length not set, 1 m assumed' : ''}`,
@@ -73,7 +73,7 @@ export function riggingChecks(rig, project, rules) {
       const sf = i === 0 && p.kind === 'shackle' && leg.level !== 'top' ? shackleSideLoadFactor(leg.beta || 0) : 1;
       const wll = it.wll_t * sf;
       const where = i === 0 ? (leg.level === 'top' ? 'at spreader lug' : 'at lift point') : i === leg.parts.length - 1 ? (leg.level === 'bottom' ? 'at spreader lug' : 'at hook side') : 'in line';
-      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'Connecting links' : p.kind === 'hook' ? 'Hooks' : p.kind === 'masterlink' ? 'Master link' : 'G-Link';
+      const cat = p.kind === 'shackle' ? 'Shackles' : p.kind === 'connlink' ? 'G-links' : p.kind === 'hook' ? 'Hooks' : p.kind === 'masterlink' ? 'Master link' : 'G-Link';
       push(out, {
         cat, item: name, label: `${niceName(it)} (${where})${sf < 1 ? ` — side load ${leg.beta.toFixed(0)}° → ×${sf.toFixed(2)}` : ''}`,
         value: F, limit: wll, util: F / wll, status: utilStatus(F / wll, rules.utilWarn), part: i,
