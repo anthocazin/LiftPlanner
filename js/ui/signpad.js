@@ -2,7 +2,7 @@
 import { el } from './dom.js';
 
 /** Opens the pad; onSave(dataUrl) is called with the trimmed signature (or null when cleared). */
-export function openSignPad(title, onSave) {
+export function openSignPad(title, onSave, name = '') {
   document.getElementById('signpad')?.remove();
   const W = 640, H = 220;
   const cv = el('canvas', { width: W * 2, height: H * 2, class: 'sign-canvas', style: { width: `${W}px`, height: `${H}px` } });
@@ -53,10 +53,40 @@ export function openSignPad(title, onSave) {
   };
   const box = el('div', { id: 'signpad', class: 'modal' }, el('div', { class: 'modal-box sign-box' },
     el('div', { class: 'modal-head' }, el('h2', {}, 'Signature'), el('span', { class: 'muted' }, title), el('span', { class: 'spacer' }),
+      name ? el('button', { class: 'small', title: 'Signature written from the name, in a handwriting font', onclick: () => { onSave(signatureFromName(name)); close(); } }, `✍ From the name (${name})`) : null,
       el('button', { class: 'small', onclick: clear }, 'Clear'), el('button', { class: 'small', onclick: close }, 'Cancel'), el('button', { class: 'primary', onclick: save }, 'Save')),
     el('div', { class: 'sign-body' }, el('p', { class: 'muted', style: { fontSize: '12px', margin: '0 0 6px' } }, 'Sign on the line with the mouse, a finger or a pen.'), cv)));
   document.body.append(box);
   clear();
+}
+
+/**
+ * Signature written from the name, in a handwriting font of the computer (Segoe Script, Brush Script,
+ * Lucida Handwriting… or the browser's cursive), with a pen stroke under it. Transparent PNG.
+ */
+export function signatureFromName(name) {
+  const n = String(name || '').trim();
+  if (!n) return null;
+  const cv = document.createElement('canvas');
+  cv.width = 1400; cv.height = 300;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#1b2f6b';
+  ctx.strokeStyle = '#1b2f6b';
+  ctx.font = "italic 400 110px 'Segoe Script', 'Brush Script MT', 'Lucida Handwriting', 'Snell Roundhand', 'Apple Chancery', 'URW Chancery L', cursive";
+  ctx.save();
+  ctx.translate(40, 190);
+  ctx.rotate(-0.05);
+  ctx.fillText(n, 0, 0);
+  const w = Math.min(ctx.measureText(n).width, 1300);
+  // flourish under the name
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(w * 0.05, 34);
+  ctx.bezierCurveTo(w * 0.35, 58, w * 0.7, 18, w * 1.02, 30);
+  ctx.stroke();
+  ctx.restore();
+  return trimmed(cv);
 }
 
 /** The drawn part only (white space cut), at most 600 px wide, transparent PNG. */

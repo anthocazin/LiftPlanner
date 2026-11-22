@@ -13,7 +13,7 @@ import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
 import { SAFETY_MEASURES, CHECKLIFT, getPath, setPath } from '../../state.js';
 import { craneSwl } from './crane.js';
-import { openSignPad } from '../signpad.js';
+import { openSignPad, signatureFromName } from '../signpad.js';
 import { bePlanSvg, legCompositions } from '../../draw/beplan.js';
 
 const opts = { calc: true, checksAll: false };
@@ -583,7 +583,7 @@ export function buildReport() {
     el('tr', {}, el('th', {}, 'Date'), who.map(([, k]) => el('td', {}, ed(`signoff.${k}.date`, { ph: 'Date' })))),
     el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(([t, k]) => {
       const img = safeImg(p.signoff?.[k]?.signature);
-      return el('td', { class: 'sig-cell', title: 'Click to sign', onclick: () => signFor(k, t) }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'no-print sig-hint' }, '✎ Click to sign'));
+      return el('td', { class: 'sig-cell', title: 'Click to sign', onmousedown: (ev) => { ev.preventDefault(); signFor(k, t); } }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'no-print sig-hint' }, '✎ Click to sign'));
     })),
   ));
   return rep;
@@ -667,7 +667,7 @@ function signFor(k, role) {
     if (url && !p.signoff[k].date) p.signoff[k].date = new Date().toISOString().slice(0, 10);
     app.recompute();
     window.__rerender?.();
-  });
+  }, who);
 }
 
 function signoffPanel() {
@@ -684,6 +684,14 @@ function signoffPanel() {
       el('div', { class: 'sign-prev' }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
       el('div', { class: 'row' },
         el('button', { class: 'small primary', onclick: () => signFor(k, t) }, img ? 'Sign again' : '✎ Draw the signature'),
+        el('button', { class: 'small', title: 'Signature written from the name, in a handwriting font', onclick: () => {
+          const url = signatureFromName(p.project[k]);
+          if (!url) return alert('Type the name first');
+          so.signature = url;
+          if (!so.date) so.date = new Date().toISOString().slice(0, 10);
+          app.recompute();
+          window.__rerender?.();
+        } }, '✍ From the name'),
         img ? el('button', { class: 'small danger', onclick: () => { so.signature = null; app.recompute(); window.__rerender?.(); } }, 'Remove') : null));
   };
   return el('div', { id: 'signoff-panel', class: 'panel no-print', style: { marginBottom: '12px' } },
