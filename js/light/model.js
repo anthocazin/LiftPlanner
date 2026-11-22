@@ -41,9 +41,8 @@ export function newState() {
     factor: 1,
     crane: { name: '', swlMin_t: null, rMin_m: null, swlMax_t: null, rMax_m: null },
     nPoints: 4,
-    photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, mask: dataURL | null (white = kept) }
+    photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, mask: dataURL | null (white = kept), board: sketch on the grid { x, y, w, hook, tops } }
     sketch: null, // id of the photo used for the sketch
-    board: null, // sketch on a grid: { x, y, w } of the photo, hook {x, y}, tops { A: {x, y} } (board units)
     steps: DEFAULT_STEPS.map((note) => ({ note, resp: '' })),
     safety: [...DEFAULT_SAFETY],
     hidden: [], // warnings removed by the user

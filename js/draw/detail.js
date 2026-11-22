@@ -460,7 +460,7 @@ export function drawRiggingFan(project, res, opts = {}) {
     const Y = (y) => topY + (y - c.headY) * s;
     for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 5, il.t, { 'text-anchor': 'end', 'font-size': FS, 'font-weight': 700, fill: '#173a5e' });
     const by = Y(c.height);
-    body += text(cx, by + (lite ? 26 : 20), l.pointId, { 'text-anchor': 'middle', 'font-size': lite ? 26 : 18, 'font-weight': 800, fill: '#c0392b' });
+    body += text(cx, by + (lite ? 26 : 20), lite ? `${l.pointId} (${ids.indexOf(l.pointId) + 1})` : l.pointId, { 'text-anchor': 'middle', 'font-size': lite ? 26 : 18, 'font-weight': 800, fill: '#c0392b' });
     if (!lite) body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
     if (!lab) continue;
     const tx = cx + half + 14;

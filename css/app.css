@@ -486,3 +486,6 @@ details.inline-adv[open] { display: inline-flex; }
 .pi-thumb svg { display: block; width: 100%; }
 .update-bar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 200; display: flex; gap: 12px; align-items: center; background: #0f2742; color: #fff; padding: 10px 16px; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.3); font-size: 14px; }
 .update-bar .muted { color: #b8c4d2; font-size: 12px; }
+
+/* v0.10.6 — time of signature */
+.report.tpl .signed-at { font-size: 8px; color: #333; margin-top: 2px; }

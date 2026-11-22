@@ -14,7 +14,7 @@ const givenLen = (id) => num((st.lenMode === 'sling' ? st.slings : st.lengths)?.
 
 const LS = 'liftplanner.light.v1';
 const STEPS = [['photos', '1 Photos'], ['load', '2 Load & crane'], ['rigging', '3 Rigging'], ['sketch', '4 Sketch'], ['safety', '5 Steps & safety'], ['plan', '6 Plan']];
-const VIEWS = ['Side view', 'Front view', 'Top view', 'Other'];
+const VIEWS = ['Side view', 'Front view', 'Top view', 'Isometric view'];
 const num = (v) => (v === '' || v == null || !isFinite(Number(String(v).replace(',', '.'))) ? null : Number(String(v).replace(',', '.')));
 const safeImg = (u) => (typeof u === 'string' && /^data:image\/(png|jpe?g|webp);base64,[a-z0-9+/=]+$/i.test(u) ? u : null);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -37,6 +37,8 @@ function load() {
 function fixState(s) {
   const n = newState();
   const steps = (Array.isArray(s.steps) ? s.steps : n.steps).map((x) => (typeof x === 'string' ? { note: x, resp: '' } : { note: x?.note || '', resp: x?.resp || '' }));
+  if (s.board && Array.isArray(s.photos)) { const ph = s.photos.find((p) => p.id === s.board.photo); if (ph && !ph.board) { const { photo, ...b } = s.board; ph.board = b; } delete s.board; }
+  (s.photos || []).forEach((p) => { if (p.name === 'Other') p.name = 'Isometric view'; });
   const lenMode = s.lenMode || (Object.values(s.lengths || {}).some((v) => v > 0) ? 'leg' : 'sling');
   return { ...n, ...s, lenMode, slings: s.slings || {}, crane: { ...n.crane, ...(s.crane || {}) }, comms: { ...n.comms, ...(s.comms || {}) }, steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
 }
@@ -211,7 +213,7 @@ function stepPhotos() {
     el('div', { class: 'lt-row' },
       el('select', { onchange: (e) => { ph.name = e.target.value; changed(true); } }, VIEWS.map((v) => el('option', { value: v, selected: v === ph.name }, v))),
       el('button', { onclick: () => { delete ph.points[activePt]; changed(true); } }, `Clear point ${activePt}`),
-      el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) { st.sketch = st.photos[0]?.id || null; st.board = null; } cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
+      el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) st.sketch = st.photos[0]?.id || null; cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
     el('p', { class: 'muted small' }, 'Tap the photo to place the point selected (it then goes to the next one); drag a point to move it.'));
   return wrap;
 }
@@ -330,13 +332,14 @@ function legend() {
 }
 
 // ------------------------------------------------------------------ 4. sketch on a grid
+/** Sketch of a photo: its own placement on the grid, hook and legs (each view independent). */
 function boardFor(ph) {
-  let b = st.board;
-  if (!b || b.photo !== ph.id) {
+  let b = ph.board;
+  if (!b) {
     const a = ph.w / ph.h;
     const w = Math.min(760, 520 * a);
-    b = { photo: ph.id, w, x: (BOARD.w - w) / 2, y: BOARD.h - w / a - 40, hook: b?.hook || null, tops: {} };
-    st.board = b;
+    b = { w, x: (BOARD.w - w) / 2, y: BOARD.h - w / a - 40, hook: null, tops: {} };
+    ph.board = b;
   }
   b.tops = b.tops || {};
   return b;
@@ -363,7 +366,11 @@ function boardSvg(ph, b, live) {
       if (b.tops[id]) s += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="2.5" stroke-dasharray="10 8"/>`;
       s += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
       const L = givenLen(id);
-      s += label(a.x * 0.6 + t.x * 0.4 + r, a.y * 0.6 + t.y * 0.4, `${id}${L ? ` ${fmt(L, 2)} m` : ''}`, '#b4561a', fs);
+      // name of the leg in a badge: letter, lift point number, length
+      const bx = a.x * 0.58 + t.x * 0.42, by = a.y * 0.58 + t.y * 0.42;
+      const txt = `${id} (${i + 1})${L ? ` ${fmt(L, 2)} m` : ''}`;
+      const bw = txt.length * 21 + 26;
+      s += `<g><rect x="${bx - bw / 2}" y="${by - 26}" width="${bw}" height="50" rx="10" fill="#fff" stroke="#e8822a" stroke-width="4"/><text x="${bx}" y="${by + 13}" font-size="36" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#b4561a">${esc(txt)}</text></g>`;
       if (live) {
         const c = b.tops[id] ? t : { x: a.x * 0.3 + t.x * 0.7, y: a.y * 0.3 + t.y * 0.7 };
         s += `<circle cx="${c.x}" cy="${c.y}" r="${r * 0.9}" fill="#fff" stroke="#e8822a" stroke-width="4" data-m="t:${id}" class="lt-drag"/>`;
@@ -372,6 +379,8 @@ function boardSvg(ph, b, live) {
     s += `<path d="M${h.x} ${h.y - 70}V${h.y - 18}" stroke="#1c2733" stroke-width="4"/><circle cx="${h.x}" cy="${h.y}" r="${r * 1.3}" fill="#f2b705" stroke="#1c2733" stroke-width="3" ${live ? 'data-m="hook" class="lt-drag"' : ''}/>` + label(h.x + r * 2, h.y - r * 0.4, 'Hook', '#7a5a10', fs);
   }
   s += pointMarks(ids, P, r, fs, false);
+  const vn = esc(ph.name || 'View');
+  s += `<rect x="12" y="12" width="${vn.length * 23 + 36}" height="62" rx="8" fill="#0f2742"/><text x="30" y="56" font-size="38" font-weight="700" font-family="Arial, sans-serif" fill="#fff">${vn}</text>`;
   return `${s}</svg>`;
 }
 
@@ -396,6 +405,7 @@ function stepSketch() {
   const missing = legIds(st).filter((_, i) => !ph.points[i + 1]);
   wrap.append(
     thumbs(ph.id, (p) => { st.sketch = p.id; changed(true); }),
+    el('p', { class: 'muted small' }, 'Each view has its own sketch: choose the photo above.'),
     el('p', { class: 'muted small' }, b.hook ? 'Drag the hook anywhere on the grid (above the photo too), drag the photo to move it, drag the round handle of a leg to lengthen or shorten it.' : 'Tap where the crane hook is — above the photo if needed: the legs are drawn from the lift points to it. Drag the photo to move it.'),
     view,
     el('div', { class: 'lt-row' },
@@ -411,7 +421,7 @@ function stepSketch() {
       el('button', { onclick: () => { const pts = legIds(st).map((_, i) => ph.points[i + 1]).filter(Boolean); if (!pts.length || !b.hook) return; b.hook.x = b.x + (pts.reduce((a, q) => a + q.u, 0) / pts.length) * b.w; changed(true); } }, 'Hook above the middle'),
       el('button', { onclick: () => { b.hook = null; b.tops = {}; changed(true); } }, 'Place the hook again'),
       el('button', { onclick: () => { b.tops = {}; changed(true); } }, 'Legs back to the hook')),
-    legend());
+    '');
   return wrap;
 }
 
@@ -477,11 +487,20 @@ function stepPlan() {
         field('Name', st.preparedBy, (v) => { st.preparedBy = v; }, { type: 'text', ph: 'Name' }),
         field('Date', st.date, (v) => { st.date = v; }, { type: 'date' })),
       el('div', { class: 'lt-sig' }, sigImg ? el('img', { src: sigImg, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
+      signedTxt() ? el('p', { class: 'muted small' }, signedTxt()) : null,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { const u = signatureFromName(st.preparedBy); if (!u) return toast('Type the name first'); st.signature = u; changed(true); } }, '✍ From the name'),
-        el('button', { onclick: () => openSignPad('Prepared by', (u) => { st.signature = u; changed(true); }, st.preparedBy) }, '✎ Draw'),
-        sigImg ? el('button', { class: 'danger', onclick: () => { st.signature = null; changed(true); } }, 'Remove') : null)));
+        el('button', { onclick: () => { const u = signatureFromName(st.preparedBy); if (!u) return toast('Type the name first'); setSignature(u); } }, '✍ From the name'),
+        el('button', { onclick: () => openSignPad('Prepared by', (u) => setSignature(u), st.preparedBy) }, '✎ Draw'),
+        sigImg ? el('button', { class: 'danger', onclick: () => setSignature(null) }, 'Remove') : null)));
 }
+
+/** "Signed on …" with the date and time the signature was made. */
+function signedTxt() {
+  if (!st.signature || !st.signedAt) return '';
+  const d = new Date(st.signedAt);
+  return isNaN(d) ? '' : `Signed on ${d.toLocaleDateString('en-GB')} at ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+}
+const setSignature = (u) => { st.signature = u; st.signedAt = u ? new Date().toISOString() : null; if (u) st.date = new Date().toISOString().slice(0, 10); changed(true); };
 
 function equipmentTable() {
   return el('table', { class: 'lt-tbl' },
@@ -497,8 +516,6 @@ function equipmentTable() {
 function printPlan() {
   const pr = document.getElementById('lt-print');
   pr.innerHTML = '';
-  const sk = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
-  const others = st.photos.filter((p) => p !== sk);
   const c = st.crane, cm = st.comms || {};
   const live = out.checks.filter((x) => !x.hidden);
   const bad = live.filter((x) => x.status === 'fail' || x.status === 'warn');
@@ -517,6 +534,9 @@ function printPlan() {
   const headTxt = st.head === 'hook' ? 'Legs directly on the crane hook' : st.head === 'crane' ? 'On the master link of the crane' : out.rig?.head?.masterlink ? `On ${niceName(out.rig.head.masterlink)}` : 'On a master link';
   const fan = fanSvg(470);
   const steps = st.steps.filter((t) => String(t.note || '').trim());
+  const third = Math.ceil(SAFETY_MEASURES.length / 3);
+  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(st.safety.includes(m)), ' ', m)));
+  const further = st.safety.filter((x) => !SAFETY_MEASURES.includes(x));
 
   const p1 = el('div', { class: 'p-in lt-rep' }, header,
     el('table', { class: 'tb' },
@@ -543,18 +563,6 @@ function printPlan() {
     el('table', { class: 'tb steps' },
       tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
       steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
-    bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
-    el('div', { class: 'figs sk2' },
-      el('div', {}, el('div', { class: 'sub-t' }, 'Sketch'), sk ? drawing(boardSvg(sk, boardFor(sk), false), 'sk') : el('div', { class: 'p-empty' }, 'No photo')),
-      el('div', {}, el('div', { class: 'sub-t' }, 'Legs'), legend(),
-        others.slice(0, 2).map((p) => el('div', { class: 'ph-b' }, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph'))))),
-    others.length > 2 ? el('div', { class: 'figs f3' }, others.slice(2, 8).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
-    fan ? el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), drawing(fan, 'fan')) : null);
-
-  const third = Math.ceil(SAFETY_MEASURES.length / 3);
-  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(st.safety.includes(m)), ' ', m)));
-  const further = st.safety.filter((x) => !SAFETY_MEASURES.includes(x));
-  const p2 = el('div', { class: 'p-in lt-rep' }, header.cloneNode(true),
     el('table', { class: 'tb' },
       sec('Possible safety measures to be considered', '(tick as applicable and detail in ‘step-by-step’)', 3),
       tr(col(0), col(1), col(2))),
@@ -563,11 +571,17 @@ function printPlan() {
       sec('Communications', '', 2),
       tr(
         el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || '—'}`)),
-        el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))),
+        el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))));
+
+  const views = st.photos.slice(0, 9);
+  const p2 = el('div', { class: 'p-in lt-rep' }, header.cloneNode(true),
+    bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
+    views.length ? el('div', { class: `figs views v${views.length <= 2 ? 2 : 3}` }, views.map((p) => drawing(boardSvg(p, boardFor(p), false), 'sk'))) : el('div', { class: 'p-empty' }, 'No photo'),
+    fan ? el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), drawing(fan, 'fan')) : null,
     el('table', { class: 'tb signoff' },
       sec('Prepared by', '', 4),
       tr(el('th', {}, 'Name'), el('td', {}, st.preparedBy || ''), el('th', {}, 'Date'), el('td', {}, st.date || '')),
-      tr(el('th', {}, 'Signature'), el('td', { colspan: '3', class: 'sigc' }, sigImg ? el('img', { src: sigImg, alt: '' }) : ''))));
+      tr(el('th', {}, 'Signature'), el('td', { colspan: '3', class: 'sigc' }, sigImg ? el('img', { src: sigImg, alt: '' }) : '', signedTxt() ? el('div', { class: 'signed' }, signedTxt()) : null))));
   pr.append(el('div', { class: 'p-page' }, p1, footer(1)), el('div', { class: 'p-page' }, p2, footer(2)));
   // each page measured at the printed width and scaled down when too tall
   const imgs = [...pr.querySelectorAll('img')];

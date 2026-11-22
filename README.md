@@ -29,6 +29,8 @@ At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPla
 5. **Steps & safety**: short step by step (editable) and the safety measures that apply.
 6. **Plan**: checks (SWL of every part, compatibility of the parts, crane at the max. radius), equipment list, prepared by + date + signature (written from the name or drawn), and the **PDF** (page 1: lifting plan, load / crane, equipment, step by step, sketch with all the photos, rigging arrangement to scale; page 2: safety measures, communications, signature).
 
+v0.10.6: **each view has its own sketch** (hook and legs placed independently on every photo), view name in the corner (side / front / top / isometric view), legs named in a badge with the lift point number — A (1); all the views in the report, same size, without the leg legend. Signature from the name drawn like a hand signature (full and Light versions), with the **date and time of signature**.
+
 v0.10.4: background removal by **tracing a line around the object** (points placed one by one, magnifier under the finger, points movable; holes traced the same way; brush to touch up).
 
 v0.10.2: lengths given as the **sling length** (EWL, the leg adds the shackles and links) or as the leg length; **padeye** drawn at the lift points; rigging arrangement easier to read (no utilisation, no 30° — that angle is only used for the sizing); **project name**, **communications** (primary / secondary / other, checked) and a responsible per step; PDF laid out like the report of the full version.

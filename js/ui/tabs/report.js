@@ -583,7 +583,9 @@ export function buildReport() {
     el('tr', {}, el('th', {}, 'Date'), who.map(([, k]) => el('td', {}, ed(`signoff.${k}.date`, { ph: 'Date' })))),
     el('tr', { class: 'sig' }, el('th', {}, 'Signature'), who.map(([t, k]) => {
       const img = safeImg(p.signoff?.[k]?.signature);
-      return el('td', { class: 'sig-cell', title: 'Click to sign', onmousedown: (ev) => { ev.preventDefault(); signFor(k, t); } }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'no-print sig-hint' }, '✎ Click to sign'));
+      const so = p.signoff?.[k] || {};
+      return el('td', { class: 'sig-cell', title: 'Click to sign', onmousedown: (ev) => { ev.preventDefault(); signFor(k, t); } }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'no-print sig-hint' }, '✎ Click to sign'),
+        img && signedText(so) ? el('div', { class: 'signed-at' }, signedText(so)) : null);
     })),
   ));
   return rep;
@@ -658,13 +660,20 @@ function reportChecks(list) {
 }
 
 // ---------- sign-off: names, dates and signatures (drawn), also editable in the report
+/** "Signed on … at …" from the time the signature was made. */
+function signedText(so) {
+  if (!so?.signedAt) return '';
+  const d = new Date(so.signedAt);
+  return isNaN(d) ? '' : `Signed on ${d.toLocaleDateString('en-GB')} at ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+}
+
 function signFor(k, role) {
   const p = app.project;
   const who = p.project?.[k] || '';
   openSignPad(`${role}${who ? ` — ${who}` : ''}`, (url) => {
     p.signoff = p.signoff || {};
-    p.signoff[k] = { ...(p.signoff[k] || {}), signature: url };
-    if (url && !p.signoff[k].date) p.signoff[k].date = new Date().toISOString().slice(0, 10);
+    p.signoff[k] = { ...(p.signoff[k] || {}), signature: url, signedAt: url ? new Date().toISOString() : null };
+    if (url) p.signoff[k].date = new Date().toISOString().slice(0, 10);
     app.recompute();
     window.__rerender?.();
   }, who);
@@ -688,11 +697,13 @@ function signoffPanel() {
           const url = signatureFromName(p.project[k]);
           if (!url) return alert('Type the name first');
           so.signature = url;
-          if (!so.date) so.date = new Date().toISOString().slice(0, 10);
+          so.signedAt = new Date().toISOString();
+          so.date = new Date().toISOString().slice(0, 10);
           app.recompute();
           window.__rerender?.();
         } }, '✍ From the name'),
-        img ? el('button', { class: 'small danger', onclick: () => { so.signature = null; app.recompute(); window.__rerender?.(); } }, 'Remove') : null));
+        img ? el('button', { class: 'small danger', onclick: () => { so.signature = null; so.signedAt = null; app.recompute(); window.__rerender?.(); } }, 'Remove') : null),
+      signedText(so) ? el('div', { class: 'muted', style: { fontSize: '12px' } }, signedText(so)) : null);
   };
   return el('div', { id: 'signoff-panel', class: 'panel no-print', style: { marginBottom: '12px' } },
     el('div', { class: 'panel-head' }, el('h2', {}, 'Sign-off'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Names, dates and signatures printed at the end of the lift plan (also editable in the report). Signatures stay in the project file.')),

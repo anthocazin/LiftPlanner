@@ -191,6 +191,11 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 .lt-rep .drawing.fan svg { max-height: 85mm; }
 .lt-rep .ph-b { margin-top: 6px; }
 .lt-rep .ph-b .drawing.ph svg { max-height: 48mm; }
+.lt-rep .figs.views { gap: 6px; }
+.lt-rep .figs.views.v2 { grid-template-columns: 1fr 1fr; }
+.lt-rep .figs.views.v3 { grid-template-columns: 1fr 1fr 1fr; }
+.lt-rep .figs.views .drawing svg { max-height: none; }
+.lt-rep .signed { font-size: 8.5px; color: #333; margin-top: 2px; }
 .lt-rep .figs.f3 { grid-template-columns: repeat(3, 1fr); }
 .lt-rep .drawing { border: 1px solid #bbb; }
 .lt-rep .drawing svg { display: block; width: 100%; height: auto; max-height: 100mm; margin: 0 auto; }

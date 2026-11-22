@@ -61,31 +61,72 @@ export function openSignPad(title, onSave, name = '') {
 }
 
 /**
- * Signature written from the name, in a handwriting font of the computer (Segoe Script, Brush Script,
- * Lucida Handwriting… or the browser's cursive), with a pen stroke under it. Transparent PNG.
+ * Signature made from the name, like a hand signature: a large initial (long loop and tall stroke)
+ * followed by a fast cursive scribble of the name, thin pen line. The same name always gives the same
+ * signature. Transparent PNG.
  */
 export function signatureFromName(name) {
   const n = String(name || '').trim();
   if (!n) return null;
+  const words = n.split(/\s+/);
+  const plain = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');
+  const rest = plain(words.length > 1 ? words[words.length - 1] : words[0].slice(1)).slice(0, 7) || 'a';
+  let seed = [...n].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 7);
+  const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const j = (v) => v + (rnd() - 0.5) * 2 * 6;
+
   const cv = document.createElement('canvas');
-  cv.width = 1400; cv.height = 300;
+  cv.width = 1400; cv.height = 420;
   const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#1b2f6b';
-  ctx.strokeStyle = '#1b2f6b';
-  ctx.font = "italic 400 110px 'Segoe Script', 'Brush Script MT', 'Lucida Handwriting', 'Snell Roundhand', 'Apple Chancery', 'URW Chancery L', cursive";
-  ctx.save();
-  ctx.translate(40, 190);
-  ctx.rotate(-0.05);
-  ctx.fillText(n, 0, 0);
-  const w = Math.min(ctx.measureText(n).width, 1300);
-  // flourish under the name
-  ctx.lineWidth = 4;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(w * 0.05, 34);
-  ctx.bezierCurveTo(w * 0.35, 58, w * 0.7, 18, w * 1.02, 30);
-  ctx.stroke();
-  ctx.restore();
+  const y0 = 250; // base line
+  const vx = 300 + rnd() * 40; // the tall stroke of the initial
+  // 1) initial: long thin loop to the left, closing on the tall stroke
+  const loop = [[vx + 14, y0 - 52], [vx - 70, y0 - 66], [190, y0 - 62], [70, y0 - 44], [48, y0 - 24], [110, y0 - 8], [260, y0 - 2], [vx + 20, y0 - 8], [vx + 60, y0 - 20]].map(([x, y]) => [j(x), j(y)]);
+  const stem = [[vx - 18, y0 - 205], [vx - 8, y0 - 130], [vx + 2, y0 - 50], [vx + 8, y0 + 12]].map(([x, y]) => [x + (rnd() - 0.5) * 4, y]);
+  // 2) the name, fast cursive: humps, tall loops for b d f h k l t, low loops for g j p q y
+  const pts = [[vx + 60, y0 - 20]];
+  let x = vx + 72;
+  for (const ch of rest) {
+    const w = 40 + rnd() * 14, hx = 42 + rnd() * 12;
+    if ('bdfhklt'.includes(ch)) {
+      pts.push([x + w * 0.2, y0 - hx * 0.6], [x + w * 0.55, y0 - 135 - rnd() * 25], [x + w * 0.3, y0 - 105], [x + w * 0.45, y0 - 8]);
+    } else if ('gjpqy'.includes(ch)) {
+      pts.push([x + w * 0.3, y0 - hx], [x + w * 0.5, y0 - 6], [x + w * 0.45, y0 + 70], [x + w * 0.25, y0 + 40], [x + w * 0.7, y0 - 4]);
+    } else if ('mnw'.includes(ch)) {
+      pts.push([x + w * 0.2, y0 - hx], [x + w * 0.4, y0 - 2], [x + w * 0.65, y0 - hx], [x + w * 0.9, y0 - 2]);
+      x += w * 0.35;
+    } else {
+      pts.push([x + w * 0.3, y0 - hx], [x + w * 0.62, y0 - 3]);
+    }
+    x += w;
+  }
+  pts.push([x + 26, y0 - 12], [x + 70, y0 - 30 - rnd() * 14]);
+
+  // Catmull-Rom spline drawn in short pieces, the width following the speed of the pen
+  const stroke = (P, w0) => {
+    if (P.length < 2) return;
+    const Q = [P[0], ...P, P[P.length - 1]];
+    let prev = null;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1d2b4a';
+    for (let i = 1; i < Q.length - 2; i++) {
+      const [p0, p1, p2, p3] = [Q[i - 1], Q[i], Q[i + 1], Q[i + 2]];
+      for (let k = 0; k <= 12; k++) {
+        const t = k / 12, t2 = t * t, t3 = t2 * t;
+        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+        const pt = [f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])];
+        if (prev) {
+          const v = Math.hypot(pt[0] - prev[0], pt[1] - prev[1]);
+          ctx.lineWidth = Math.max(1.6, w0 * (1.25 - Math.min(v, 30) / 40));
+          ctx.beginPath(); ctx.moveTo(prev[0], prev[1]); ctx.lineTo(pt[0], pt[1]); ctx.stroke();
+        }
+        prev = pt;
+      }
+    }
+  };
+  stroke(stem, 4.2);
+  stroke(loop, 3.6);
+  stroke(pts, 3.6);
   return trimmed(cv);
 }
 
