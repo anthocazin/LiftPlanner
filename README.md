@@ -180,7 +180,8 @@ The *Source* column of the catalogue browser (Inventory tab) states for each ite
 ## Code structure
 
 ```
-index.html            user interface (ES modules, no build step)
+app.html              user interface (ES modules, no build step — open it for development)
+index.html            the same application in one file (npm run build), published on the site
 css/app.css           screen + print styles
 js/state.js           project model, example, migrations
 js/engine/            pure calculation code (testable under Node)

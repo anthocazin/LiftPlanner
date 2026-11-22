@@ -32,19 +32,11 @@ jobs:
       - run: npm test
       - run: npm run build
       - name: Prepare the site
-        # The code goes under a folder named after the commit (v/<sha>/): each version has new URLs,
-        # so a browser never mixes cached modules of an older version. version.json lets an open
-        # page offer to reload when a newer version is published.
+        # index.html is the whole application in one file (built by npm run build): a reload always
+        # gets the new version; version.json lets an open page offer to reload.
         run: |
-          SHA="${GITHUB_SHA::8}"
-          mkdir -p "_site/v/$SHA"
-          cp -r css js vendor "_site/v/$SHA/"
-          cp -r examples dist _site/
-          sed -e "s#href=\"css/app.css\"#href=\"v/$SHA/css/app.css\"#" \
-              -e "s#src=\"js/ui/main.js\"#src=\"v/$SHA/js/ui/main.js\"#" \
-              -e "s#</head>#  <meta name=\"build\" content=\"$SHA\" />\n</head>#" index.html > _site/index.html
-          echo "{\"build\":\"$SHA\"}" > _site/version.json
-          grep -q "v/$SHA/js/ui/main.js" _site/index.html
+          mkdir -p _site
+          cp -r index.html version.json app.html css js vendor examples dist _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
