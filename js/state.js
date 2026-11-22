@@ -19,17 +19,13 @@ export const DEFAULT_CHECKLIST = [
 
 // "Possible safety measures to be considered" (lifting plan template)
 export const SAFETY_MEASURES = [
-  'Weight not verified', 'Stability of load', 'High centre of gravity', 'Awkward size/shape/sharp edges', 'No dedicated lift points',
-  'No certified suspension points for lifting equipment', 'Packing protection load/lifting equipment/assets', 'Loose objects removed from load',
-  'Load on pallet requires securing', 'Tag lines required', 'Buoyancy of objects', 'Lifting of chemicals', 'Access and egress for slinging',
-  'No lift points directly above load', 'Accessories/equipment fit for purpose/SWL',
-  'Lifting equipment/accessories certificates', 'Stability of lifting equipment', 'Pre-use equipment checks', 'Crane mode verified', 'Vessel stability',
-  'Vessel ballasting required', 'Lifting over plant/equipment/assets', 'Restricted head room', 'Lay-down area size/strength/stability',
-  'Route and lay-down area clear', 'Route and lay-down area obstructed', 'Lay-down in operational radius of lifting equipment', 'Conflicting operations',
-  'Cultural, communications, language issues', 'Diving operations – precautions',
-  'Emergency/rescue plans', 'Environment: visibility/wind speed/wave height/tide', 'Sudden changes in environmental conditions',
-  'Load visibility during night/subsea working', 'Blind lifting', 'Lighting pick-up and set-down areas', 'Dynamic factors involved', 'Seabed suction',
-  'Seabed conditions', 'Competent and sufficient personnel', 'Suitable adequate supervision', 'Correct PPE', 'Toolbox talk required', 'Sea fastenings removed',
+  'Weight not verified', 'High centre of gravity', 'Awkward size/shape/sharp edges', 'No dedicated lift points',
+  'No certified suspension points for lifting equipment', 'Loose objects removed from load', 'Load on pallet requires securing',
+  'Tag lines required', 'Lifting of chemicals', 'Access and egress for slinging',
+  'Crane mode verified', 'Vessel stability', 'Lifting over plant/equipment/assets', 'Lay-down area size/strength/stability',
+  'Route and lay-down area clear', 'Route and lay-down area obstructed', 'Diving operations – precautions',
+  'Environment: visibility/wind speed/wave height/tide', 'Lighting pick-up and set-down areas', 'Dynamic factors involved',
+  'Competent and sufficient personnel', 'Suitable adequate supervision', 'Correct PPE', 'Toolbox talk required',
 ];
 
 export const CHECKLIFT = [
