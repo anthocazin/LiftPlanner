@@ -9,6 +9,9 @@ import { openSignPad, signatureFromName } from '../ui/signpad.js';
 import { openCutout } from './cutout.js';
 import { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFETY_MEASURES, DEFAULT_STEPS, DEFAULT_SAFETY } from './model.js';
 
+/** Length given for a leg: the sling / chain, or the leg (lift point → hook). */
+const givenLen = (id) => num((st.lenMode === 'sling' ? st.slings : st.lengths)?.[id]);
+
 const LS = 'liftplanner.light.v1';
 const STEPS = [['photos', '1 Photos'], ['load', '2 Load & crane'], ['rigging', '3 Rigging'], ['sketch', '4 Sketch'], ['safety', '5 Steps & safety'], ['plan', '6 Plan']];
 const VIEWS = ['Side view', 'Front view', 'Top view', 'Other'];
@@ -33,7 +36,9 @@ function load() {
 }
 function fixState(s) {
   const n = newState();
-  return { ...n, ...s, crane: { ...n.crane, ...(s.crane || {}) }, steps: Array.isArray(s.steps) ? s.steps : n.steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
+  const steps = (Array.isArray(s.steps) ? s.steps : n.steps).map((x) => (typeof x === 'string' ? { note: x, resp: '' } : { note: x?.note || '', resp: x?.resp || '' }));
+  const lenMode = s.lenMode || (Object.values(s.lengths || {}).some((v) => v > 0) ? 'leg' : 'sling');
+  return { ...n, ...s, lenMode, slings: s.slings || {}, crane: { ...n.crane, ...(s.crane || {}) }, comms: { ...n.comms, ...(s.comms || {}) }, steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
 }
 function save() {
   clearTimeout(saveTimer);
@@ -220,6 +225,7 @@ function stepLoad() {
   const c = st.crane;
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'Load'),
+      field('Project', st.project, (v) => { st.project = v; }, { type: 'text', ph: 'e.g. Quay extension — phase 2' }),
       field('What is lifted', st.title, (v) => { st.title = v; }, { type: 'text', ph: 'e.g. Pump skid P-101' }),
       field('Where', st.location, (v) => { st.location = v; }, { type: 'text', ph: 'e.g. Quay 3' }),
       el('div', { class: 'lt-2' },
@@ -251,9 +257,9 @@ function itemsFor(part) {
 }
 const kindLabel = (p) => PALETTE.find((x) => x.kind === p.kind && (!x.family || x.family === p.family) && (!x.hitch || x.hitch === (p.hitch || 'direct')))?.label || p.kind;
 
-function fanSvg(height = 560) {
+function fanSvg(height = 470) {
   if (!out.legs.length || !(Number(st.weight_t) > 0)) return '';
-  try { return drawRiggingFan(out.project, out.res, { height }) || ''; } catch { return ''; }
+  try { return drawRiggingFan(out.project, out.res, { height, lite: true }) || ''; } catch { return ''; }
 }
 
 function stepRigging() {
@@ -275,12 +281,16 @@ function stepRigging() {
         el('button', { title: 'Towards the lift point', disabled: i === 0, onclick: () => { [A[i], A[i - 1]] = [A[i - 1], A[i]]; changed(true); } }, '↓'),
         el('button', { class: 'danger', onclick: () => { A.splice(i, 1); changed(true); } }, '✕'))));
   }
+  const sl = st.lenMode === 'sling';
+  const store = () => { if (sl) st.slings = st.slings || {}; else st.lengths = st.lengths || {}; return sl ? st.slings : st.lengths; };
   const lens = el('div', { class: 'lt-lens' }, ids.map((id, i) => {
     const l = out.legs.find((x) => x.pointId === id);
     const s = l?.parts?.[l.li];
+    const what = s?.kind === 'chain' ? 'chain' : 'sling';
     return el('label', { class: 'lt-f' }, el('span', {}, `${id} (point ${i + 1})`),
-      el('input', { type: 'number', value: st.lengths?.[id] ?? '', placeholder: 'm', onchange: (e) => { st.lengths = st.lengths || {}; st.lengths[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
-      s?.length_m ? el('small', { class: 'muted' }, `${s.kind === 'chain' ? 'chain' : 'sling'} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
+      el('input', { type: 'number', value: store()[id] ?? '', placeholder: 'm', onchange: (e) => { store()[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
+      sl ? (l?.Leff && givenLen(id) ? el('small', { class: 'muted' }, `${s?.kind === 'chain' && s.links ? `${s.links} links · ` : ''}leg ${fmt(l.Leff, 2)} m (point → hook)`) : null)
+        : s?.length_m ? el('small', { class: 'muted' }, `${what} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
   }));
   const fan = fanSvg();
   return el('div', {},
@@ -291,11 +301,15 @@ function stepRigging() {
       list,
       el('div', { class: 'lt-row lt-add' }, el('span', {}, 'Add:'), PALETTE.map((x) => el('button', { onclick: () => { A.push({ kind: x.kind, family: x.family, hitch: x.hitch, id: 'auto' }); changed(true); } }, `+ ${x.label}`))),
       el('p', { class: 'muted small' }, `Auto = smallest size whose SWL holds ${out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : 'the force of the leg'} (legs at ${ANGLE}°, same force in every leg).`)),
-    el('section', { class: 'lt-card' }, el('h2', {}, 'Length of each leg (lift point → hook)'),
+    el('section', { class: 'lt-card' }, el('h2', {}, sl ? 'Length of the sling of each leg' : 'Length of each leg (lift point → hook)'),
+      el('div', { class: 'lt-seg' },
+        el('button', { class: sl ? 'on' : '', onclick: () => { st.lenMode = 'sling'; changed(true); } }, 'Sling length'),
+        el('button', { class: sl ? '' : 'on', onclick: () => { st.lenMode = 'leg'; changed(true); } }, 'Leg length')),
       lens,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { const L = ids.map((id) => num(st.lengths?.[id])).find((v) => v > 0); if (!L) return toast('Type the length of one leg first'); ids.forEach((id) => { st.lengths[id] = L; }); changed(true); } }, 'Same length on every leg'),
-        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))),
+        el('button', { onclick: () => { const S = store(); const L = ids.map((id) => num(S[id])).find((v) => v > 0); if (!L) return toast('Type one length first'); ids.forEach((id) => { S[id] = L; }); changed(true); } }, 'Same length on every leg'),
+        sl ? el('span', { class: 'muted small' }, 'The sling you use, eye to eye; the leg adds the shackles and links.')
+          : el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Rigging arrangement (to scale)'),
       fan ? el('div', { class: 'lt-fan', html: fan }) : el('p', { class: 'muted' }, 'Give the weight (step 2) and the lengths of the legs.'),
       legend()));
@@ -348,7 +362,7 @@ function boardSvg(ph, b, live) {
       const t = b.tops[id] || h;
       if (b.tops[id]) s += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="2.5" stroke-dasharray="10 8"/>`;
       s += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
-      const L = num(st.lengths?.[id]);
+      const L = givenLen(id);
       s += label(a.x * 0.6 + t.x * 0.4 + r, a.y * 0.6 + t.y * 0.4, `${id}${L ? ` ${fmt(L, 2)} m` : ''}`, '#b4561a', fs);
       if (live) {
         const c = b.tops[id] ? t : { x: a.x * 0.3 + t.x * 0.7, y: a.y * 0.3 + t.y * 0.7 };
@@ -405,17 +419,26 @@ function stepSketch() {
 function stepSafety() {
   const S = st.steps;
   const list = el('ol', { class: 'lt-seq' }, S.map((t, i) => el('li', {},
-    el('textarea', { rows: '3', onchange: (e) => { S[i] = e.target.value; changed(); } }, t),
+    el('textarea', { rows: '3', placeholder: 'Details of the step', onchange: (e) => { t.note = e.target.value; changed(); } }, t.note),
     el('div', { class: 'lt-seq-b' },
+      el('input', { type: 'text', value: t.resp || '', placeholder: 'Responsible', onchange: (e) => { t.resp = e.target.value; changed(); } }),
       el('button', { disabled: i === 0, onclick: () => { [S[i], S[i - 1]] = [S[i - 1], S[i]]; changed(true); } }, '↑'),
       el('button', { class: 'danger', onclick: () => { S.splice(i, 1); changed(true); } }, '✕')))));
   const all = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
+  const cm = st.comms;
   let custom = '';
+  const tick = (k, t) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: !!cm[k], onchange: (e) => { cm[k] = e.target.checked; changed(); } }), ` ${t}`);
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'Step by step'), list,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { S.push(''); changed(true); } }, '+ Step'),
-        el('button', { onclick: () => { if (confirm('Back to the default steps?')) { st.steps = [...DEFAULT_STEPS]; changed(true); } } }, 'Default steps'))),
+        el('button', { onclick: () => { S.push({ note: '', resp: '' }); changed(true); } }, '+ Step'),
+        el('button', { onclick: () => { if (confirm('Back to the default steps?')) { st.steps = DEFAULT_STEPS.map((note) => ({ note, resp: '' })); changed(true); } } }, 'Default steps'))),
+    el('section', { class: 'lt-card' }, el('h2', {}, 'Communications'),
+      el('div', { class: 'lt-2' },
+        field('Primary', cm.primary, (v) => { cm.primary = v; }, { type: 'text', ph: 'e.g. Radio ch. 12' }),
+        field('Secondary', cm.secondary, (v) => { cm.secondary = v; }, { type: 'text', ph: 'e.g. Hand signals' })),
+      field('Other', cm.other, (v) => { cm.other = v; }, { type: 'text', ph: '—' }),
+      el('div', { class: 'lt-row' }, tick('primaryChecked', 'Primary checked'), tick('secondaryChecked', 'Secondary checked'))),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Safety measures'),
       el('p', { class: 'muted small' }, 'Tap to tick the measures that apply to this lift.'),
       el('div', { class: 'lt-safety' }, all.map((m) => el('button', { class: `chip ${st.safety.includes(m) ? 'on' : ''}`, onclick: () => { st.safety = st.safety.includes(m) ? st.safety.filter((x) => x !== m) : [...st.safety, m]; changed(true); } }, `${st.safety.includes(m) ? '☑' : '☐'} ${m}`))),
@@ -470,48 +493,85 @@ function equipmentTable() {
       el('td', {}, b.config || '')))));
 }
 
-// ------------------------------------------------------------------ PDF (A4, no browser header / footer)
+// ------------------------------------------------------------------ PDF: template of the full version, A4, no browser header / footer
 function printPlan() {
   const pr = document.getElementById('lt-print');
   pr.innerHTML = '';
   const sk = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
   const others = st.photos.filter((p) => p !== sk);
-  const kv = (k, v) => el('tr', {}, el('th', {}, k), el('td', {}, v ?? '—'));
-  const c = st.crane;
+  const c = st.crane, cm = st.comms || {};
   const live = out.checks.filter((x) => !x.hidden);
   const bad = live.filter((x) => x.status === 'fail' || x.status === 'warn');
   const sigImg = safeImg(st.signature);
-  const head = (n) => el('div', { class: 'p-head' },
-    el('div', {}, el('h1', {}, 'LIFT PLAN'), el('div', {}, [st.title, st.location].filter(Boolean).join(' — ') || '—')),
-    el('div', { class: 'p-date' }, st.date || '', el('br'), el('span', {}, `Page ${n} / 2`)));
-  const fan = fanSvg(620);
-  const p1 = el('div', { class: 'p-in' }, head(1),
-    el('div', { class: 'p-figs' },
-      el('div', { class: 'p-fig' }, el('div', { class: 'p-cap' }, 'Sketch'), sk ? el('div', { class: 'p-svg', html: boardSvg(sk, boardFor(sk), false) }) : el('div', { class: 'p-empty' }, 'No photo')),
-      el('div', { class: 'p-side' },
-        el('table', { class: 'p-kv' },
-          kv('Weight', st.weight_t ? `${fmt(st.weight_t)} t` : null), kv('Factor', `× ${fmt(st.factor, 2)}`),
-          kv('Rigging', out.rigW ? `${fmt(out.rigW)} t` : null), kv('Hook load × factor', out.hook ? `${fmt(out.hook)} t` : null),
-          kv('Legs', `${legIds(st).length} at ${ANGLE}° (sizing)`), kv('Force per leg', out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : null),
-          kv('Crane', c.name || null),
-          kv('SWL min. radius', c.swlMin_t ? `${fmt(c.swlMin_t)} t${c.rMin_m ? ` at ${c.rMin_m} m` : ''}` : null),
-          kv('SWL max. radius', c.swlMax_t ? `${fmt(c.swlMax_t)} t${c.rMax_m ? ` at ${c.rMax_m} m` : ''}` : null)),
-        legend(),
-        el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible, crane` : `${bad.length} point(s) to resolve`),
-        bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null)),
-    fan ? el('h3', {}, 'Rigging arrangement (to scale)') : null,
-    fan ? el('div', { class: 'p-svg p-fan', html: fan }) : null,
-    el('h3', {}, 'Equipment'), equipmentTable());
-  const allSafety = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
-  const p2 = el('div', { class: 'p-in' }, head(2),
-    el('h3', {}, 'Step by step'),
-    el('ol', { class: 'p-seq' }, st.steps.filter((t) => String(t).trim()).map((t) => el('li', {}, t))),
-    el('h3', {}, 'Safety measures'),
-    el('div', { class: 'p-safety' }, allSafety.map((m) => el('div', { class: st.safety.includes(m) ? 'on' : '' }, `${st.safety.includes(m) ? '☒' : '☐'} ${m}`))),
-    others.length ? el('h3', {}, 'Photos') : null,
-    others.length ? el('div', { class: 'p-others' }, others.slice(0, 3).map((p) => el('div', { class: 'p-fig' }, el('div', { class: 'p-svg', html: photoMarked(p, false) }), el('div', { class: 'p-cap' }, p.name)))) : null,
-    el('div', { class: 'p-sign' }, el('div', {}, el('b', {}, 'Prepared by: '), st.preparedBy || '—', el('span', {}, `Date: ${st.date || ''}`)), sigImg ? el('img', { src: sigImg, alt: '' }) : null));
-  pr.append(el('div', { class: 'p-page' }, p1), el('div', { class: 'p-page' }, p2));
+  const ids = legIds(st);
+  const tr = (...xs) => el('tr', {}, ...xs);
+  const sec = (t, sub, cols = 1) => tr(el('th', { colspan: String(cols), class: 'sec' }, t, sub ? el('span', {}, ` ${sub}`) : null));
+  const box = (v) => el('span', { class: 'tick' }, v ? '☒' : '☐');
+  const ul = (arr) => el('ul', {}, arr.filter(Boolean).map((t) => el('li', {}, t)));
+  const bar = (t) => el('div', { class: 'bar' }, t);
+  const drawing = (html, cls = '') => el('div', { class: `drawing ${cls}`, html });
+  const header = el('div', { class: 'rhead' }, el('div', { class: 'mid' },
+    el('div', { class: 'h1' }, st.project || ''), el('div', { class: 'h2' }, st.location || ''), el('div', { class: 'h3' }, st.title || '')));
+  const footer = (n) => el('div', { class: 'rfoot' }, el('span', {}, [st.project, st.title, st.date].filter(Boolean).join(' · ')), el('span', {}, `Page ${n} / 2`));
+  const swlMax = Number(c.swlMax_t) > 0 ? Number(c.swlMax_t) : null;
+  const headTxt = st.head === 'hook' ? 'Legs directly on the crane hook' : st.head === 'crane' ? 'On the master link of the crane' : out.rig?.head?.masterlink ? `On ${niceName(out.rig.head.masterlink)}` : 'On a master link';
+  const fan = fanSvg(470);
+
+  const p1 = el('div', { class: 'p-in lt-rep' }, header,
+    el('table', { class: 'tb' },
+      tr(el('th', { colspan: '4', class: 'big' }, 'LIFTING PLAN')),
+      tr(el('th', {}, 'Project'), el('td', { colspan: '3' }, st.project || '—')),
+      tr(el('th', {}, 'Title'), el('td', { colspan: '3' }, st.title || '—')),
+      tr(el('th', {}, 'Lift Location'), el('td', {}, st.location || '—'), el('th', {}, 'Date'), el('td', {}, st.date || '—'))),
+    el('table', { class: 'tb' },
+      sec('Load details/crane details', '(maximum hook load not to be exceeded)', 3),
+      tr(
+        el('td', {}, el('b', {}, 'Load identification:'), ul([st.title || null, `${ids.length} lift point(s) ${ids.join(', ')}`, `Direct to hook, ${ids.length} legs`, headTxt])),
+        el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), ul([
+          `Net weight ${st.weight_t ? `${fmt(st.weight_t)} t` : '—'}`, `Rigging ${fmt(out.rigW)} t`, `Factor × ${fmt(st.factor, 2)}`,
+          el('b', {}, `Max hook load: ${out.hook ? `${fmt(out.hook)} t` : '—'}`)])),
+        el('td', {}, el('b', {}, 'Crane:'), ul([c.name || '—',
+          c.swlMin_t ? `SWL ${fmt(c.swlMin_t)} t at min. radius${c.rMin_m ? ` ${c.rMin_m} m` : ''}` : null,
+          swlMax ? `SWL ${fmt(swlMax)} t at max. radius${c.rMax_m ? ` ${c.rMax_m} m` : ''}${out.hook ? ` → ${Math.round((out.hook / swlMax) * 100)} % used` : ''}` : null])))),
+    el('table', { class: 'tb eq' },
+      sec('Lifting equipment and accessories to be used', '(specify type, SWL and configuration)', 5),
+      el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration'].map((h) => el('td', {}, h))),
+      out.bom.map((b) => tr(el('td', { class: 'c' }, String(b.qty)), el('td', {}, b.name),
+        el('td', { class: 'c' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m${b.links ? ` (${b.links} links)` : ''}` : 'n/a'),
+        el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'), el('td', {}, b.config || '')))),
+    bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
+    el('div', { class: 'figs' },
+      el('div', {}, el('div', { class: 'sub-t' }, 'Sketch'), sk ? drawing(boardSvg(sk, boardFor(sk), false), 'sk') : el('div', { class: 'p-empty' }, 'No photo')),
+      el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), fan ? drawing(fan, 'fan') : el('div', { class: 'p-empty' }, '—'))),
+    legend(),
+    bar('Calculation summary'),
+    el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible with each other, crane at the max. radius` : `${bad.length} point(s) to resolve`),
+    bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null);
+
+  const third = Math.ceil(SAFETY_MEASURES.length / 3);
+  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(st.safety.includes(m)), ' ', m)));
+  const further = st.safety.filter((x) => !SAFETY_MEASURES.includes(x));
+  const steps = st.steps.filter((t) => String(t.note || '').trim());
+  const p2 = el('div', { class: 'p-in lt-rep' }, header.cloneNode(true),
+    el('table', { class: 'tb' },
+      sec('Possible safety measures to be considered', '(tick as applicable and detail in ‘step-by-step’)', 3),
+      tr(col(0), col(1), col(2))),
+    further.length ? el('table', { class: 'tb' }, sec('Any further safety measures'), tr(el('td', {}, ul(further)))) : null,
+    el('table', { class: 'tb' },
+      sec('Communications', '', 2),
+      tr(
+        el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || '—'}`)),
+        el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))),
+    el('table', { class: 'tb steps' },
+      tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
+      steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
+    others.length ? bar('Photos') : null,
+    others.length ? el('div', { class: 'figs f3' }, others.slice(0, 3).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
+    el('table', { class: 'tb signoff' },
+      sec('Prepared by', '', 4),
+      tr(el('th', {}, 'Name'), el('td', {}, st.preparedBy || ''), el('th', {}, 'Date'), el('td', {}, st.date || '')),
+      tr(el('th', {}, 'Signature'), el('td', { colspan: '3', class: 'sigc' }, sigImg ? el('img', { src: sigImg, alt: '' }) : ''))));
+  pr.append(el('div', { class: 'p-page' }, p1, footer(1)), el('div', { class: 'p-page' }, p2, footer(2)));
   // each page measured at the printed width and scaled down when too tall
   const imgs = [...pr.querySelectorAll('img')];
   Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; })))).then(() => {
@@ -520,7 +580,7 @@ function printPlan() {
       inn.style.zoom = '';
       const mm = inn.getBoundingClientRect().width / 190;
       const h = inn.getBoundingClientRect().height / mm;
-      if (h > 276) inn.style.zoom = String(Math.floor((276 / h) * 100) / 100);
+      if (h > 268) inn.style.zoom = String(Math.floor((268 / h) * 100) / 100);
     });
     pr.removeAttribute('style');
     const t = document.title;

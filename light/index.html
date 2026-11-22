@@ -157,52 +157,60 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block !important; }
-  :root, body { background: #fff; font-size: 10pt; }
-  .p-page { width: 210mm; height: 297mm; padding: 10mm; overflow: hidden; break-after: page; page-break-after: always; }
+  :root, body { background: #fff; }
+  .p-page { width: 210mm; height: 297mm; padding: 9mm 10mm 7mm; overflow: hidden; break-after: page; page-break-after: always; display: flex; flex-direction: column; }
   .p-page:last-child { break-after: auto; page-break-after: auto; }
+  .lt-rep table.tb th, .lt-rep .bar, .lt-rep tr.colh td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
-.p-in { width: 190mm; font-size: 9.5pt; color: #000; }
-.p-in h3 { font-size: 10.5pt; margin: 8px 0 3px; color: var(--navy); border-bottom: 1px solid #bbb; padding-bottom: 1px; }
-.p-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid var(--navy); padding-bottom: 4px; margin-bottom: 6px; }
-.p-head h1 { margin: 0; font-size: 17pt; color: var(--navy); letter-spacing: .5px; }
-.p-date { font-weight: 700; text-align: right; }
-.p-date span { font-weight: 400; font-size: 8pt; color: #555; }
-.p-figs { display: flex; gap: 8px; align-items: flex-start; }
-.p-figs > .p-fig { flex: 1.1; }
-.p-figs > .p-side { flex: 1; padding-top: 14px; }
-.p-side .lt-legend { margin-top: 6px !important; }
-.p-fig { break-inside: avoid; min-width: 0; }
-.p-svg svg { display: block; width: 100%; height: auto; max-height: 125mm; border: 1px solid #999; }
-.p-fan svg { border: 0; max-height: 92mm; width: auto; max-width: 100%; margin: 0 auto; }
-.p-cap { font-size: 8pt; font-weight: 700; padding: 1px 0 2px; color: #333; }
-.p-top { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
-.p-kv { width: 100%; border-collapse: collapse; }
-.p-kv th, .p-kv td { text-align: left; padding: 2px 4px; border-bottom: 1px solid #ccc; font-size: 9pt; }
-.p-kv th { color: #444; font-weight: 600; width: 45%; }
-.p-side .lt-legend { font-size: 8.5pt; margin-top: 0; line-height: 1.35; }
-.p-res { margin-top: 6px; padding: 4px 8px; font-weight: 800; border-radius: 4px; border: 1.5px solid; }
+/* template of the full version */
+.lt-rep { width: 190mm; font-family: Arial, Helvetica, sans-serif; font-size: 9.5px; color: #000; }
+.lt-rep .rhead { text-align: center; padding-bottom: 6px; margin-bottom: 6px; }
+.lt-rep .rhead .h1 { font-weight: 700; font-size: 12px; color: #1c2733; min-height: 14px; }
+.lt-rep .rhead .h2 { font-size: 11px; color: #333; }
+.lt-rep .rhead .h3 { font-weight: 700; font-size: 12.5px; color: #1c2733; margin-top: 4px; }
+.rfoot { display: flex; justify-content: space-between; font-family: Arial, Helvetica, sans-serif; font-size: 8.5px; color: #666; border-top: 1px solid #bbb; padding-top: 3px; margin-top: auto; }
+.lt-rep table.tb { width: 100%; border-collapse: collapse; margin: 0 0 9px; font-size: 9.5px; }
+.lt-rep table.tb th, .lt-rep table.tb td { border: 1px solid #7f7f7f; padding: 3px 5px; vertical-align: top; text-align: left; }
+.lt-rep table.tb th { background: #c6d9f1; font-weight: 700; width: 1%; white-space: nowrap; }
+.lt-rep table.tb th.sec, .lt-rep table.tb th.big { background: #8db3e2; width: auto; white-space: normal; }
+.lt-rep table.tb th.sec span { font-weight: 400; font-size: 8.5px; }
+.lt-rep table.tb th.big { text-align: center; font-size: 13px; letter-spacing: .04em; }
+.lt-rep table.tb ul { margin: 2px 0 0 14px; padding: 0; }
+.lt-rep table.tb td.small { font-size: 8.5px; line-height: 1.45; }
+.lt-rep table.tb td.c { text-align: center; }
+.lt-rep table.tb td.n { width: 22px; }
+.lt-rep table.tb tr.colh td { background: #c6d9f1; font-weight: 700; text-align: center; }
+.lt-rep table.tb.steps th.resp { width: 22%; }
+.lt-rep table.tb.signoff th { width: 13%; }
+.lt-rep table.tb td.sigc { height: 16mm; }
+.lt-rep table.tb td.sigc img { max-height: 15mm; }
+.lt-rep .tick { font-family: 'Segoe UI Symbol', 'DejaVu Sans', sans-serif; font-size: 11px; }
+.lt-rep .bar { background: #8db3e2; font-weight: 700; padding: 3px 6px; border: 1px solid #7f7f7f; margin: 4px 0 6px; font-size: 10px; }
+.lt-rep .sub-t { font-weight: 700; color: #173a5e; margin: 0 0 4px; font-size: 10px; }
+.lt-rep .figs { display: grid; grid-template-columns: 1fr 1.25fr; gap: 6px; margin-bottom: 6px; align-items: start; }
+.lt-rep .figs.f3 { grid-template-columns: repeat(3, 1fr); }
+.lt-rep .drawing { border: 1px solid #bbb; }
+.lt-rep .drawing svg { display: block; width: 100%; height: auto; max-height: 100mm; margin: 0 auto; }
+.lt-rep .drawing.fan svg { width: auto; max-width: 100%; }
+.lt-rep .drawing.ph svg { max-height: 55mm; width: auto; max-width: 100%; }
+.lt-rep .lt-legend { font-size: 9px; margin: 0 0 6px; line-height: 1.4; }
+.p-res { margin-top: 2px; padding: 4px 8px; font-weight: 800; border-radius: 3px; border: 1.5px solid; }
 .p-res.ok { color: var(--ok); } .p-res.warn { color: var(--warn); } .p-res.fail, .p-res.empty { color: var(--fail); }
-.p-bad { margin: 4px 0 0 14px; padding: 0; font-size: 8pt; color: var(--fail); }
-.p-in .lt-tbl { font-size: 8.5pt; }
-.p-in .lt-tbl th, .p-in .lt-tbl td { padding: 2px 4px; }
-.p-seq { margin: 4px 0 0 18px; padding: 0; line-height: 1.45; }
-.p-safety { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 10px; font-size: 8.5pt; color: #777; }
-.p-safety .on { color: #000; font-weight: 600; }
-.p-others { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.p-others .p-svg svg { max-height: 60mm; }
-.p-sign { display: flex; justify-content: space-between; align-items: center; border-top: 1.5px solid #000; margin-top: 12px; padding-top: 4px; }
-.p-sign img { max-height: 16mm; }
-.p-sign span { margin-left: 14px; }
-.p-empty { border: 1px dashed #999; padding: 30mm 0; text-align: center; color: #888; }
+.p-bad { margin: 4px 0 0 14px; padding: 0; font-size: 8.5px; color: var(--fail); }
+.p-empty { border: 1px dashed #999; padding: 20mm 0; text-align: center; color: #888; }
+.lt-seg { display: flex; gap: 0; margin: 0 0 8px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.lt-seg button { flex: 1; border: 0; border-radius: 0; min-height: 40px; font-size: 14px; white-space: normal; }
+.lt-seg button.on { background: var(--navy); color: #fff; font-weight: 700; }
+.lt-seq-b input { flex: 1; min-height: 34px; font-size: 14px; }
 
 </style>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23e8822a'/%3E%3Cpath d='M16 4v9M9 22l7-9 7 9M7 22h18v6H7z' stroke='%230f2742' stroke-width='2.4' fill='none'/%3E%3C/svg%3E" />
-  <meta name="build" content="247f0f005c" />
+  <meta name="build" content="24179adf06" />
 </head>
 <body>
   <div id="light"></div>
   <script type="module">
-// LiftPlanner Light v0.10.1 — standalone build generated by tools/build-standalone.mjs
+// LiftPlanner Light v0.10.2 — standalone build generated by tools/build-standalone.mjs
 const __m = {};
 // ---- js/state.js
 __m["js/state.js"] = (() => {
@@ -3905,6 +3913,18 @@ function padeyeEdge(yPin, t, R, hole, dir = 1) {
   return { svg: out, top: ya, bottom: yb + (dir > 0 ? 14 : 0) };
 }
 
+/** Padeye seen face-on (hole facing the viewer), base plate below; yPin = hole centre. */
+function padeyeFace(yPin, hole, R) {
+  const r = Math.max(R, hole * 0.9);
+  const A = r * 1.5, L = r * 2.7;
+  const yb = yPin + A;
+  let out = path(`M ${-r} ${yPin} A ${r} ${r} 0 0 1 ${r} ${yPin} L ${L / 2} ${yb} L ${-L / 2} ${yb} Z`, { fill: '#c6ced6', stroke: STEEL_EDGE, 'stroke-width': 1.2, ...sw });
+  out += circle(0, yPin, hole / 2, { fill: '#fff', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
+  out += rect(-L * 0.75, yb, L * 1.5, 14, { fill: '#dfe4ea', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
+  for (let i = -6; i < 6; i++) out += line((L * 0.75 * i) / 6, yb + 28, (L * 0.75 * (i + 0.8)) / 6, yb + 14, { stroke: STEEL_EDGE, 'stroke-width': 0.5, ...sw });
+  return { svg: out, bottom: yb + 28, half: L * 0.75 };
+}
+
 function hookShape(y0, size) {
   const r = size;
   return path(
@@ -3946,7 +3966,7 @@ function chainDraw(item, y0, links, dispMax = 520) {
 }
 
 /** Builds the column of one leg (coordinates in mm, y down): from the hook down to the lift point. */
-function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {}) {
+function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite = false } = {}) {
   const head = rig.head || {};
   const parts = [];
   const labels = [];
@@ -3956,7 +3976,9 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
   let barA = 40;
   let minX = -60, maxX = 60;
   const ext = (hw) => { minX = Math.min(minX, -hw); maxX = Math.max(maxX, hw); };
-  const util = (F, wll) => (wll ? `${Math.round((F / wll) * 100)} %` : '');
+  // lite (LiftPlanner Light): no utilisation, no angle, the padeye seen face-on
+  const util = (F, wll) => (wll && !lite ? `${Math.round((F / wll) * 100)} %` : '');
+  const j = (...xs) => xs.filter(Boolean).join(' · ');
   const F = leg.Fdesign;
   const sp = project.rigging.spreader || {};
 
@@ -3964,7 +3986,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
   if (fromHook) {
     const hs = Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35);
     parts.push(hookShape(0, hs));
-    labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crane hook`, `static load ${fmt(rig.shl)} t`] });
+    labels.push({ y: -hs * 1.5, x: hs * 1.2, t: [`Crane hook`, lite ? `hook load ${fmt(rig.shl)} t` : `static load ${fmt(rig.shl)} t`] });
     var hookBottom = hs * 1.25; // eslint-disable-line no-var
     ext(hs * 1.6);
     if (head.topShackle) {
@@ -4015,7 +4037,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
       ext(sr.w / 2 + 20);
       labels.push({
         y: sr.mid, x: sr.w / 2, strong: true,
-        t: [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''} · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: lite ? [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''}`] : [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''} · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -sr.w / 2, y: sr.mid, t: `${fmt(p.length_m)} m` });
       slingSvg = sr.svg; // drawn last (on top of the bow)
@@ -4033,7 +4055,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
       ext(c.halfWidth + 10);
       labels.push({
         y: c.mid, x: c.halfWidth, strong: true,
-        t: [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: lite ? [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links)`] : [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -c.halfWidth, y: c.mid, t: `${fmt(p.length_m, 2)} m` });
       y = c.end; bar = c.nextBar; barA = c.a;
@@ -4048,7 +4070,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
       const yS = y + eff;
       const r = Math.max((yS - (y + C + t)) / 4.2, B * 0.5);
       parts.push(hookShape(yS, r));
-      labels.push({ y: y + eff * 0.6, x: r * 1.5, t: [niceName(it), util(F, it.wll_t)] });
+      labels.push({ y: y + eff * 0.6, x: r * 1.5, t: [niceName(it), util(F, it.wll_t)].filter(Boolean) });
       ext(r * 1.6);
       y = yS; bar = 'depth'; barA = t;
       continue;
@@ -4058,7 +4080,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
       const L = ml ? it.dims.insideLength || 120 : it.dims.effLength || 60, t = ml ? it.dims.stockDia || 15 : it.dims.barThk || 15;
       const W = ml ? it.dims.insideWidth || 60 : p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
       parts.push(p.kind === 'connlink' ? glinkFace(y, L, W, t) : bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
-      labels.push({ y: y + L / 2, x: W / 2 + t, t: [niceName(it), util(F, it.wll_t)] });
+      labels.push({ y: y + L / 2, x: W / 2 + t, t: [niceName(it), util(F, it.wll_t)].filter(Boolean) });
       ext(W / 2 + t);
       y += L; bar = bar === 'lr' ? 'depth' : 'lr'; barA = t;
       continue;
@@ -4070,15 +4092,23 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
         const pinCenter = bar === 'lug' ? y : y + d.pinDia / 2;
         const r = bar === 'lr' ? shackleSide(it, pinCenter, 1) : shackleFront(it, pinCenter, 1);
         parts.push(r.svg);
-        labels.push({ y: pinCenter + d.insideLength * 0.5, x: r.halfWidth, t: [niceName(it), util(F, wll)] });
+        labels.push({ y: pinCenter + d.insideLength * 0.5, x: r.halfWidth, t: [niceName(it), util(F, wll)].filter(Boolean) });
         ext(r.halfWidth);
         y = r.crownY; bar = r.crownDir; barA = r.a;
       } else {
         // load side: bow up holding the element above, pin down
         const pinCenter = y + d.insideLength + d.pinDia / 2;
-        const r = shackleFront(it, pinCenter, -1);
+        const liteEye = lite && i === 0 && leg.level !== 'top';
+        const r = liteEye ? shackleSide(it, pinCenter, -1) : shackleFront(it, pinCenter, -1);
         const sf = i === 0 && leg.level !== 'top' ? shackleSideLoadFactor(leg.beta || 0) : 1;
-        if (i === 0) {
+        if (liteEye) {
+          const pt = leg.point;
+          const pe = padeyeFace(pinCenter, d.pinDia + 3, d.eyeDia * 0.85);
+          parts.push(pe.svg);
+          labels.push({ y: pinCenter + d.eyeDia * 0.9, x: pe.half * 0.55, t: [`Padeye ${pt?.id || ''}`.trim()] });
+          ext(pe.half);
+          y = pe.bottom;
+        } else if (i === 0) {
           const pt = leg.point;
           const pad = pt && pt.padeye !== false;
           const thk = pad ? (Number(pt.thk_mm) || 0) + 2 * (Number(pt.cheekThk_mm) || 0) : Number(sp.topLugThk_mm);
@@ -4093,7 +4123,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520 } = {
           y = pe.bottom;
         } else y = pinCenter + d.pinDia;
         parts.push(r.svg);
-        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: [niceName(it), `${util(F, it.wll_t * sf)} · pin Ø${d.pinDia}`] });
+        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: lite ? [niceName(it), `pin Ø${d.pinDia}`] : [niceName(it), `${util(F, it.wll_t * sf)} · pin Ø${d.pinDia}`] });
         ext(r.halfWidth + d.pinDia);
         bar = 'depth'; barA = d.pinDia;
       }
@@ -4175,7 +4205,10 @@ function drawRiggingFan(project, res, opts = {}) {
   const Lmax = Math.max(...Ls), Lmin = Math.min(...Ls.filter((v) => v > 0), Lmax);
   const base = Math.max(420, (Lmax - Lmin) * 1000 + 260); // shown length of the longest body (mm)
   const cut = Lmax * 1000 - base;
-  const cols = legs.map((l, i) => { const d = Math.max(200, Ls[i] * 1000 - cut); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d }); });
+  const lite = !!opts.lite;
+  // lite: bodies shown between 240 and 480 mm (a shorter leg still looks shorter, the parts stay readable)
+  const disp = (L) => (lite ? 240 + (Lmax > Lmin ? (240 * (L - Lmin)) / (Lmax - Lmin) : 120) : Math.max(200, L * 1000 - cut));
+  const cols = legs.map((l, i) => { const d = disp(Ls[i]); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d, lite }); });
   const c0 = cols[0];
   const gap = 46; // px between the crane hook and the top of the legs
   const legSpan = Math.max(...cols.map((c) => c.height - c.headY));
@@ -4184,8 +4217,8 @@ function drawRiggingFan(project, res, opts = {}) {
   const first = new Map();
   legs.forEach((l) => { if (!first.has(sig(l))) first.set(sig(l), l.pointId); });
   const labelled = legs.map((l) => first.get(sig(l)) === l.pointId);
-  const FS = 15, LH = 17; // text size and line height
-  const labelW = 205;
+  const FS = lite ? 21 : 15, LH = lite ? 25 : 17; // text size and line height
+  const labelW = lite ? 255 : 205;
   // columns side by side (room for the callouts only where there are some), the whole centred,
   // the hook above the middle of the legs
   const half = Math.max(...cols.map((c) => Math.max(-c.minX, c.maxX))) * s;
@@ -4218,8 +4251,8 @@ function drawRiggingFan(project, res, opts = {}) {
     const Y = (y) => topY + (y - c.headY) * s;
     for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 5, il.t, { 'text-anchor': 'end', 'font-size': FS, 'font-weight': 700, fill: '#173a5e' });
     const by = Y(c.height);
-    body += text(cx, by + 20, l.pointId, { 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 800, fill: '#c0392b' });
-    body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
+    body += text(cx, by + (lite ? 26 : 20), l.pointId, { 'text-anchor': 'middle', 'font-size': lite ? 26 : 18, 'font-weight': 800, fill: '#c0392b' });
+    if (!lite) body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
     if (!lab) continue;
     const tx = cx + half + 14;
     let last = -1e9;
@@ -4230,7 +4263,7 @@ function drawRiggingFan(project, res, opts = {}) {
       last = ty + LH * (lb.t.filter(Boolean).length - 1);
     }
   }
-  const maxBy = Math.max(...lay.map(({ c }) => legTop + 2 + (c.height - c.headY) * s)) + 46;
+  const maxBy = Math.max(...lay.map(({ c }) => legTop + 2 + (c.height - c.headY) * s)) + (lite ? 36 : 46);
   const H = Math.max(Math.round(maxBy), 300);
   return svgDoc(W, H, body, { title: 'Rigging arrangement to scale' });
 }
@@ -4707,6 +4740,7 @@ const HEADS = {
 function newState() {
   return {
     v: 1,
+    project: '',
     title: '',
     location: '',
     date: new Date().toISOString().slice(0, 10),
@@ -4719,7 +4753,7 @@ function newState() {
     photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, mask: dataURL | null (white = kept) }
     sketch: null, // id of the photo used for the sketch
     board: null, // sketch on a grid: { x, y, w } of the photo, hook {x, y}, tops { A: {x, y} } (board units)
-    steps: [...DEFAULT_STEPS],
+    steps: DEFAULT_STEPS.map((note) => ({ note, resp: '' })),
     safety: [...DEFAULT_SAFETY],
     hidden: [], // warnings removed by the user
     head: 'masterlink',
@@ -4729,7 +4763,10 @@ function newState() {
       { kind: 'sling', family: 'RS-PES', hitch: 'direct', id: 'auto' },
       { kind: 'shackle', id: 'auto' },
     ],
-    lengths: {}, // { A: 4.5 }
+    lenMode: 'sling', // 'sling': length of the sling / chain given; 'leg': lift point → hook
+    slings: {}, // { A: 5.5 } sling (or chain) length per leg
+    lengths: {}, // { A: 4.5 } leg length, lift point → hook
+    comms: { primary: 'Radio', secondary: 'Hand signals', other: '', primaryChecked: false, secondaryChecked: false },
   };
 }
 
@@ -4748,7 +4785,7 @@ const checkKey = (c) => `${c.cat}|${c.item}|${String(c.label || '').replace(/[\d
 const legIds = (st) => LEG_IDS.slice(0, Math.max(1, Math.min(8, Number(st.nPoints) || 1)));
 
 /** Project of the full engine for the light state. */
-function toProject(st) {
+function toProject(st, legLen = null) {
   const p = defaultProject();
   const ids = legIds(st);
   const ld = p.load;
@@ -4759,13 +4796,15 @@ function toProject(st) {
   ld.cogBasis = 'centred';
   ld.cogZUnknown = true;
   ld.liftPoints = ids.map((id) => ({ id, padeye: false, used: true, x: 0, y: 0, z: 0, picks: {} }));
-  const L = Object.fromEntries(ids.map((id) => [id, Number(st.lengths?.[id]) > 0 ? Number(st.lengths[id]) : 3]));
+  const sl = st.lenMode === 'sling';
+  const given = (id) => Number((sl ? st.slings : st.lengths)?.[id]) || 0;
+  const L = Object.fromEntries(ids.map((id) => [id, legLen?.[id] > 0 ? legLen[id] : given(id) > 0 ? given(id) + (sl ? 0.6 : 0) : 3]));
   equalShareLayout(ld, L, ANGLE);
   const r = p.rigging;
   r.type = 'hook';
   r.equalShare = true;
   r.equalAngle_deg = ids.length === 1 ? 0 : ANGLE;
-  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: st.std === false ? 'exact' : 'nearest', uniformLegs: false };
+  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: sl || st.std === false ? 'exact' : 'nearest', uniformLegs: false };
   r.assembly = (st.assembly || []).map((x) => ({ ...x }));
   r.legs = Object.fromEntries(ids.map((id) => [id, { Leff_m: L[id] }]));
   r.head = { ...(r.head || {}), type: st.head === 'hook' ? 'hook' : ids.length > 2 ? 'assembly' : 'masterlink', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, unknownSWL: st.head === 'crane' };
@@ -4779,8 +4818,17 @@ const KEEP = ['Shackles', 'Slings', 'Chains', 'G-links', 'Hooks', 'Master link',
 
 /** Calculation: legs, equipment, checks (rigging + crane). */
 function compute(st) {
-  const p = toProject(st);
-  const res = computeProject(p);
+  let p = toProject(st);
+  let res = computeProject(p);
+  if (st.lenMode === 'sling') {
+    // the sling length is given: leg length = sling + shackles and links (second pass)
+    const L = {};
+    (res.rig?.legs || []).filter((l) => l.level !== 'top').forEach((l) => {
+      const g = Number(st.slings?.[l.pointId]);
+      if (g > 0) L[l.pointId] = g + (Number(l.hwLength) || 0) - (Number(l.wrap) || 0);
+    });
+    if (Object.keys(L).length) { p = toProject(st, L); res = computeProject(p); }
+  }
   const rig = res.rig || {};
   const checks = (res.checks || []).filter((c) => KEEP.includes(c.cat) && !/pad ?eye|hole|padeye/i.test(c.label || ''));
   // crane: total hook load × factor ≤ SWL at the largest radius (and at the smallest)
@@ -4827,6 +4875,9 @@ const { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFET
 
 
 
+/** Length given for a leg: the sling / chain, or the leg (lift point → hook). */
+const givenLen = (id) => num((st.lenMode === 'sling' ? st.slings : st.lengths)?.[id]);
+
 const LS = 'liftplanner.light.v1';
 const STEPS = [['photos', '1 Photos'], ['load', '2 Load & crane'], ['rigging', '3 Rigging'], ['sketch', '4 Sketch'], ['safety', '5 Steps & safety'], ['plan', '6 Plan']];
 const VIEWS = ['Side view', 'Front view', 'Top view', 'Other'];
@@ -4851,7 +4902,9 @@ function load() {
 }
 function fixState(s) {
   const n = newState();
-  return { ...n, ...s, crane: { ...n.crane, ...(s.crane || {}) }, steps: Array.isArray(s.steps) ? s.steps : n.steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
+  const steps = (Array.isArray(s.steps) ? s.steps : n.steps).map((x) => (typeof x === 'string' ? { note: x, resp: '' } : { note: x?.note || '', resp: x?.resp || '' }));
+  const lenMode = s.lenMode || (Object.values(s.lengths || {}).some((v) => v > 0) ? 'leg' : 'sling');
+  return { ...n, ...s, lenMode, slings: s.slings || {}, crane: { ...n.crane, ...(s.crane || {}) }, comms: { ...n.comms, ...(s.comms || {}) }, steps, safety: Array.isArray(s.safety) ? s.safety : n.safety, hidden: Array.isArray(s.hidden) ? s.hidden : [] };
 }
 function save() {
   clearTimeout(saveTimer);
@@ -5038,6 +5091,7 @@ function stepLoad() {
   const c = st.crane;
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'Load'),
+      field('Project', st.project, (v) => { st.project = v; }, { type: 'text', ph: 'e.g. Quay extension — phase 2' }),
       field('What is lifted', st.title, (v) => { st.title = v; }, { type: 'text', ph: 'e.g. Pump skid P-101' }),
       field('Where', st.location, (v) => { st.location = v; }, { type: 'text', ph: 'e.g. Quay 3' }),
       el('div', { class: 'lt-2' },
@@ -5069,9 +5123,9 @@ function itemsFor(part) {
 }
 const kindLabel = (p) => PALETTE.find((x) => x.kind === p.kind && (!x.family || x.family === p.family) && (!x.hitch || x.hitch === (p.hitch || 'direct')))?.label || p.kind;
 
-function fanSvg(height = 560) {
+function fanSvg(height = 470) {
   if (!out.legs.length || !(Number(st.weight_t) > 0)) return '';
-  try { return drawRiggingFan(out.project, out.res, { height }) || ''; } catch { return ''; }
+  try { return drawRiggingFan(out.project, out.res, { height, lite: true }) || ''; } catch { return ''; }
 }
 
 function stepRigging() {
@@ -5093,12 +5147,16 @@ function stepRigging() {
         el('button', { title: 'Towards the lift point', disabled: i === 0, onclick: () => { [A[i], A[i - 1]] = [A[i - 1], A[i]]; changed(true); } }, '↓'),
         el('button', { class: 'danger', onclick: () => { A.splice(i, 1); changed(true); } }, '✕'))));
   }
+  const sl = st.lenMode === 'sling';
+  const store = () => { if (sl) st.slings = st.slings || {}; else st.lengths = st.lengths || {}; return sl ? st.slings : st.lengths; };
   const lens = el('div', { class: 'lt-lens' }, ids.map((id, i) => {
     const l = out.legs.find((x) => x.pointId === id);
     const s = l?.parts?.[l.li];
+    const what = s?.kind === 'chain' ? 'chain' : 'sling';
     return el('label', { class: 'lt-f' }, el('span', {}, `${id} (point ${i + 1})`),
-      el('input', { type: 'number', value: st.lengths?.[id] ?? '', placeholder: 'm', onchange: (e) => { st.lengths = st.lengths || {}; st.lengths[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
-      s?.length_m ? el('small', { class: 'muted' }, `${s.kind === 'chain' ? 'chain' : 'sling'} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
+      el('input', { type: 'number', value: store()[id] ?? '', placeholder: 'm', onchange: (e) => { store()[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
+      sl ? (l?.Leff && givenLen(id) ? el('small', { class: 'muted' }, `${s?.kind === 'chain' && s.links ? `${s.links} links · ` : ''}leg ${fmt(l.Leff, 2)} m (point → hook)`) : null)
+        : s?.length_m ? el('small', { class: 'muted' }, `${what} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
   }));
   const fan = fanSvg();
   return el('div', {},
@@ -5109,11 +5167,15 @@ function stepRigging() {
       list,
       el('div', { class: 'lt-row lt-add' }, el('span', {}, 'Add:'), PALETTE.map((x) => el('button', { onclick: () => { A.push({ kind: x.kind, family: x.family, hitch: x.hitch, id: 'auto' }); changed(true); } }, `+ ${x.label}`))),
       el('p', { class: 'muted small' }, `Auto = smallest size whose SWL holds ${out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : 'the force of the leg'} (legs at ${ANGLE}°, same force in every leg).`)),
-    el('section', { class: 'lt-card' }, el('h2', {}, 'Length of each leg (lift point → hook)'),
+    el('section', { class: 'lt-card' }, el('h2', {}, sl ? 'Length of the sling of each leg' : 'Length of each leg (lift point → hook)'),
+      el('div', { class: 'lt-seg' },
+        el('button', { class: sl ? 'on' : '', onclick: () => { st.lenMode = 'sling'; changed(true); } }, 'Sling length'),
+        el('button', { class: sl ? '' : 'on', onclick: () => { st.lenMode = 'leg'; changed(true); } }, 'Leg length')),
       lens,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { const L = ids.map((id) => num(st.lengths?.[id])).find((v) => v > 0); if (!L) return toast('Type the length of one leg first'); ids.forEach((id) => { st.lengths[id] = L; }); changed(true); } }, 'Same length on every leg'),
-        el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))),
+        el('button', { onclick: () => { const S = store(); const L = ids.map((id) => num(S[id])).find((v) => v > 0); if (!L) return toast('Type one length first'); ids.forEach((id) => { S[id] = L; }); changed(true); } }, 'Same length on every leg'),
+        sl ? el('span', { class: 'muted small' }, 'The sling you use, eye to eye; the leg adds the shackles and links.')
+          : el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: st.std !== false, onchange: (e) => { st.std = e.target.checked; changed(true); } }), ' Standard sling lengths (else made to measure)'))),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Rigging arrangement (to scale)'),
       fan ? el('div', { class: 'lt-fan', html: fan }) : el('p', { class: 'muted' }, 'Give the weight (step 2) and the lengths of the legs.'),
       legend()));
@@ -5166,7 +5228,7 @@ function boardSvg(ph, b, live) {
       const t = b.tops[id] || h;
       if (b.tops[id]) s += `<line x1="${t.x}" y1="${t.y}" x2="${h.x}" y2="${h.y}" stroke="#1c2733" stroke-width="2.5" stroke-dasharray="10 8"/>`;
       s += `<line x1="${a.x}" y1="${a.y}" x2="${t.x}" y2="${t.y}" stroke="#e8822a" stroke-width="${sw}" stroke-linecap="round"/>`;
-      const L = num(st.lengths?.[id]);
+      const L = givenLen(id);
       s += label(a.x * 0.6 + t.x * 0.4 + r, a.y * 0.6 + t.y * 0.4, `${id}${L ? ` ${fmt(L, 2)} m` : ''}`, '#b4561a', fs);
       if (live) {
         const c = b.tops[id] ? t : { x: a.x * 0.3 + t.x * 0.7, y: a.y * 0.3 + t.y * 0.7 };
@@ -5223,17 +5285,26 @@ function stepSketch() {
 function stepSafety() {
   const S = st.steps;
   const list = el('ol', { class: 'lt-seq' }, S.map((t, i) => el('li', {},
-    el('textarea', { rows: '3', onchange: (e) => { S[i] = e.target.value; changed(); } }, t),
+    el('textarea', { rows: '3', placeholder: 'Details of the step', onchange: (e) => { t.note = e.target.value; changed(); } }, t.note),
     el('div', { class: 'lt-seq-b' },
+      el('input', { type: 'text', value: t.resp || '', placeholder: 'Responsible', onchange: (e) => { t.resp = e.target.value; changed(); } }),
       el('button', { disabled: i === 0, onclick: () => { [S[i], S[i - 1]] = [S[i - 1], S[i]]; changed(true); } }, '↑'),
       el('button', { class: 'danger', onclick: () => { S.splice(i, 1); changed(true); } }, '✕')))));
   const all = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
+  const cm = st.comms;
   let custom = '';
+  const tick = (k, t) => el('label', { class: 'check' }, el('input', { type: 'checkbox', checked: !!cm[k], onchange: (e) => { cm[k] = e.target.checked; changed(); } }), ` ${t}`);
   return el('div', {},
     el('section', { class: 'lt-card' }, el('h2', {}, 'Step by step'), list,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { S.push(''); changed(true); } }, '+ Step'),
-        el('button', { onclick: () => { if (confirm('Back to the default steps?')) { st.steps = [...DEFAULT_STEPS]; changed(true); } } }, 'Default steps'))),
+        el('button', { onclick: () => { S.push({ note: '', resp: '' }); changed(true); } }, '+ Step'),
+        el('button', { onclick: () => { if (confirm('Back to the default steps?')) { st.steps = DEFAULT_STEPS.map((note) => ({ note, resp: '' })); changed(true); } } }, 'Default steps'))),
+    el('section', { class: 'lt-card' }, el('h2', {}, 'Communications'),
+      el('div', { class: 'lt-2' },
+        field('Primary', cm.primary, (v) => { cm.primary = v; }, { type: 'text', ph: 'e.g. Radio ch. 12' }),
+        field('Secondary', cm.secondary, (v) => { cm.secondary = v; }, { type: 'text', ph: 'e.g. Hand signals' })),
+      field('Other', cm.other, (v) => { cm.other = v; }, { type: 'text', ph: '—' }),
+      el('div', { class: 'lt-row' }, tick('primaryChecked', 'Primary checked'), tick('secondaryChecked', 'Secondary checked'))),
     el('section', { class: 'lt-card' }, el('h2', {}, 'Safety measures'),
       el('p', { class: 'muted small' }, 'Tap to tick the measures that apply to this lift.'),
       el('div', { class: 'lt-safety' }, all.map((m) => el('button', { class: `chip ${st.safety.includes(m) ? 'on' : ''}`, onclick: () => { st.safety = st.safety.includes(m) ? st.safety.filter((x) => x !== m) : [...st.safety, m]; changed(true); } }, `${st.safety.includes(m) ? '☑' : '☐'} ${m}`))),
@@ -5288,48 +5359,85 @@ function equipmentTable() {
       el('td', {}, b.config || '')))));
 }
 
-// ------------------------------------------------------------------ PDF (A4, no browser header / footer)
+// ------------------------------------------------------------------ PDF: template of the full version, A4, no browser header / footer
 function printPlan() {
   const pr = document.getElementById('lt-print');
   pr.innerHTML = '';
   const sk = st.photos.find((p) => p.id === st.sketch) || st.photos[0];
   const others = st.photos.filter((p) => p !== sk);
-  const kv = (k, v) => el('tr', {}, el('th', {}, k), el('td', {}, v ?? '—'));
-  const c = st.crane;
+  const c = st.crane, cm = st.comms || {};
   const live = out.checks.filter((x) => !x.hidden);
   const bad = live.filter((x) => x.status === 'fail' || x.status === 'warn');
   const sigImg = safeImg(st.signature);
-  const head = (n) => el('div', { class: 'p-head' },
-    el('div', {}, el('h1', {}, 'LIFT PLAN'), el('div', {}, [st.title, st.location].filter(Boolean).join(' — ') || '—')),
-    el('div', { class: 'p-date' }, st.date || '', el('br'), el('span', {}, `Page ${n} / 2`)));
-  const fan = fanSvg(620);
-  const p1 = el('div', { class: 'p-in' }, head(1),
-    el('div', { class: 'p-figs' },
-      el('div', { class: 'p-fig' }, el('div', { class: 'p-cap' }, 'Sketch'), sk ? el('div', { class: 'p-svg', html: boardSvg(sk, boardFor(sk), false) }) : el('div', { class: 'p-empty' }, 'No photo')),
-      el('div', { class: 'p-side' },
-        el('table', { class: 'p-kv' },
-          kv('Weight', st.weight_t ? `${fmt(st.weight_t)} t` : null), kv('Factor', `× ${fmt(st.factor, 2)}`),
-          kv('Rigging', out.rigW ? `${fmt(out.rigW)} t` : null), kv('Hook load × factor', out.hook ? `${fmt(out.hook)} t` : null),
-          kv('Legs', `${legIds(st).length} at ${ANGLE}° (sizing)`), kv('Force per leg', out.legs[0] ? `${fmt(out.legs[0].Fdesign)} t` : null),
-          kv('Crane', c.name || null),
-          kv('SWL min. radius', c.swlMin_t ? `${fmt(c.swlMin_t)} t${c.rMin_m ? ` at ${c.rMin_m} m` : ''}` : null),
-          kv('SWL max. radius', c.swlMax_t ? `${fmt(c.swlMax_t)} t${c.rMax_m ? ` at ${c.rMax_m} m` : ''}` : null)),
-        legend(),
-        el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible, crane` : `${bad.length} point(s) to resolve`),
-        bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null)),
-    fan ? el('h3', {}, 'Rigging arrangement (to scale)') : null,
-    fan ? el('div', { class: 'p-svg p-fan', html: fan }) : null,
-    el('h3', {}, 'Equipment'), equipmentTable());
-  const allSafety = [...SAFETY_MEASURES, ...st.safety.filter((x) => !SAFETY_MEASURES.includes(x))];
-  const p2 = el('div', { class: 'p-in' }, head(2),
-    el('h3', {}, 'Step by step'),
-    el('ol', { class: 'p-seq' }, st.steps.filter((t) => String(t).trim()).map((t) => el('li', {}, t))),
-    el('h3', {}, 'Safety measures'),
-    el('div', { class: 'p-safety' }, allSafety.map((m) => el('div', { class: st.safety.includes(m) ? 'on' : '' }, `${st.safety.includes(m) ? '☒' : '☐'} ${m}`))),
-    others.length ? el('h3', {}, 'Photos') : null,
-    others.length ? el('div', { class: 'p-others' }, others.slice(0, 3).map((p) => el('div', { class: 'p-fig' }, el('div', { class: 'p-svg', html: photoMarked(p, false) }), el('div', { class: 'p-cap' }, p.name)))) : null,
-    el('div', { class: 'p-sign' }, el('div', {}, el('b', {}, 'Prepared by: '), st.preparedBy || '—', el('span', {}, `Date: ${st.date || ''}`)), sigImg ? el('img', { src: sigImg, alt: '' }) : null));
-  pr.append(el('div', { class: 'p-page' }, p1), el('div', { class: 'p-page' }, p2));
+  const ids = legIds(st);
+  const tr = (...xs) => el('tr', {}, ...xs);
+  const sec = (t, sub, cols = 1) => tr(el('th', { colspan: String(cols), class: 'sec' }, t, sub ? el('span', {}, ` ${sub}`) : null));
+  const box = (v) => el('span', { class: 'tick' }, v ? '☒' : '☐');
+  const ul = (arr) => el('ul', {}, arr.filter(Boolean).map((t) => el('li', {}, t)));
+  const bar = (t) => el('div', { class: 'bar' }, t);
+  const drawing = (html, cls = '') => el('div', { class: `drawing ${cls}`, html });
+  const header = el('div', { class: 'rhead' }, el('div', { class: 'mid' },
+    el('div', { class: 'h1' }, st.project || ''), el('div', { class: 'h2' }, st.location || ''), el('div', { class: 'h3' }, st.title || '')));
+  const footer = (n) => el('div', { class: 'rfoot' }, el('span', {}, [st.project, st.title, st.date].filter(Boolean).join(' · ')), el('span', {}, `Page ${n} / 2`));
+  const swlMax = Number(c.swlMax_t) > 0 ? Number(c.swlMax_t) : null;
+  const headTxt = st.head === 'hook' ? 'Legs directly on the crane hook' : st.head === 'crane' ? 'On the master link of the crane' : out.rig?.head?.masterlink ? `On ${niceName(out.rig.head.masterlink)}` : 'On a master link';
+  const fan = fanSvg(470);
+
+  const p1 = el('div', { class: 'p-in lt-rep' }, header,
+    el('table', { class: 'tb' },
+      tr(el('th', { colspan: '4', class: 'big' }, 'LIFTING PLAN')),
+      tr(el('th', {}, 'Project'), el('td', { colspan: '3' }, st.project || '—')),
+      tr(el('th', {}, 'Title'), el('td', { colspan: '3' }, st.title || '—')),
+      tr(el('th', {}, 'Lift Location'), el('td', {}, st.location || '—'), el('th', {}, 'Date'), el('td', {}, st.date || '—'))),
+    el('table', { class: 'tb' },
+      sec('Load details/crane details', '(maximum hook load not to be exceeded)', 3),
+      tr(
+        el('td', {}, el('b', {}, 'Load identification:'), ul([st.title || null, `${ids.length} lift point(s) ${ids.join(', ')}`, `Direct to hook, ${ids.length} legs`, headTxt])),
+        el('td', {}, el('b', {}, 'Gross lift weight/maximum hook load:'), ul([
+          `Net weight ${st.weight_t ? `${fmt(st.weight_t)} t` : '—'}`, `Rigging ${fmt(out.rigW)} t`, `Factor × ${fmt(st.factor, 2)}`,
+          el('b', {}, `Max hook load: ${out.hook ? `${fmt(out.hook)} t` : '—'}`)])),
+        el('td', {}, el('b', {}, 'Crane:'), ul([c.name || '—',
+          c.swlMin_t ? `SWL ${fmt(c.swlMin_t)} t at min. radius${c.rMin_m ? ` ${c.rMin_m} m` : ''}` : null,
+          swlMax ? `SWL ${fmt(swlMax)} t at max. radius${c.rMax_m ? ` ${c.rMax_m} m` : ''}${out.hook ? ` → ${Math.round((out.hook / swlMax) * 100)} % used` : ''}` : null])))),
+    el('table', { class: 'tb eq' },
+      sec('Lifting equipment and accessories to be used', '(specify type, SWL and configuration)', 5),
+      el('tr', { class: 'colh' }, ['Qty', 'Item', 'EWL', 'SWL', 'Configuration'].map((h) => el('td', {}, h))),
+      out.bom.map((b) => tr(el('td', { class: 'c' }, String(b.qty)), el('td', {}, b.name),
+        el('td', { class: 'c' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m${b.links ? ` (${b.links} links)` : ''}` : 'n/a'),
+        el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'), el('td', {}, b.config || '')))),
+    bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
+    el('div', { class: 'figs' },
+      el('div', {}, el('div', { class: 'sub-t' }, 'Sketch'), sk ? drawing(boardSvg(sk, boardFor(sk), false), 'sk') : el('div', { class: 'p-empty' }, 'No photo')),
+      el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), fan ? drawing(fan, 'fan') : el('div', { class: 'p-empty' }, '—'))),
+    legend(),
+    bar('Calculation summary'),
+    el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible with each other, crane at the max. radius` : `${bad.length} point(s) to resolve`),
+    bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null);
+
+  const third = Math.ceil(SAFETY_MEASURES.length / 3);
+  const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(st.safety.includes(m)), ' ', m)));
+  const further = st.safety.filter((x) => !SAFETY_MEASURES.includes(x));
+  const steps = st.steps.filter((t) => String(t.note || '').trim());
+  const p2 = el('div', { class: 'p-in lt-rep' }, header.cloneNode(true),
+    el('table', { class: 'tb' },
+      sec('Possible safety measures to be considered', '(tick as applicable and detail in ‘step-by-step’)', 3),
+      tr(col(0), col(1), col(2))),
+    further.length ? el('table', { class: 'tb' }, sec('Any further safety measures'), tr(el('td', {}, ul(further)))) : null,
+    el('table', { class: 'tb' },
+      sec('Communications', '', 2),
+      tr(
+        el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || '—'}`)),
+        el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))),
+    el('table', { class: 'tb steps' },
+      tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
+      steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
+    others.length ? bar('Photos') : null,
+    others.length ? el('div', { class: 'figs f3' }, others.slice(0, 3).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
+    el('table', { class: 'tb signoff' },
+      sec('Prepared by', '', 4),
+      tr(el('th', {}, 'Name'), el('td', {}, st.preparedBy || ''), el('th', {}, 'Date'), el('td', {}, st.date || '')),
+      tr(el('th', {}, 'Signature'), el('td', { colspan: '3', class: 'sigc' }, sigImg ? el('img', { src: sigImg, alt: '' }) : ''))));
+  pr.append(el('div', { class: 'p-page' }, p1, footer(1)), el('div', { class: 'p-page' }, p2, footer(2)));
   // each page measured at the printed width and scaled down when too tall
   const imgs = [...pr.querySelectorAll('img')];
   Promise.all(imgs.map((i) => (i.complete ? null : new Promise((r) => { i.onload = r; i.onerror = r; })))).then(() => {
@@ -5338,7 +5446,7 @@ function printPlan() {
       inn.style.zoom = '';
       const mm = inn.getBoundingClientRect().width / 190;
       const h = inn.getBoundingClientRect().height / mm;
-      if (h > 276) inn.style.zoom = String(Math.floor((276 / h) * 100) / 100);
+      if (h > 268) inn.style.zoom = String(Math.floor((268 / h) * 100) / 100);
     });
     pr.removeAttribute('style');
     const t = document.title;

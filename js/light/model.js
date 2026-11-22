@@ -31,6 +31,7 @@ export const HEADS = {
 export function newState() {
   return {
     v: 1,
+    project: '',
     title: '',
     location: '',
     date: new Date().toISOString().slice(0, 10),
@@ -43,7 +44,7 @@ export function newState() {
     photos: [], // { id, name, img, w, h, points: { 1: {u, v} }, mask: dataURL | null (white = kept) }
     sketch: null, // id of the photo used for the sketch
     board: null, // sketch on a grid: { x, y, w } of the photo, hook {x, y}, tops { A: {x, y} } (board units)
-    steps: [...DEFAULT_STEPS],
+    steps: DEFAULT_STEPS.map((note) => ({ note, resp: '' })),
     safety: [...DEFAULT_SAFETY],
     hidden: [], // warnings removed by the user
     head: 'masterlink',
@@ -53,7 +54,10 @@ export function newState() {
       { kind: 'sling', family: 'RS-PES', hitch: 'direct', id: 'auto' },
       { kind: 'shackle', id: 'auto' },
     ],
-    lengths: {}, // { A: 4.5 }
+    lenMode: 'sling', // 'sling': length of the sling / chain given; 'leg': lift point → hook
+    slings: {}, // { A: 5.5 } sling (or chain) length per leg
+    lengths: {}, // { A: 4.5 } leg length, lift point → hook
+    comms: { primary: 'Radio', secondary: 'Hand signals', other: '', primaryChecked: false, secondaryChecked: false },
   };
 }
 
@@ -72,7 +76,7 @@ export const checkKey = (c) => `${c.cat}|${c.item}|${String(c.label || '').repla
 export const legIds = (st) => LEG_IDS.slice(0, Math.max(1, Math.min(8, Number(st.nPoints) || 1)));
 
 /** Project of the full engine for the light state. */
-export function toProject(st) {
+export function toProject(st, legLen = null) {
   const p = defaultProject();
   const ids = legIds(st);
   const ld = p.load;
@@ -83,13 +87,15 @@ export function toProject(st) {
   ld.cogBasis = 'centred';
   ld.cogZUnknown = true;
   ld.liftPoints = ids.map((id) => ({ id, padeye: false, used: true, x: 0, y: 0, z: 0, picks: {} }));
-  const L = Object.fromEntries(ids.map((id) => [id, Number(st.lengths?.[id]) > 0 ? Number(st.lengths[id]) : 3]));
+  const sl = st.lenMode === 'sling';
+  const given = (id) => Number((sl ? st.slings : st.lengths)?.[id]) || 0;
+  const L = Object.fromEntries(ids.map((id) => [id, legLen?.[id] > 0 ? legLen[id] : given(id) > 0 ? given(id) + (sl ? 0.6 : 0) : 3]));
   equalShareLayout(ld, L, ANGLE);
   const r = p.rigging;
   r.type = 'hook';
   r.equalShare = true;
   r.equalAngle_deg = ids.length === 1 ? 0 : ANGLE;
-  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: st.std === false ? 'exact' : 'nearest', uniformLegs: false };
+  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: sl || st.std === false ? 'exact' : 'nearest', uniformLegs: false };
   r.assembly = (st.assembly || []).map((x) => ({ ...x }));
   r.legs = Object.fromEntries(ids.map((id) => [id, { Leff_m: L[id] }]));
   r.head = { ...(r.head || {}), type: st.head === 'hook' ? 'hook' : ids.length > 2 ? 'assembly' : 'masterlink', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, unknownSWL: st.head === 'crane' };
@@ -103,8 +109,17 @@ const KEEP = ['Shackles', 'Slings', 'Chains', 'G-links', 'Hooks', 'Master link',
 
 /** Calculation: legs, equipment, checks (rigging + crane). */
 export function compute(st) {
-  const p = toProject(st);
-  const res = computeProject(p);
+  let p = toProject(st);
+  let res = computeProject(p);
+  if (st.lenMode === 'sling') {
+    // the sling length is given: leg length = sling + shackles and links (second pass)
+    const L = {};
+    (res.rig?.legs || []).filter((l) => l.level !== 'top').forEach((l) => {
+      const g = Number(st.slings?.[l.pointId]);
+      if (g > 0) L[l.pointId] = g + (Number(l.hwLength) || 0) - (Number(l.wrap) || 0);
+    });
+    if (Object.keys(L).length) { p = toProject(st, L); res = computeProject(p); }
+  }
   const rig = res.rig || {};
   const checks = (res.checks || []).filter((c) => KEEP.includes(c.cat) && !/pad ?eye|hole|padeye/i.test(c.label || ''));
   // crane: total hook load × factor ≤ SWL at the largest radius (and at the smallest)
