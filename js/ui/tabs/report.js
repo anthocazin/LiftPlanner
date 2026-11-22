@@ -408,8 +408,7 @@ export function buildReport() {
     el('tr', {}, el('th', { colspan: 4, class: 'big' }, 'LIFTING PLAN')),
     el('tr', {}, el('th', {}, 'Title'), el('td', { colspan: 3 }, ed('project.name', { ph: 'Title of the lift' }))),
     el('tr', {}, el('th', {}, 'Reference'), el('td', {}, ed('project.liftId', { ph: 'Reference' })), el('th', {}, 'Revision / date'), el('td', {}, ed('project.revision', { ph: 'Rev.' }), ' — ', ed('project.date', { ph: 'Date' }))),
-    el('tr', {}, el('th', {}, 'Vessel/Site'), el('td', {}, ed('project.site', { ph: 'Vessel / site' })), el('th', {}, 'Category'), el('td', {}, `${res?.category?.cat || '—'}`)),
-    el('tr', {}, el('th', {}, 'Client'), el('td', { colspan: 3 }, ed('project.client', { ph: 'Client' }))),
+    el('tr', {}, el('th', {}, 'Vessel/Site'), el('td', {}, ed('project.site', { ph: 'Vessel / site' })), el('th', {}, 'Client'), el('td', {}, ed('project.client', { ph: 'Client' }))),
     el('tr', {}, el('th', {}, 'Lift Location'), el('td', { colspan: 3 }, ed('project.location', { ph: 'Location of the lift' }))),
   ));
   if (!r || r.error) {

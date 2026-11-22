@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.9
+## What's new in v0.11.10
+
+- Report header: Title · Reference / Revision – date · Vessel/Site / Client · Lift location (no Category).
 
 - Report: the drawing imported from the engineering office is shown as it is, without the "Lift plan — engineering office" title ("Sketch" in the list of drawings).
 
