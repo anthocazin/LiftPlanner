@@ -546,7 +546,9 @@ function printPlan() {
     bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
     el('div', { class: 'figs sk2' },
       el('div', {}, el('div', { class: 'sub-t' }, 'Sketch'), sk ? drawing(boardSvg(sk, boardFor(sk), false), 'sk') : el('div', { class: 'p-empty' }, 'No photo')),
-      el('div', {}, el('div', { class: 'sub-t' }, 'Legs'), legend())),
+      el('div', {}, el('div', { class: 'sub-t' }, 'Legs'), legend(),
+        others.slice(0, 2).map((p) => el('div', { class: 'ph-b' }, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph'))))),
+    others.length > 2 ? el('div', { class: 'figs f3' }, others.slice(2, 8).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
     fan ? el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), drawing(fan, 'fan')) : null);
 
   const third = Math.ceil(SAFETY_MEASURES.length / 3);
@@ -562,8 +564,6 @@ function printPlan() {
       tr(
         el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || '—'}`)),
         el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))),
-    others.length ? bar('Photos') : null,
-    others.length ? el('div', { class: 'figs f3' }, others.slice(0, 3).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
     el('table', { class: 'tb signoff' },
       sec('Prepared by', '', 4),
       tr(el('th', {}, 'Name'), el('td', {}, st.preparedBy || ''), el('th', {}, 'Date'), el('td', {}, st.date || '')),
