@@ -454,7 +454,7 @@ export function buildReport() {
       el('td', { colspan: 2 }, el('div', { class: 'cranes' }, cranes), el('div', { class: 'env' }, `Environment: ${ENVIRONMENTS[p.environment]}`)),
       el('td', {}, el('b', {}, 'Design lift conditions (maximum):'), ul([
         el('span', {}, 'Wind speed: ', ed('weather.windMax_ms', { num: true, ph: '—' }), ' m/s (gusts ', ed('weather.windGust_ms', { num: true, ph: '—' }), ' m/s)'),
-        el('span', {}, 'Hs: ', ed('weather.hsMax_m', { num: true, ph: '—' }), ' m'),
+        el('span', {}, 'Hs: ', ed('weather.hsMax_m', { ph: '— or N/A' }), isFinite(parseFloat(String(p.weather?.hsMax_m ?? '').replace(',', '.'))) ? ' m' : ''),
         el('span', {}, 'Visibility: ', ed('weather.visibility', { ph: '—' })),
         ed('weather.notes', { multi: true, ph: 'Other conditions' })])),
     ),

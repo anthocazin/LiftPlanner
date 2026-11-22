@@ -73,7 +73,7 @@ export function render(root) {
     el('div', { class: 'fields' },
       field({ label: 'Max mean wind', path: 'weather.windMax_ms', unit: 'm/s' }),
       field({ label: 'Max gusts', path: 'weather.windGust_ms', unit: 'm/s' }),
-      field({ label: 'Max Hs', path: 'weather.hsMax_m', unit: 'm' }),
+      field({ label: 'Max Hs (m)', path: 'weather.hsMax_m', type: 'text', placeholder: 'e.g. 1.5 — or N/A' }),
       field({ label: 'Visibility', path: 'weather.visibility', type: 'text' }),
       field({ label: 'Other conditions', path: 'weather.notes', type: 'textarea', cls: 'full', placeholder: 'Swell period, current, lighting, thunderstorms, weather window…' }),
     ),
