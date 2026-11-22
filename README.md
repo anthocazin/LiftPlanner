@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.8
+## What's new in v0.11.9
+
+- Report: the drawing imported from the engineering office is shown as it is, without the "Lift plan — engineering office" title ("Sketch" in the list of drawings).
 
 - Engineering office lift plan: the drawings of the lift plan (rigging arrangement to scale and schematic) show no angle, utilisation % nor leg force — the angle typed is only used for the checks.
 

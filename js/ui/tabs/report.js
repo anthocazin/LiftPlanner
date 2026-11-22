@@ -69,7 +69,7 @@ const tkp = (path) => tk(() => getPath(app.project, path), (v) => setPath(app.pr
 
 // ---------- drawings of the report: windows (move, widen, resize, remove), saved with the project
 const FIGS = [
-  ['be', 'Lift plan — engineering office'],
+  ['be', 'Sketch'],
   ['fan', 'Rigging arrangement (to scale)'],
   ['schem', 'Rigging arrangement (schematic)'],
   ['detail', 'Rigging detail (to scale)'],
@@ -441,7 +441,7 @@ export function buildReport() {
         tk(() => ['estimated', 'geometric'].includes(ld.cogBasis), () => { ld.cogBasis = 'estimated'; }), ' Estimated  ',
         tk(() => ['drawing', 'legs', 'centred'].includes(ld.cogBasis) || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
         ld.cogBasis === 'centred'
-          ? el('div', {}, 'Taken as centred — same force in every leg (lift plan of the engineering office)')
+          ? el('div', {}, 'Taken as centred — same force in every leg')
           : ld.cogBasis === 'legs'
           ? el('div', {}, `X ${fmt(ld.cog_mm?.x, 0)} · Y ${fmt(ld.cog_mm?.y, 0)}${ld.cogZUnknown ? '' : ` · Z ${fmt(ld.cog_mm?.z, 0)}`} mm — under the hook given by the leg lengths of the lift plan`)
           : el('div', {}, 'X ', ed('load.cog_mm.x', { num: true }), ' · Y ', ed('load.cog_mm.y', { num: true }), ' · Z ', ed('load.cog_mm.z', { num: true }), ' mm'),
@@ -516,8 +516,7 @@ export function buildReport() {
       const svg = bePlanSvg(be, safeImg(be.image));
       const marked = (be.legs || []).some((l) => l.p);
       const comp = marked ? legCompositions(res) : null;
-      return [sub(`Lift plan — engineering office${be.ref ? ` (${be.ref})` : ''}`),
-        svg ? fig(svg, 'img-win be-plan') : el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(be.image) || '', alt: '' })),
+      return [svg ? fig(svg, 'img-win be-plan') : el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(be.image) || '', alt: '' })),
         comp?.groups.length ? el('div', { class: 'be-legend' },
           comp.groups.map((g) => el('div', {}, el('b', {}, `${g.ids.length > 1 ? 'Legs' : 'Leg'} ${g.ids.join(', ')}:`), ` ${g.text || '—'}`)),
           comp.head ? el('div', {}, el('b', {}, 'Hook:'), ` ${comp.head}`) : null) : null];
