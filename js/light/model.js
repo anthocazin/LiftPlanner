@@ -94,7 +94,7 @@ export function toProject(st, legLen = null) {
   r.type = 'hook';
   r.equalShare = true;
   r.equalAngle_deg = ids.length === 1 ? 0 : ANGLE;
-  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: sl || st.std === false ? 'exact' : 'nearest', uniformLegs: false };
+  r.design = { ...r.design, mode: 'angle', targetAngleV_deg: ANGLE, sizingAngleV_deg: ids.length === 1 ? null : ANGLE, roundLengths: sl || st.std === false ? 'exact' : 'up', uniformLegs: false };
   r.assembly = (st.assembly || []).map((x) => ({ ...x }));
   r.legs = Object.fromEntries(ids.map((id) => [id, { Leff_m: L[id] }]));
   r.head = { ...(r.head || {}), type: st.head === 'hook' ? 'hook' : ids.length > 2 ? 'assembly' : 'masterlink', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, unknownSWL: st.head === 'crane' };

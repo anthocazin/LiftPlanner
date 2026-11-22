@@ -1,6 +1,6 @@
 // Lift plan data model + example project + migrations.
 
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const DEFAULT_CHECKLIST = [
   'Lifting equipment inspected, certificates valid and identified (serial numbers)',
@@ -111,7 +111,7 @@ export function defaultProject() {
     },
     rigging: {
       type: 'hook',
-      design: { mode: 'angle', targetAngleV_deg: 30, sizingAngleV_deg: 30, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'nearest' },
+      design: { mode: 'angle', targetAngleV_deg: 30, sizingAngleV_deg: null, hookHeight_m: 4, minHeight_m: 1, roundLengths: 'up' },
       head: { type: 'assembly', itemId: 'auto', subLinkItemId: 'auto', topShackle: false, topShackleId: 'auto' },
       assembly: [
         { kind: 'shackle', id: 'auto' },
@@ -195,6 +195,7 @@ export function migrate(data) {
   if (v < 5) migrateV4(out);
   if (v < 6) migrateV5(out);
   if (v < 7) migrateV6(out);
+  if (v < 8) migrateV7(out);
   // the site map (storyboard) is gone: the radius already measured on it is kept
   (out.storyboard?.steps || []).forEach((st) => { delete st.pos; delete st.aiSketch; });
   out.schema = SCHEMA_VERSION;
@@ -302,6 +303,19 @@ function migrateV4(out) {
 }
 
 /** v6 → v7: any number of other cranes (Crane #2, #3…); sign-off dates and signatures. */
+/**
+ * v7 → v8 (simplification): sling lengths "standard, rounded up" or "made to measure" only; same
+ * sizes on every leg always; the minimum sizing angle only for a lift plan of the engineering office
+ * (from the drawing, the slings are sized on the actual angle given by the target angle).
+ */
+function migrateV7(out) {
+  const d = out.rigging?.design;
+  if (!d) return;
+  if (d.roundLengths !== 'exact') d.roundLengths = 'up';
+  delete d.uniformLegs;
+  if (out.load?.setupMode !== 'import') d.sizingAngleV_deg = null;
+}
+
 function migrateV6(out) {
   out.otherCranes = Array.isArray(out.otherCranes) ? out.otherCranes : [];
   if (out.crane2) out.otherCranes.unshift(out.crane2);

@@ -275,7 +275,7 @@ test('v2 project file migrates to leg assemblies', () => {
     load: { liftPoints: [{ id: 'A', x: 0, y: 0, z: 0 }, { id: 'B', x: 4000, y: 0, z: 0 }], weight_t: 5, cog_mm: { x: 2000, y: 0, z: -500 } },
   };
   const p = migrate(v2);
-  assert.equal(p.schema, 7);
+  assert.equal(p.schema, 8);
   assert.equal(p.rigging.design.targetAngleV_deg, 30);
   assert.equal(p.rigging.head.type, 'masterlink');
   assert.deepEqual(p.rigging.assembly.map((x) => x.kind), ['shackle', 'sling', 'shackle']);
@@ -565,4 +565,20 @@ test('shackle on a chain: its bow must pass through the chain link (auto picks o
   const top = r2.rig.legs[0].parts[2].item, ch = r2.rig.legs[0].parts[1].item;
   assert.ok(top.dims.bowDia <= ch.dims.width - 2 * ch.dims.dia, `auto shackle ${top.id} bow ${top.dims.bowDia} in chain Ø${ch.dims.dia}`);
   assert.ok(!r2.checks.some((c) => c.status === 'fail' && /does not pass through Chain/.test(c.label)));
+});
+
+test('target angle drives the sling lengths (standard rounded up, or made to measure)', () => {
+  const p = defaultProject();
+  const L = (a, mode) => {
+    const q = structuredClone(p);
+    q.rigging.design.targetAngleV_deg = a;
+    q.rigging.design.roundLengths = mode;
+    const r = computeProject(q);
+    return r.rig.legs.map((l) => ({ len: l.parts[l.li].length_m, ang: l.angleV }));
+  };
+  for (const mode of ['up', 'exact']) {
+    const a30 = L(30, mode), a45 = L(45, mode);
+    assert.ok(Math.max(...a45.map((x) => x.len)) < Math.max(...a30.map((x) => x.len)), `${mode}: steeper target → shorter slings`);
+    a30.forEach((x) => assert.ok(x.ang <= 30.3, `${mode}: angle ${x.ang} not above the target`));
+  }
 });

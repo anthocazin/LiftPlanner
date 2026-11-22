@@ -317,13 +317,14 @@ function trialLeff(leg, Lreq, roundMode) {
 }
 
 /**
- * Hook height used to choose the standard lengths: the one (at or above the design height, legs not
- * steeper than the target angle) for which the rounded lengths of the legs agree best, so that the
- * load hangs level. Returns zDesign when nothing better is found.
+ * Hook height used to choose the standard lengths: the lowest one (closest to the target angle,
+ * legs never steeper than it) for which the rounded lengths of the legs agree well enough for the
+ * load to hang level (hook heights given by the legs within 8 cm, or the best agreement found).
+ * Returns zDesign when nothing better is found.
  */
 function bestSizingHeight(legs, cog, zDesign, roundMode, angleMaxDeg) {
   if (!legs.length || legs.some((l) => !l.parts[l.li]?.item)) return zDesign;
-  let best = null;
+  const cands = [];
   for (let dz = 0; dz <= 1.5 + 1e-9; dz += 0.01) {
     const z = zDesign + dz;
     const top = v3(cog.x, cog.y, z);
@@ -339,11 +340,12 @@ function bestSizingHeight(legs, cog, zDesign, roundMode, angleMaxDeg) {
     const zh = mean(zl);
     const ang = Math.max(...legs.map((l) => deg(Math.atan2(hdist(cog, l.bottom), zh - l.bottom.z))));
     if (ang > angleMaxDeg + 0.25) continue;
-    const spread = Math.max(...zl) - Math.min(...zl);
-    const score = spread + 0.01 * dz;
-    if (!best || score < best.score - 1e-9) best = { z, score };
+    cands.push({ z, spread: Math.max(...zl) - Math.min(...zl) });
   }
-  return best ? best.z : zDesign;
+  if (!cands.length) return zDesign;
+  const minSpread = Math.min(...cands.map((c) => c.spread));
+  const allowed = Math.max(minSpread + 0.005, 0.08);
+  return cands.find((c) => c.spread <= allowed).z;
 }
 
 /** "Matched set" mode: one standard sling length (rounded up from the longest requirement) for a group. */
@@ -591,7 +593,8 @@ function solveHook(project, ctx) {
     legs.forEach((leg) => {
       leg.hwLength = connectorsLength(leg.parts) + head.headLen + (head.useSub ? head.subLen : 0);
     });
-    const zSize = (roundMode === 'nearest' || roundMode === 'up') && design.mode !== 'height' ? bestSizingHeight(legs, cog, zDesign, roundMode, designAngleV(design)) : zDesign;
+    // standard lengths rounded up leg by leg from the target geometry (the tilt it gives is checked)
+    const zSize = roundMode === 'nearest' && design.mode !== 'height' ? bestSizingHeight(legs, cog, zDesign, roundMode, designAngleV(design)) : zDesign;
     const topS = v3(cog.x, cog.y, zSize);
     legs.forEach((leg) => sizeLengthElement(leg, vlen(vsub(topS, leg.bottom)), roundMode));
     applyLengthSet(legs, roundMode);
@@ -771,7 +774,7 @@ function solveSpreader(project, ctx) {
   const head = pickHead(rig, topLegs, (VAm + VBm) * ctx.facHead, rules);
   fitHeadShackles(topLegs, head, rules);
   topLegs.forEach((leg) => { leg.hwLength = connectorsLength(leg.parts) + head.headLen; });
-  const zSizeTop = (roundMode === 'nearest' || roundMode === 'up') && design.mode !== 'height' ? bestSizingHeight(topLegs, hookPlan, zHookDesign, roundMode, designAngleV(design)) : zHookDesign;
+  const zSizeTop = roundMode === 'nearest' && design.mode !== 'height' ? bestSizingHeight(topLegs, hookPlan, zHookDesign, roundMode, designAngleV(design)) : zHookDesign;
   const topPtS = v3(hookPlan.x, hookPlan.y, zSizeTop);
   topLegs.forEach((leg) => sizeLengthElement(leg, vlen(vsub(topPtS, leg.bottom)), roundMode));
   applyLengthSet(topLegs, roundMode);

@@ -63,51 +63,6 @@ function linkLegs() {
   toast(src ? `Every leg now uses the assembly of leg ${src.key}` : 'Every leg uses the same assembly');
 }
 
-/**
- * "Same WLL on every leg": for every item of the legs (shackle on the lift point, sling, top shackle…)
- * the largest WLL used on one leg is fixed on every leg. Lengths stay free: each sling is still
- * sized leg by leg with its own hardware.
- */
-function sameWll() {
-  const rig = app.project.rigging;
-  const res = app.result?.rig;
-  if (!res || res.error || !res.legs?.length) return toast('No legs yet');
-  rig.design.uniformLegs = true;
-  const keyOf = (parts, i) => {
-    const p = parts[i];
-    const fam = p.kind === 'sling' ? p.family || p.item?.family || '' : '';
-    const same = parts.map((q, j) => (q.kind === p.kind ? j : -1)).filter((j) => j >= 0);
-    const pos = same.indexOf(i) === 0 ? 'first' : same.indexOf(i) === same.length - 1 ? 'last' : `n${same.indexOf(i)}`;
-    return `${p.kind}:${fam}:${pos}`;
-  };
-  const used = new Set();
-  for (const level of ['main', 'top']) {
-    const legs = res.legs.filter((l) => (level === 'top' ? l.level === 'top' : l.level !== 'top'));
-    if (!legs.length) continue;
-    const best = {};
-    legs.forEach((l) => l.parts.forEach((rp, i) => {
-      if (!rp.item) return;
-      const k = keyOf(l.parts, i);
-      if (!best[k] || rp.item.wll_t > best[k].wll_t) best[k] = rp.item;
-    }));
-    legs.forEach((l) => {
-      const own = rig.legs?.[l.key]?.parts;
-      const parts = own?.length ? own : assemblyOf(l.key, level).parts;
-      l.parts.forEach((rp, i) => {
-        const it = best[keyOf(l.parts, i)];
-        const p = parts[i];
-        if (!it || !p) return;
-        p.id = it.id;
-        if (isLengthPart(p)) { p.lock = false; p.length_m = null; }
-        used.add(niceName(it));
-      });
-    });
-  }
-  app.recompute();
-  window.__rerender?.();
-  toast(`Same WLL on every leg: ${[...used].join(', ')} — sling lengths calculated leg by leg`);
-}
-
 function itemsFor(part) {
   switch (part.kind) {
     case 'shackle': return listByType('shackle');
@@ -148,20 +103,24 @@ export function render(root) {
   const isSp = rig.type === 'spreader';
   app.project.rules = app.project.rules || {};
   rig.head = rig.head || { type: 'masterlink', itemId: 'auto' };
-  if (rig.design && rig.design.uniformLegs == null) rig.design.uniformLegs = true;
+  rig.design = rig.design || {};
+  if (rig.design.roundLengths !== 'exact') rig.design.roundLengths = 'up';
+  const fromBE = app.project.load.setupMode === 'import';
   const rules = app.result?.rules || {};
   const ranges = app.project.rules.shackleRanges || DEFAULT_SHACKLE_RANGES;
 
   const config = panel('Configuration',
     el('div', { class: 'fields' },
       field({ label: 'Rigging type', path: `${R}type`, type: 'select', options: [['hook', 'Direct to hook'], ['spreader', 'Spreader bar']], onchange: () => window.__rerender() }),
-      field({ label: 'Leg design', path: `${R}design.mode`, type: 'select', options: [['angle', 'Target angle to the vertical'], ['height', 'Imposed hook height']], onchange: () => window.__rerender() }),
-      rig.design?.mode === 'height'
-        ? field({ label: 'Hook height above the lift points', path: `${R}design.hookHeight_m`, unit: 'm' })
-        : field({ label: 'Target angle to vertical', path: `${R}design.targetAngleV_deg`, unit: '°', hint: `max ${rules.maxAngleV_deg ?? 45}° (Settings)` }),
-      field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['nearest', 'Each leg: nearest standard length'], ['up', 'Each leg: standard length rounded up'], ['set', 'Same length on every leg (matched set)'], ['exact', 'Each leg: made to measure']], hint: 'Standard lengths every 0.5 m. Each leg is sized with its own hardware. Also applies to the imposed leg lengths (lift plan).' }),
-      field({ label: 'Sizing angle (min.)', path: `${R}design.sizingAngleV_deg`, unit: '°', placeholder: 'actual', hint: 'Slings and shackles sized for at least this angle to the vertical (empty: the actual angle)' }),
-      field({ label: 'Same size on every leg', path: `${R}design.uniformLegs`, type: 'select', options: [['true', 'Yes'], ['false', 'No — each leg on its own force']], onchange: (v) => { rig.design.uniformLegs = v === 'true'; app.recompute(); } }),
+      ...(fromBE
+        ? [el('div', { class: 'field span2' }, el('span', { class: 'lbl' }, 'Leg lengths'), el('div', { class: 'note info' }, `From the engineering office lift plan (Load page): same force in every leg, slings sized at ${fmt(rig.design.sizingAngleV_deg || 30, 0)}° to the vertical.`))]
+        : [
+          field({ label: 'Leg design', path: `${R}design.mode`, type: 'select', options: [['angle', 'Target angle to the vertical'], ['height', 'Imposed hook height']], onchange: () => window.__rerender() }),
+          rig.design?.mode === 'height'
+            ? field({ label: 'Hook height above the lift points', path: `${R}design.hookHeight_m`, unit: 'm' })
+            : field({ label: 'Target angle to vertical', path: `${R}design.targetAngleV_deg`, unit: '°', hint: `Sling lengths chosen for this angle (max ${rules.maxAngleV_deg ?? 45}°, Settings)` }),
+        ]),
+      field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['up', 'Nearest standard length, rounded up'], ['exact', 'Made to measure']], hint: 'Standard lengths every 0.5 m, each leg with its own hardware.' }),
     ),
     el('details', { class: 'sub' }, el('summary', {}, 'Shackle ranges used by "auto"'),
       el('div', { class: 'row', style: { gap: '14px' } }, Object.entries(SHACKLE_RANGES).map(([k, v]) =>
@@ -197,7 +156,6 @@ export function render(root) {
     el('div', { class: 'panel-head' },
       el('h2', {}, 'Rigging arrangement'),
       el('span', { class: 'row', style: { gap: '12px' } },
-        el('button', { class: 'small', title: 'Every leg gets the same WLL for each item (the largest one used), the sling length stays calculated leg by leg', onclick: sameWll }, 'Same WLL on every leg'),
         el('label', { class: 'check', title: 'When ticked, a change on one leg is applied to every leg' }, el('input', { type: 'checkbox', checked: linked, onchange: (e) => { linked = e.target.checked; if (linked) linkLegs(); else drawSchematic(); } }), 'Same assembly on every leg')),
     ),
     palette,
@@ -381,7 +339,7 @@ function update(res) {
   }
   const tgt = res.rules?.targetAngleV_deg ?? 30, mx = res.rules?.maxAngleV_deg ?? 45;
   const tA = rig.legs[0]?.need?.target?.angle ?? tgt;
-  const canImpose = rig.type === 'hook';
+  const canImpose = rig.type === 'hook' && app.project.load.setupMode === 'import';
   const head = ['Leg', 'Static load share', 'Static tension', 'Design force (min WLL)', `Length for ${fmt(tA, 0)}°`, `Min. length for ${mx}°`, canImpose ? 'Imposed leg length' : null, 'Sling / chain to use', 'Actual length · angle', 'Max util.'].filter(Boolean);
   const imposeInput = (l) => {
     const R = app.project.rigging;

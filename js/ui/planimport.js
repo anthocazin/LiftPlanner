@@ -60,7 +60,7 @@ export function applyPlanImport(p, d) {
   rig.design.sizingAngleV_deg = A > 0 ? A : null;
   // slings: standard lengths (the setting kept if already standard), or made to measure
   if (d.std === false) rig.design.roundLengths = 'exact';
-  else if (!rig.design.roundLengths || rig.design.roundLengths === 'exact') rig.design.roundLengths = 'nearest';
+  else rig.design.roundLengths = 'up';
   delete rig.design.imposedStd;
   rig.legs = rig.legs || {};
   for (const g of geo) {
@@ -81,6 +81,9 @@ export function leaveImport(p) {
   p.load.setupMode = 'drawing';
   if (p.load.cogBasis === 'centred' || p.load.cogBasis === 'legs') p.load.cogBasis = 'drawing';
   delete p.rigging.equalShare;
+  // from the drawing: lengths from the target angle, slings sized on the actual angle
+  if (p.rigging.design) p.rigging.design.sizingAngleV_deg = null;
+  Object.values(p.rigging.legs || {}).forEach((l) => { if (l) delete l.Leff_m; });
 }
 
 /** Data of the project as the dialog shows it. */
@@ -166,7 +169,7 @@ export function openPlanImport(onDone) {
           has ? el('button', { class: `small ${st.awaitHook ? 'primary' : ''}`, title: 'Sketch only: click the hook on the plan', onclick: () => { st.awaitHook = !st.awaitHook; buildSide(); refreshHint(); } }, st.awaitHook ? 'Click the hook…' : st.hook ? '✓ Move the hook' : '✎ Place the hook') : null,
           el('button', { class: 'small', title: 'The length of the first leg given, on every leg', onclick: () => { const L = st.legs.find((l) => l.len > 0)?.len; if (!L) return toast('Type the length of one leg first'); st.legs.forEach((l) => { l.len = L; }); buildSide(); } }, 'Same length on every leg')),
         el('div', { style: { marginTop: '8px' } }, el('span', { class: 'lbl', style: { fontSize: '12.5px' } }, 'Slings'),
-          el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: st.std, onchange: () => { st.std = true; } }), ' Standard lengths (the nearest to each leg)'),
+          el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: st.std, onchange: () => { st.std = true; } }), ' Standard lengths (rounded up)'),
           el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: !st.std, onchange: () => { st.std = false; } }), ' Exact lengths (made to measure)'))),
       el('div', { class: 'pi-step' }, el('b', {}, '4. Angle of the legs'),
         el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Angle to the vertical taken for every leg (°)'),

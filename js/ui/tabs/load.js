@@ -15,6 +15,7 @@ const views = [];
 export function render(root) {
   const L = 'load.';
   const load = app.project.load;
+  const fromBE = load.setupMode === 'import' && !!load.bePlan;
   if (!lvState.selected || !load.liftPoints.some((p) => p.id === lvState.selected)) lvState.selected = load.liftPoints[0]?.id || null;
 
   // ---------- identification, weight, COG
@@ -38,16 +39,17 @@ export function render(root) {
       el('div', { class: 'field' }, el('span', { class: 'lbl' }, 'Design weight'), el('div', { class: 'card', id: 'wdesign' }, '—')),
     ),
     el('div', { id: 'detected' }),
-    el('h3', {}, 'Centre of gravity'),
-    el('div', { class: 'fields', id: 'cog-fields' },
+    fromBE ? el('div', { class: 'note info' }, 'Engineering office lift plan: the COG is taken as centred, every leg takes the same force.') : null,
+    fromBE ? null : el('h3', {}, 'Centre of gravity'),
+    fromBE ? null : el('div', { class: 'fields', id: 'cog-fields' },
       field({ label: 'COG X', path: `${L}cog_mm.x`, unit: 'mm' }),
       field({ label: 'COG Y', path: `${L}cog_mm.y`, unit: 'mm' }),
       field({ label: 'COG Z', path: `${L}cog_mm.z`, unit: 'mm' }),
-      field({ label: 'COG basis', path: `${L}cogBasis`, type: 'select', options: [['drawing', 'From the drawing'], ['centred', 'Taken as centred (equal shares)'], ['legs', 'Under the hook (from the leg lengths)'], ['geometric', 'Geometric centre of the part'], ['estimated', 'Estimated'], ['obvious', 'Obvious']], onchange: () => window.__rerender() }),
+      field({ label: 'COG basis', path: `${L}cogBasis`, type: 'select', options: [['drawing', 'From the drawing'], ['geometric', 'Geometric centre of the part'], ['estimated', 'Estimated']], onchange: () => window.__rerender() }),
     ),
-    el('div', { class: 'row', style: { fontSize: '12px' } },
+    fromBE ? null : el('div', { class: 'row', style: { fontSize: '12px' } },
       el('button', { class: 'small', title: 'COG = centre of the overall size (weight evenly spread)', onclick: () => { load.cogBasis = 'geometric'; app.recompute(); window.__rerender(); toast('COG at the geometric centre of the part'); } }, 'COG at the geometric centre'),
-      el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : load.cogBasis === 'legs' ? 'X and Y follow the hook given by the leg lengths (Rigging page).' : load.cogBasis === 'centred' ? 'Lift plan of the engineering office: same force in every leg.' : '')),
+      el('span', { class: 'muted' }, load.cogBasis === 'geometric' ? 'The COG follows the centre of the overall size below.' : '')),
     el('details', { class: 'sub' },
       el('summary', {}, 'Overall size of the part (geometric centre, symmetries)'),
       el('div', { class: 'fields' },

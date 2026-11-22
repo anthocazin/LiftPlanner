@@ -18,6 +18,12 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.11.0 — simpler
+
+- **Two ways of working**, chosen at the top of the Load page: **from the drawing** (lift points and COG entered in the app, sling lengths from the target angle) or the **engineering office lift plan** (leg lengths known, COG taken as centred, same force in every leg, slings sized at 30°). The COG fields only show from the drawing.
+- **Target angle to the vertical** now drives the sling lengths: each leg takes the length for this angle, then the **nearest standard length rounded up** (never steeper than the target), or the exact length (**made to measure**). The slings are sized on the actual angle (the minimum sizing angle only applies to the engineering office lift plan).
+- Removed as redundant: "Same size on every leg" (always the same sizes), "Same WLL on every leg", "nearest" and "matched set" lengths, the minimum sizing angle field, the imposed leg length column outside the engineering office lift plan, and the COG bases "centred / under the hook / obvious".
+
 ## LiftPlanner Light (v0.10) — a lift plan on site in 5 minutes
 
 At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPlannerLight.html`](dist/LiftPlannerLight.html)), made for the phone:

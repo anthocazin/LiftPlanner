@@ -60,21 +60,25 @@ function build() {
   pickViews = [];
   const ld = L();
   const importBtn = (t) => el('button', { class: 'small primary', title: 'Lift plan made by the engineering office: drawing + lift points from the COG + leg lengths', onclick: () => openPlanImport() }, t);
-  if (ld.setupMode === 'import' && ld.bePlan) {
+  // the two ways of working: the lift plan of the engineering office, or the drawing with its COG
+  const fromBE = ld.setupMode === 'import' && ld.bePlan;
+  root.append(el('div', { class: 'mode-seg' },
+    el('button', { class: fromBE ? '' : 'on', onclick: () => { if (!fromBE) return; leaveImport(app.project); app.recompute(); window.__rerender?.(); } },
+      el('b', {}, 'From the drawing'), el('span', {}, 'lift points and COG entered in the app — lengths from the target angle')),
+    el('button', { class: fromBE ? 'on' : '', onclick: () => openPlanImport() },
+      el('b', {}, 'Engineering office lift plan'), el('span', {}, 'leg lengths known — COG taken as centred, same force in every leg'))));
+  if (fromBE) {
     const sum = importedSummary(app.result);
     sum.id = 'pi-summary';
     root.append(
       el('div', { class: 'panel-head' },
         el('h2', {}, 'Load from the engineering office lift plan'),
-        el('div', { class: 'row' },
-          importBtn('Edit the import…'),
-          el('button', { class: 'small', title: 'Set up the load from its drawing (views, points and COG clicked): real geometry instead of equal shares', onclick: () => { leaveImport(app.project); app.recompute(); window.__rerender?.(); } }, 'Set up from the drawing instead'))),
+        el('div', { class: 'row' }, importBtn('Edit the import…'))),
       sum);
     return;
   }
   const head = el('div', { class: 'panel-head' },
     el('h2', {}, 'Load set-up from the drawing'),
-    importBtn('⇪ Import a lift plan (engineering office)…'),
     el('div', { class: 'stepper' }, STEPS.map((t, i) =>
       el('button', { class: `step ${setup.step === i + 1 ? 'on' : ''} ${stepDone(i + 1) ? 'done' : ''}`, onclick: () => { setup.step = i + 1; setup.edit = null; rebuild(); } },
         el('b', {}, stepDone(i + 1) && setup.step !== i + 1 ? '✓' : String(i + 1)), t))),
