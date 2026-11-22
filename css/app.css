@@ -499,3 +499,39 @@ details.inline-adv[open] { display: inline-flex; }
 .mode-seg button.on { background: #0f2742; color: #fff; }
 .mode-seg button.on span { color: #c9d6e4; }
 
+
+/* ---------- v0.12.1 — phone ---------- */
+.menu-btn { display: none; }
+@media (max-width: 760px) {
+  body { -webkit-text-size-adjust: 100%; }
+  .topbar { position: relative; flex-wrap: wrap; gap: 6px 8px; padding: 8px 10px 6px; }
+  .brand { flex: 1; min-width: 0; gap: 8px; }
+  .brand > div { min-width: 0; }
+  .brand-sub { max-width: 100%; }
+  .menu-btn { display: inline-flex; font-size: 20px; line-height: 1; padding: 6px 12px; min-height: 40px; }
+  .summary { order: 3; flex: 1 0 100%; flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .summary::-webkit-scrollbar { display: none; }
+  .summary .kpi { flex: 0 0 auto; white-space: nowrap; padding: 3px 8px; font-size: 10.5px; }
+  .summary .kpi b { font-size: 13px; }
+  .summary .kpi[class*='status-'] { order: -1; }
+  .actions { display: none; position: absolute; right: 8px; top: 54px; z-index: 40; flex-direction: column; align-items: stretch; gap: 6px; min-width: 190px; padding: 10px; background: var(--navy); border: 1px solid rgba(255,255,255,.15); border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.35); }
+  .topbar.open .actions { display: flex; }
+  .actions button, .actions .btn { justify-content: flex-start; min-height: 42px; font-size: 15px; }
+  .tabs { top: 0; padding: 0 4px; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { padding: 12px 12px; font-size: 14px; }
+  main { padding: 10px 8px 24px; }
+  .panel { padding: 12px; }
+  /* touch: bigger targets, no zoom on focus (iOS zooms below 16 px) */
+  input, select, textarea { font-size: 16px; }
+  button, .btn { min-height: 38px; }
+  button.small { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+  /* wide tables scroll sideways instead of squeezing their columns */
+  table.data { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+  table.data td, table.data th { white-space: nowrap; }
+  /* dialogs full screen */
+  .modal { padding: 0; }
+  .modal-box { border-radius: 0; }
+  .modal-body { grid-template-columns: 1fr; overflow: auto; }
+  .modal-head { flex-wrap: wrap; }
+}

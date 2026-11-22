@@ -123,6 +123,11 @@ function renderSummary(res) {
 }
 
 function wireActions() {
+  // phone: the actions are in a menu (☰), closed after a choice or a tap elsewhere
+  const bar = document.querySelector('.topbar');
+  document.getElementById('btn-menu').onclick = (e) => { e.stopPropagation(); bar.classList.toggle('open'); };
+  document.getElementById('actions').addEventListener('click', (e) => { if (e.target.closest('button, a') || e.target.tagName === 'INPUT') setTimeout(() => bar.classList.remove('open'), 0); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#actions, #btn-menu')) bar.classList.remove('open'); });
   document.getElementById('btn-new').onclick = () => {
     if (!confirm('Create a blank lift plan? The current project will be replaced (save it first).')) return;
     app.reset(emptyProject());
