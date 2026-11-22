@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.6
+## What's new in v0.11.7
+
+- Light, rigging arrangement: the minimum SWL required ("min … t") is no longer written; only the name and the length of the parts.
 
 - Rigging arrangement (to scale): every leg drawn with the same length (the sling / chain body is cut), its length written beside it.
 

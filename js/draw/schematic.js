@@ -117,7 +117,7 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
       const util = rp?.item && leg ? Math.round((leg.Fdesign / (rp.item.wll_t * (rp.factor || 1))) * 100) : null;
       const lenTxt = rp?.item && isLengthPart(p) && rp.length_m != null ? `${fmt(rp.length_m, 2)} m${p.kind === 'chain' && rp.links ? ` (${rp.links} links)` : ''}${p.hitch === 'choke' ? ' choked' : ''} · ` : '';
       const need = i === leg?.li && p.kind === 'sling' && leg.slingLengthReq > 0 && Math.abs(leg.slingLengthReq - (rp?.length_m || 0)) > 0.03 ? ` · exact ${fmt(leg.slingLengthReq, 2)} m` : '';
-      const sub = rp?.item && leg ? (lite ? `${lenTxt}min ${fmt(rp.reqWll)} t` : interactive ? `${lenTxt}min ${fmt(rp.reqWll)} t · ${util} %${need}` : `${lenTxt}${util} % of WLL`) : 'not found';
+      const sub = rp?.item && leg ? (lite ? lenTxt.replace(/ · $/, '') : interactive ? `${lenTxt}min ${fmt(rp.reqWll)} t · ${util} %${need}` : `${lenTxt}${util} % of WLL`) : 'not found';
       const lblW = Math.max(colW - 14, 120);
       if (highlight && highlight.leg === c.key && highlight.part === i) s += ring(c.x - 22, yy - 3, lblW + 10, ic.h + 6);
       s += interactive ? `<g data-pop="${esc(c.key)}:${i}:${c.level}" class="clk">` : '<g>';
