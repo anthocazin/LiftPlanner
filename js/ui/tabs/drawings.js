@@ -2,7 +2,7 @@
 // components to scale. Every drawing exports as SVG or PNG.
 import { app } from '../app.js';
 import { el, panel } from '../dom.js';
-import { drawRiggingDetail } from '../../draw/detail.js';
+import { drawRiggingDetail, drawRiggingFan } from '../../draw/detail.js';
 import { schematicSvg } from '../../draw/schematic.js';
 import { staticViewSvg } from '../loadview.js';
 import { figure } from '../figure.js';
@@ -35,6 +35,7 @@ function update(res) {
       ),
       el('p', { class: 'muted', style: { fontSize: '12px' } }, 'Each leg is labelled with its name, bearing-to-bearing length and angle to the vertical; legs seen on top of each other share one label (e.g. A/D).'),
     ),
+    panel('Rigging arrangement (to scale, legs on the hook)', figure(drawRiggingFan(p, res, { height: 680 }), 'rigging-fan')),
     panel('Rigging detail (components to scale)', figure(drawRiggingDetail(p, res, { height: 680 }), 'rigging-detail')),
   );
 }

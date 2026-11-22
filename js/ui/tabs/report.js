@@ -4,7 +4,7 @@
 import { app } from '../app.js';
 import { el, fmt } from '../dom.js';
 import { legsTable } from './results.js';
-import { drawRiggingDetail, drawPadeyeFit } from '../../draw/detail.js';
+import { drawRiggingDetail, drawRiggingFan, drawPadeyeFit } from '../../draw/detail.js';
 import { schematicSvg } from '../../draw/schematic.js';
 import { drawCapacityChart } from '../../draw/chart.js';
 import { staticViewSvg, safeImg } from '../loadview.js';
@@ -69,6 +69,7 @@ const tkp = (path) => tk(() => getPath(app.project, path), (v) => setPath(app.pr
 // ---------- drawings of the report: windows (move, widen, resize, remove), saved with the project
 const FIGS = [
   ['be', 'Lift plan — engineering office'],
+  ['fan', 'Rigging arrangement (to scale)'],
   ['schem', 'Rigging arrangement (schematic)'],
   ['detail', 'Rigging detail (to scale)'],
   ['xy', 'Plan — XY'],
@@ -77,8 +78,10 @@ const FIGS = [
   ['padeye', 'Pad eye / shackle fit'],
   ['capacity', 'Crane capacity chart'],
 ];
-const DEF_W = { be: 1, schem: 0.6, detail: 0.4, xy: 0.5, xz: 0.5, yz: 0.5, padeye: 0.5, capacity: 0.5 };
-const figOn = (k) => app.project.report?.figs?.[k] !== false;
+const DEF_W = { be: 1, fan: 1, schem: 0.6, detail: 0.4, xy: 0.5, xz: 0.5, yz: 0.5, padeye: 0.5, capacity: 0.5 };
+// the schematic and the separate detail are replaced by the view to scale unless ticked
+const DEF_OFF = ['schem', 'detail'];
+const figOn = (k) => app.project.report?.figs?.[k] ?? !DEF_OFF.includes(k);
 const ownKey = (d) => `own:${d.id}`;
 
 /** Windows that can be shown (data available), whether ticked or not: { key: info } in default order. */
@@ -87,7 +90,7 @@ function availableWins(p, res, all = false) {
   const ld = p.load, r = res?.rig;
   const on = (k) => all || figOn(k);
   if (safeImg(ld.bePlan?.image) && on('be')) out.be = true;
-  ['schem', 'detail', 'xy', 'xz', 'yz'].forEach((k) => { if (on(k)) out[k] = true; });
+  ['fan', 'schem', 'detail', 'xy', 'xz', 'yz'].forEach((k) => { if (on(k)) out[k] = true; });
   const pts = (ld.liftPoints || []).filter((q) => q.used !== false && pointKind(q) === 'padeye');
   const lg = pts.length ? r?.legs?.find((l) => l.pointId === pts[0].id && l.level !== 'top') : null;
   const sh = lg?.parts?.[0]?.kind === 'shackle' ? lg.parts[0].item : null;
@@ -519,6 +522,7 @@ export function buildReport() {
     },
     schem: () => { const sv = schematicSvg(p, res, { width: 760 })?.svg; return sv ? [sub('Rigging arrangement'), fig(sv, 'schem-r')] : null; },
     detail: () => { const sv = drawRiggingDetail(p, res, { height: 560 }); return sv ? [sub('Rigging detail (to scale)'), fig(sv, 'detail')] : null; },
+    fan: () => { const sv = drawRiggingFan(p, res, { height: 560 }); return sv ? [sub('Rigging arrangement (to scale)'), fig(sv, 'fan')] : null; },
     xy: () => [fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' }))],
     xz: () => [fig(staticViewSvg('xz', p, res, { width: 520, height: 300, title: 'Front elevation — XZ' }))],
     yz: () => [fig(staticViewSvg('yz', p, res, { width: 520, height: 300, title: 'Side elevation — YZ' }))],

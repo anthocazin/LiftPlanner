@@ -19,6 +19,18 @@ function ringFace(y0, IL, IW, D) {
   return path(`${outer} ${inner}`, { fill: STEEL, 'fill-rule': 'evenodd', stroke: STEEL_EDGE, 'stroke-width': 1, ...sw });
 }
 
+/** G-link (chain connecting link), face-on, in its own colour so it is not taken for a chain link. */
+function glinkFace(y0, L, IW, D) {
+  const ri = IW / 2, ro = ri + D;
+  const straight = Math.max(L - IW, 0);
+  const cyT = y0 + ri, cyB = y0 + ri + straight;
+  const outer = `M ${-ro} ${cyT} A ${ro} ${ro} 0 0 1 ${ro} ${cyT} L ${ro} ${cyB} A ${ro} ${ro} 0 0 1 ${-ro} ${cyB} Z`;
+  const inner = `M ${-ri} ${cyT} A ${ri} ${ri} 0 0 1 ${ri} ${cyT} L ${ri} ${cyB} A ${ri} ${ri} 0 0 1 ${-ri} ${cyB} Z`;
+  const ym = (cyT + cyB) / 2;
+  return path(`${outer} ${inner}`, { fill: '#c9853f', 'fill-rule': 'evenodd', stroke: '#7a4512', 'stroke-width': 1, ...sw }) +
+    line(-ro, ym, -ri, ym, { stroke: '#7a4512', 'stroke-width': 1.2, ...sw }) + line(ri, ym, ro, ym, { stroke: '#7a4512', 'stroke-width': 1.2, ...sw });
+}
+
 function ringEdge(y0, IL, D, dx = 0) {
   return rect(dx - D / 2, y0 - D, D, IL + 2 * D, { rx: D / 2, fill: STEEL, stroke: STEEL_EDGE, 'stroke-width': 1, ...sw }) +
     line(dx - D / 2, y0, dx + D / 2, y0, { stroke: STEEL_EDGE, 'stroke-width': 0.6, 'stroke-dasharray': '2 2', ...sw }) +
@@ -191,7 +203,9 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
         y += sd.insideLength; bar = 'depth'; barA = sd.stockDia;
       }
     }
-  } else {
+  }
+  const headN = parts.length, headLabelsN = labels.length, headY = y;
+  if (!fromHook) {
     // spreader bottom leg: starts at the bottom lug of the bar
     const last = leg.parts[leg.parts.length - 1]?.item;
     const pe = padeyeEdge(0, Number(sp.bottomLugThk_mm) || (last?.dims?.jawWidth || 38) * 0.8, (last?.dims?.pinDia || 30) * 1.6, Number(sp.bottomLugHoleDia_mm) || (last?.dims?.pinDia || 0) + 2, -1);
@@ -241,11 +255,25 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       y = c.end; bar = c.nextBar; barA = c.a;
       continue;
     }
+    if (p.kind === 'hook') {
+      // eye hook in the leg: eye up on the element above, the element below in its saddle
+      const d = it.dims || {};
+      const C = d.eyeDia || 40, B = d.saddle || 30, eff = d.effLength || (d.length || 200) * 0.75;
+      const t = Math.max(B * 0.45, 8);
+      parts.push(ringFace(y, C, C, t));
+      const yS = y + eff;
+      const r = Math.max((yS - (y + C + t)) / 4.2, B * 0.5);
+      parts.push(hookShape(yS, r));
+      labels.push({ y: y + eff * 0.6, x: r * 1.5, t: [niceName(it), util(F, it.wll_t)] });
+      ext(r * 1.6);
+      y = yS; bar = 'depth'; barA = t;
+      continue;
+    }
     if (p.kind === 'connlink' || p.kind === 'glink' || p.kind === 'masterlink') {
       const ml = p.kind === 'masterlink';
       const L = ml ? it.dims.insideLength || 120 : it.dims.effLength || 60, t = ml ? it.dims.stockDia || 15 : it.dims.barThk || 15;
       const W = ml ? it.dims.insideWidth || 60 : p.kind === 'glink' ? it.dims.maxSlingWidth || 60 : Math.max((it.dims.width || 30) - 2 * t, t);
-      parts.push(bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
+      parts.push(p.kind === 'connlink' ? glinkFace(y, L, W, t) : bar === 'lr' ? ringEdge(y, L, t) : ringFace(y, L, W, t));
       labels.push({ y: y + L / 2, x: W / 2 + t, t: [niceName(it), util(F, it.wll_t)] });
       ext(W / 2 + t);
       y += L; bar = bar === 'lr' ? 'depth' : 'lr'; barA = t;
@@ -288,7 +316,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
     }
   }
   if (slingSvg) parts.push(slingSvg);
-  return { parts, labels, inline, height: y, minX, maxX, top: fromHook ? -Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35) * 4.3 : -120 };
+  return { parts, labels, inline, height: y, minX, maxX, headN, headLabelsN, headY, top: fromHook ? -Math.max((head.masterlink?.dims?.stockDia || 30) * 1.4, 35) * 4.3 : -120 };
 }
 
 function legSignature(l) {
@@ -341,6 +369,84 @@ export function drawRiggingDetail(project, res, opts = {}) {
   }
   body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened).', { 'font-size': 9.5, fill: '#5d6b7a' });
   return svgDoc(Math.max(x, 600), Hpx, body, { title: 'Rigging detail' });
+}
+
+
+/**
+ * Rigging arrangement to scale: laid out like the rigging arrangement (crane hook and master link
+ * once at the top, one column per leg, side by side, joined to the master link), every component to
+ * scale (sling and chain bodies shortened). Callouts as in the rigging detail; a leg made like an
+ * earlier one only gets its name.
+ */
+export function drawRiggingFan(project, res, opts = {}) {
+  const rig = res?.rig;
+  const Hpx = opts.height || 620;
+  if (!rig || rig.error) return svgDoc(600, 200, text(20, 30, rig?.error || 'No result', { fill: '#c0392b' }));
+  const ids = (project.load.liftPoints || []).filter((q) => q.used !== false).map((q) => q.id);
+  const legs = rig.legs.filter((l) => l.level === 'main').sort((a, b) => ids.indexOf(a.pointId) - ids.indexOf(b.pointId));
+  if (!legs.length || rig.type === 'spreader') return drawRiggingDetail(project, res, opts);
+  const cols = legs.map((l) => buildColumn(l, rig, project, { slingDisp: 380 }));
+  const c0 = cols[0];
+  const gap = 46; // px between the master link and the top of the legs
+  const legSpan = Math.max(...cols.map((c) => c.height - c.headY));
+  const s = (Hpx - 120 - gap) / (c0.headY - c0.top + legSpan + 60);
+  const sig = (l) => l.parts.map((p) => `${p.kind}:${p.item?.id}:${p.length_m != null ? Number(p.length_m).toFixed(2) : ''}`).join('|');
+  const first = new Map();
+  legs.forEach((l) => { if (!first.has(sig(l))) first.set(sig(l), l.pointId); });
+  const labelled = legs.map((l) => first.get(sig(l)) === l.pointId);
+  const labelW = 190;
+  // columns side by side
+  let x = 70; // room for the length written left of the first leg
+  const lay = cols.map((c, i) => {
+    const w = (c.maxX - c.minX) * s;
+    const cx = x - c.minX * s;
+    x += w + (labelled[i] ? labelW : 26) + 18;
+    return { c, cx, l: legs[i], lab: labelled[i], w };
+  });
+  const headCx = (lay[0].cx + lay[lay.length - 1].cx) / 2;
+  const W = Math.round(Math.max(x, headCx + 320));
+  const oy = 30 - c0.top * s;
+  const headBottom = oy + c0.headY * s;
+  const legTop = headBottom + gap;
+  let body = '';
+  // crane hook and master link, once
+  body += group(c0.parts.slice(0, c0.headN).join(''), { transform: `translate(${headCx.toFixed(1)} ${oy.toFixed(1)}) scale(${s.toFixed(5)})` });
+  const callout = (ax, ay, tx, ty, t, strong) => {
+    let out = line(ax, ay, tx - 4, ty - 3, { stroke: '#8a96a3', 'stroke-width': 0.7 }) + circle(ax, ay, 1.8, { fill: '#555' });
+    t.filter(Boolean).forEach((tt, i) => (out += text(tx, ty + i * 12, tt, { 'font-size': i === 0 ? 10.5 : 10, 'font-weight': i === 0 && strong ? 700 : i === 0 ? 600 : 400, fill: i === 0 ? '#1c2733' : '#4d5966' })));
+    return out;
+  };
+  let lastH = -1e9;
+  for (const lb of c0.labels.slice(0, c0.headLabelsN)) {
+    const ay = oy + lb.y * s, ty = Math.max(ay, lastH + 12 * lb.t.filter(Boolean).length + 4);
+    body += callout(headCx + lb.x * s + 4, ay, headCx + 150, ty, lb.t, lb.strong);
+    lastH = ty;
+  }
+  for (const { c, cx, l, lab, w } of lay) {
+    // link to the master link, then the leg to scale
+    const topY = legTop + 2;
+    body += line(headCx, headBottom, cx, topY - 4, { stroke: '#9aa5b1', 'stroke-width': 1.4, 'stroke-dasharray': '4 3' });
+    body += group(c.parts.slice(c.headN).join(''), { transform: `translate(${cx.toFixed(1)} ${(topY - c.headY * s).toFixed(1)}) scale(${s.toFixed(5)})` });
+    const Y = (y) => topY + (y - c.headY) * s;
+    for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 4, il.t, { 'text-anchor': 'end', 'font-size': 10.5, 'font-weight': 700, fill: '#173a5e' });
+    // leg name under its lift point
+    const by = Y(c.height);
+    body += text(cx, by + 16, l.pointId, { 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 800, fill: '#c0392b' });
+    body += text(cx, by + 29, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': 9.5, fill: '#173a5e', 'font-weight': 600 });
+    if (!lab) continue;
+    const same = legs.filter((x2) => sig(x2) === sig(l)).map((x2) => x2.pointId);
+    body += text(cx + c.maxX * s + 16, topY - 10, same.length > 1 ? `Legs ${same.join(', ')}` : `Leg ${l.pointId}`, { 'font-size': 11.5, 'font-weight': 700, fill: '#173a5e' });
+    let last = -1e9;
+    const tx = cx + c.maxX * s + 16;
+    for (const lb of [...c.labels.slice(c.headLabelsN)].sort((a, b) => a.y - b.y)) {
+      const ay = Y(lb.y);
+      const ty = Math.max(ay, last + 16);
+      body += callout(cx + lb.x * s + 4, ay, tx, ty, lb.t, lb.strong);
+      last = ty + 12 * (lb.t.filter(Boolean).length - 1);
+    }
+  }
+  body += text(20, Hpx - 10, 'Components to scale (sling and chain bodies shortened). Legs made alike are described once.', { 'font-size': 9.5, fill: '#5d6b7a' });
+  return svgDoc(W, Hpx, body, { title: 'Rigging arrangement to scale' });
 }
 
 export { esc };
