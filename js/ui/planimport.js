@@ -6,6 +6,8 @@ import { el, toast, fmt } from './dom.js';
 import { openSource } from './pdfutil.js';
 import { isLengthPart } from '../engine/rigging.js';
 import { equalShareLayout } from '../engine/legcog.js';
+import { bePlanSvg } from '../draw/beplan.js';
+import { safeImg } from './loadview.js';
 import { panZoomBox } from './panzoom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -46,8 +48,7 @@ export function applyPlanImport(p, d) {
   const d0 = ld.dims_mm || {};
   if (+d0.L > 0 && +d0.W > 0) ld.origin_mm = { x: -Math.round(d0.L / 2), y: -Math.round(d0.W / 2), z: Math.round(Math.max(...ld.liftPoints.map((q) => q.z)) - (+d0.H || 0)) };
   ld.setupMode = 'import';
-  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, std: d.std !== false, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len) })) };
-  delete ld.bePlan.hook;
+  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, std: d.std !== false, hook: d.hook || null, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len), p: l.p || null })) };
   if (d.image) Object.assign(ld.bePlan, { image: d.image, w: d.w, h: d.h, file: d.file || '', page: d.page || 1 });
   // rigging: legs on the hook, lengths kept, same share for every leg, sized for the angle assumed
   const rig = p.rigging;
@@ -82,9 +83,9 @@ export function leaveImport(p) {
 /** Data of the project as the dialog shows it. */
 function fromProject() {
   const p = app.project, ld = p.load, be = ld.bePlan || {};
-  const legs = (be.legs || []).map((l) => ({ id: l.id, len: l.len ?? null }));
-  if (!legs.length) (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => legs.push({ id: q.id, len: num(p.rigging.legs?.[q.id]?.Leff_m) }));
-  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, std: be.std !== false, legs };
+  const legs = (be.legs || []).map((l) => ({ id: l.id, len: l.len ?? null, p: l.p || null }));
+  if (!legs.length) (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => legs.push({ id: q.id, len: num(p.rigging.legs?.[q.id]?.Leff_m), p: null }));
+  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, std: be.std !== false, legs, hook: be.hook || null };
 }
 
 export function openPlanImport(onDone) {
@@ -93,9 +94,13 @@ export function openPlanImport(onDone) {
   const had = !!ld.bePlan;
   const st = {
     src: null, page: ld.bePlan?.page || 1, zoom: 1, crop: null, cropMode: false, text: [], drag: null, active: null,
-    image: ld.bePlan?.image || null, size: null,
-    ...(had ? fromProject() : { ref: '', weight: ld.weight_t ?? null, angle: 30, std: true, legs: ['A', 'B', 'C', 'D'].map((id) => ({ id, len: null })) }),
+    image: ld.bePlan?.image || null, size: null, sel: null, awaitHook: false,
+    ...(had ? fromProject() : { ref: '', weight: ld.weight_t ?? null, angle: 30, std: true, hook: null, legs: ['A', 'B', 'C', 'D'].map((id) => ({ id, len: null, p: null })) }),
   };
+  // marks on the plan (sketch only): hook and lift points, normalised (0–1) on the sheet shown
+  const clearMarks = () => { st.hook = null; st.awaitHook = false; st.sel = null; st.legs.forEach((l) => { l.p = null; }); };
+  const toPage = (n) => (n && st.size ? { u: n.u * st.size.w, v: n.v * st.size.h } : null);
+  const toNorm = (q) => ({ u: q.u / st.size.w, v: q.v / st.size.h });
 
   const side = el('div', { class: 'wz-side pi-side' });
   const canvasBox = el('div', { class: 'wz-canvas', id: 'pi-canvas' });
@@ -109,6 +114,7 @@ export function openPlanImport(onDone) {
       st.page = 1;
       st.crop = null;
       st.zoom = 1;
+      clearMarks();
       await loadText();
       buildSide();
       refreshTools();
@@ -127,12 +133,16 @@ export function openPlanImport(onDone) {
   function buildSide() {
     side.innerHTML = '';
     const tb = el('tbody');
+    const has = !!(st.src || st.image);
     st.legs.forEach((l, i) => {
-      tb.append(el('tr', {},
-        el('td', {}, el('input', { type: 'text', value: l.id, style: { width: '44px', fontWeight: 700 }, oninput: (e) => { l.id = e.target.value.trim(); } })),
-        el('td', {}, el('input', { type: 'number', value: l.len ?? '', placeholder: 'm', style: { width: '100px' }, 'data-len': i,
+      const on = st.sel === i && !st.awaitHook;
+      tb.append(el('tr', { class: on ? 'pi-on' : '' },
+        el('td', {}, el('input', { type: 'text', value: l.id, style: { width: '44px', fontWeight: 700 }, oninput: (e) => { l.id = e.target.value.trim(); drawOverlay(); } })),
+        el('td', {}, el('input', { type: 'number', value: l.len ?? '', placeholder: 'm', style: { width: '90px' }, 'data-len': i,
           oninput: (e) => { l.len = num(e.target.value); }, onfocus: (e) => { st.active = e.target; } })),
-        el('td', {}, el('button', { class: 'small danger', title: 'Remove the leg', onclick: () => { st.legs.splice(i, 1); buildSide(); } }, '✕'))));
+        el('td', {}, has ? el('button', { class: `small ${on ? 'primary' : ''}`, title: 'Sketch only: click its lift point on the plan', onclick: () => { st.sel = on ? null : i; st.awaitHook = false; buildSide(); refreshHint(); } },
+          on ? 'Click on the plan…' : l.p ? '✓ Move' : '✎ Place') : null),
+        el('td', {}, el('button', { class: 'small danger', title: 'Remove the leg', onclick: () => { st.legs.splice(i, 1); st.sel = null; buildSide(); drawOverlay(); } }, '✕'))));
     });
     side.append(
       el('div', { class: 'pi-step' }, el('b', {}, '1. The lift plan'),
@@ -145,10 +155,12 @@ export function openPlanImport(onDone) {
         el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Net weight of the load (t)'),
           el('input', { type: 'number', value: st.weight ?? '', oninput: (e) => { st.weight = num(e.target.value); }, onfocus: (e) => { st.active = e.target; } }))),
       el('div', { class: 'pi-step' }, el('b', {}, '3. The legs and their length'),
+        el('p', { class: 'muted', style: { fontSize: '12px', margin: '2px 0 6px' } }, 'On the plan (optional, for the sketch only): place the hook and each lift point — they are named on the plan in the report, with what each leg is made of.'),
         el('table', { class: 'data compact pi-pts' },
-          el('thead', {}, el('tr', {}, ['Leg', 'Length (m)', ''].map((h) => el('th', {}, h)))), tb),
+          el('thead', {}, el('tr', {}, ['Leg', 'Length (m)', 'On the plan', ''].map((h) => el('th', {}, h)))), tb),
         el('div', { class: 'row', style: { gap: '6px', marginTop: '6px' } },
-          el('button', { class: 'small', onclick: () => { const used = new Set(st.legs.map((l) => l.id)); st.legs.push({ id: IDS.split('').find((c) => !used.has(c)) || `L${st.legs.length + 1}`, len: null }); buildSide(); } }, '+ Leg'),
+          el('button', { class: 'small', onclick: () => { const used = new Set(st.legs.map((l) => l.id)); st.legs.push({ id: IDS.split('').find((c) => !used.has(c)) || `L${st.legs.length + 1}`, len: null, p: null }); buildSide(); } }, '+ Leg'),
+          has ? el('button', { class: `small ${st.awaitHook ? 'primary' : ''}`, title: 'Sketch only: click the hook on the plan', onclick: () => { st.awaitHook = !st.awaitHook; buildSide(); refreshHint(); } }, st.awaitHook ? 'Click the hook…' : st.hook ? '✓ Move the hook' : '✎ Place the hook') : null,
           el('button', { class: 'small', title: 'The length of the first leg given, on every leg', onclick: () => { const L = st.legs.find((l) => l.len > 0)?.len; if (!L) return toast('Type the length of one leg first'); st.legs.forEach((l) => { l.len = L; }); buildSide(); } }, 'Same length on every leg')),
         el('div', { style: { marginTop: '8px' } }, el('span', { class: 'lbl', style: { fontSize: '12.5px' } }, 'Slings'),
           el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: st.std, onchange: () => { st.std = true; } }), ' Standard lengths (the nearest to each leg)'),
@@ -206,9 +218,12 @@ export function openPlanImport(onDone) {
   }
 
   function refreshHint() {
+    const l = st.sel != null ? st.legs[st.sel] : null;
     hint.textContent = st.cropMode ? 'Drag a frame around the part of the sheet to keep (the rest is not printed).'
-      : `Wheel = zoom · drag = move${st.text.length ? ' · click a dimension = value in the field selected on the left' : ''}`;
-    if (pv?.ov) pv.ov.style.cursor = st.cropMode ? 'crosshair' : 'grab';
+      : st.awaitHook ? 'Click the HOOK on the plan.'
+        : l ? `Click the lift point of leg ${l.id} on the plan.`
+          : `Wheel = zoom · drag = move · markers can be dragged${st.text.length ? ' · click a dimension = value in the field selected on the left' : ''}`;
+    if (pv?.ov) pv.ov.style.cursor = st.cropMode || l || st.awaitHook ? 'crosshair' : 'grab';
   }
 
   function drawOverlay() {
@@ -222,6 +237,20 @@ export function openPlanImport(onDone) {
       add('path', { d: `M0 0H${pv.size.w}V${pv.size.h}H0Z M${r.x} ${r.y}v${r.h}h${r.w}v${-r.h}Z`, fill: 'rgba(20,30,45,.35)', 'fill-rule': 'evenodd' });
       add('rect', { x: r.x, y: r.y, width: r.w, height: r.h, fill: 'none', stroke: '#e8822a', 'stroke-width': 2 * s, 'stroke-dasharray': `${6 * s} ${4 * s}` });
     }
+    if (st.cropMode) return;
+    const label = (x, y, t) => { const e = add('text', { x, y, 'font-size': 15 * s, 'font-weight': 700, fill: '#b4561a', stroke: '#fff', 'stroke-width': 3 * s, 'paint-order': 'stroke', 'font-family': 'Arial, sans-serif' }); e.textContent = t; };
+    const h = toPage(st.hook);
+    st.legs.forEach((l) => { const q = toPage(l.p); if (h && q) add('line', { x1: h.u, y1: h.v, x2: q.u, y2: q.v, stroke: '#e8822a', 'stroke-width': 2.5 * s, opacity: 0.85 }); });
+    st.legs.forEach((l, i) => {
+      const q = toPage(l.p);
+      if (!q) return;
+      add('circle', { cx: q.u, cy: q.v, r: (st.sel === i ? 8 : 7) * s, fill: '#d64541', stroke: '#fff', 'stroke-width': 2 * s, 'data-m': `p${i}`, style: 'cursor:move' });
+      label(q.u + 10 * s, q.v - 8 * s, l.id);
+    });
+    if (h) {
+      add('circle', { cx: h.u, cy: h.v, r: 9 * s, fill: '#f2b705', stroke: '#1c2733', 'stroke-width': 2 * s, 'data-m': 'hook', style: 'cursor:move' });
+      label(h.u + 12 * s, h.v - 8 * s, 'Hook');
+    }
   }
 
   const pagePt = (ev) => { const b = pv.ov.getBoundingClientRect(); return { u: ((ev.clientX - b.left) / b.width) * pv.size.w, v: ((ev.clientY - b.top) / b.height) * pv.size.h }; };
@@ -232,6 +261,26 @@ export function openPlanImport(onDone) {
     if (st.cropMode) {
       pv.ov.setPointerCapture(ev.pointerId);
       st.drag = { a: q, rect: { x: q.u, y: q.v, w: 0, h: 0 } };
+      return;
+    }
+    // a marker: dragged
+    const mk = ev.target.getAttribute?.('data-m');
+    if (mk) {
+      pv.ov.setPointerCapture(ev.pointerId);
+      st.drag = { marker: mk };
+      return;
+    }
+    // placing the hook or the lift point of the leg selected (the next legs follow)
+    const l = st.sel != null ? st.legs[st.sel] : null;
+    if (st.awaitHook || l) {
+      if (st.awaitHook) st.hook = toNorm(q);
+      else l.p = toNorm(q);
+      st.awaitHook = !st.hook;
+      const nx = st.legs.findIndex((x) => !x.p);
+      st.sel = st.awaitHook ? st.sel : nx >= 0 ? nx : null;
+      buildSide();
+      drawOverlay();
+      refreshHint();
       return;
     }
     // a dimension clicked goes into the field selected
@@ -251,12 +300,20 @@ export function openPlanImport(onDone) {
   }
   function onMove(ev) {
     if (!st.drag) return;
+    if (st.drag.marker) {
+      const n = toNorm(pagePt(ev));
+      if (st.drag.marker === 'hook') st.hook = n;
+      else st.legs[Number(st.drag.marker.slice(1))].p = n;
+      drawOverlay();
+      return;
+    }
     const q = pagePt(ev), a = st.drag.a;
     st.drag.rect = { x: Math.min(a.u, q.u), y: Math.min(a.v, q.v), w: Math.abs(q.u - a.u), h: Math.abs(q.v - a.v) };
     drawOverlay();
   }
   function onUp() {
     if (!st.drag) return;
+    if (st.drag.marker) { st.drag = null; buildSide(); return; }
     const r = st.drag.rect;
     st.drag = null;
     if (r.w > 20 && r.h > 20) { st.crop = r; st.cropMode = false; render(); refreshTools(); } else drawOverlay();
@@ -267,7 +324,7 @@ export function openPlanImport(onDone) {
   function refreshTools() {
     tools.innerHTML = '';
     if (!(st.src || st.image)) return;
-    const pageSel = st.src?.pages > 1 ? el('select', { onchange: async (e) => { st.page = Number(e.target.value); st.crop = null; await loadText(); render(); } },
+    const pageSel = st.src?.pages > 1 ? el('select', { onchange: async (e) => { st.page = Number(e.target.value); st.crop = null; clearMarks(); await loadText(); buildSide(); render(); } },
       Array.from({ length: st.src.pages }, (_, i) => el('option', { value: i + 1, selected: st.page === i + 1 }, `Page ${i + 1}`))) : null;
     tools.append(...[
       pageSel,
@@ -283,10 +340,14 @@ export function openPlanImport(onDone) {
   // ---------------------------------------------------------------- apply
   async function apply() {
     try {
-      const d = { ref: st.ref, weight: st.weight, angle: st.angle, std: st.std, legs: st.legs };
+      const d = { ref: st.ref, weight: st.weight, angle: st.angle, std: st.std, legs: st.legs.map((l) => ({ ...l })), hook: st.hook };
       if (st.src) {
         const size = st.src.pageSize(st.page);
         const r = st.crop || { x: 0, y: 0, w: size.w, h: size.h };
+        // marks kept on the image printed (normalised to it, framing taken into account)
+        const toImg = (n) => (n ? { u: (n.u * size.w - r.x) / r.w, v: (n.v * size.h - r.y) / r.h } : null);
+        d.hook = toImg(st.hook);
+        d.legs.forEach((l) => { l.p = toImg(l.p); });
         const { canvas } = await st.src.renderRegion(st.page, r, 1800);
         Object.assign(d, { image: canvas.toDataURL('image/jpeg', 0.88), w: canvas.width, h: canvas.height, file: st.src.name, page: st.page });
       } else if (!st.image) return alert('Choose the file of the lift plan first');
@@ -336,7 +397,7 @@ export function importedSummary(res) {
   });
   const n = (ld.liftPoints || []).filter((q) => q.used !== false).length;
   return el('div', { class: 'pi-sum' },
-    be.image ? el('img', { src: be.image, alt: '', class: 'pi-thumb', title: 'Printed in the report — click to edit', onclick: () => openPlanImport() }) : el('div', { class: 'pi-thumb muted' }, 'No drawing'),
+    be.image ? el('div', { class: 'pi-thumb', title: 'Printed in the report — click to edit', onclick: () => openPlanImport(), html: bePlanSvg(be, safeImg(be.image), { maxHeight: '260px' }) || `<img src="${safeImg(be.image) || ''}" alt="" style="width:100%">` }) : el('div', { class: 'pi-thumb muted' }, 'No drawing'),
     el('div', {},
       el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, [be.ref || 'No reference', be.file ? ` · ${be.file}` : '', ` · weight ${fmt(ld.weight_t)} t`].join('')),
       el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Leg', 'Length asked', 'Actual length', be.std === false ? 'Sling (exact)' : 'Sling (standard)', 'Force per leg', 'Design force', 'Rigging'].map((h, i) => el('th', { class: i && i < 6 ? 'num' : '' }, h)))), tb),

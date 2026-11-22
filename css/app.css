@@ -481,3 +481,6 @@ details.inline-adv[open] { display: inline-flex; }
 .win-mark { position: fixed; z-index: 79; pointer-events: none; width: 4px; background: #e8822a; border-radius: 2px; display: none; box-shadow: 0 0 0 2px rgba(232,130,42,.25); }
 @media print { .report.tpl .win { cursor: auto; } }
 .pi-pts tr.pi-on td { background: #fff4ea; }
+.report.tpl .be-legend { font-size: 8.5px; line-height: 1.35; margin-top: 3px; padding: 3px 5px; border: 1px solid #ddd; border-top: 0; }
+.report.tpl .be-legend b { color: #b4561a; }
+.pi-thumb svg { display: block; width: 100%; }

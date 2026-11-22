@@ -14,6 +14,7 @@ import { pointKind } from '../../engine/rigging.js';
 import { SAFETY_MEASURES, CHECKLIFT, getPath, setPath } from '../../state.js';
 import { craneSwl } from './crane.js';
 import { openSignPad } from '../signpad.js';
+import { bePlanSvg, legCompositions } from '../../draw/beplan.js';
 
 const opts = { calc: true, checksAll: false };
 
@@ -505,7 +506,17 @@ export function buildReport() {
   const wins = availableWins(p, res);
   const lay = layoutOf(p, wins);
   const content = {
-    be: () => { const be = ld.bePlan; return [sub(`Lift plan — engineering office${be.ref ? ` (${be.ref})` : ''}`), el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(be.image) || '', alt: '' }))]; },
+    be: () => {
+      const be = ld.bePlan;
+      const svg = bePlanSvg(be, safeImg(be.image));
+      const marked = (be.legs || []).some((l) => l.p);
+      const comp = marked ? legCompositions(res) : null;
+      return [sub(`Lift plan — engineering office${be.ref ? ` (${be.ref})` : ''}`),
+        svg ? fig(svg, 'img-win be-plan') : el('div', { class: 'drawing img-win' }, el('img', { src: safeImg(be.image) || '', alt: '' })),
+        comp?.groups.length ? el('div', { class: 'be-legend' },
+          comp.groups.map((g) => el('div', {}, el('b', {}, `${g.ids.length > 1 ? 'Legs' : 'Leg'} ${g.ids.join(', ')}:`), ` ${g.text || '—'}`)),
+          comp.head ? el('div', {}, el('b', {}, 'Hook:'), ` ${comp.head}`) : null) : null];
+    },
     schem: () => { const sv = schematicSvg(p, res, { width: 760 })?.svg; return sv ? [sub('Rigging arrangement'), fig(sv, 'schem-r')] : null; },
     detail: () => { const sv = drawRiggingDetail(p, res, { height: 560 }); return sv ? [sub('Rigging detail (to scale)'), fig(sv, 'detail')] : null; },
     xy: () => [fig(staticViewSvg('xy', p, res, { width: 520, height: 300, title: 'Plan — XY' }))],
