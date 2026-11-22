@@ -17,6 +17,7 @@ export function buildBOM(rig, project) {
     if (prev) {
       prev.qty += qty;
       prev.where.push(opts.where);
+      if (opts.leg) prev.legs.push(opts.leg);
       if (opts.config && !prev.config.includes(opts.config)) prev.config += ` / ${opts.config}`;
     } else
       lines.set(key, {
@@ -32,6 +33,7 @@ export function buildBOM(rig, project) {
         unitWeight_t: unitW,
         certNo: item.certNo || '',
         where: [opts.where],
+        legs: opts.leg ? [opts.leg] : [],
       });
   };
   if (!rig || rig.error) return [];
@@ -39,10 +41,12 @@ export function buildBOM(rig, project) {
     const n = leg.parts.length;
     leg.parts.forEach((p, i) => {
       const pos = i === 0 ? (leg.level === 'top' ? 'spreader lug' : 'lift point') : i === n - 1 ? (leg.level === 'bottom' ? 'spreader lug' : 'hook side') : 'in line';
-      const lvl = leg.level === 'top' ? 'top legs' : leg.level === 'bottom' ? 'bottom legs' : 'legs';
+      // configuration: the legs concerned (A, B…) are added below, then where the part is
+      const lvl = leg.level === 'top' ? 'top' : leg.level === 'bottom' ? 'bottom' : '';
+      const cfg = (t) => [lvl, t].filter(Boolean).join(' — ');
       if (isLengthPart(p))
-        add(p.item, 1, { length_m: p.length_m, links: p.kind === 'chain' ? p.links : null, where: leg.label, config: `${lvl}${p.hitch === 'choke' ? ', choked' : ''}` });
-      else add(p.item, 1, { where: leg.label, config: `${lvl} — ${pos}` });
+        add(p.item, 1, { length_m: p.length_m, links: p.kind === 'chain' ? p.links : null, where: leg.label, config: cfg(p.hitch === 'choke' ? 'choked' : ''), leg: leg.key });
+      else add(p.item, 1, { where: leg.label, config: cfg(pos), leg: leg.key });
     });
   }
   const h = rig.head;
@@ -53,6 +57,8 @@ export function buildBOM(rig, project) {
       add({ ...h.subLink, id: `${h.subLink.id}#sub`, integrated: true }, h.pairs.length, { where: 'Head', config: 'under the master link' });
   }
   const out = [...lines.values()];
+  // legs concerned first: "A, B, C, D — lift point"
+  out.forEach((l) => { if (l.legs?.length) l.config = [[...new Set(l.legs)].join(', '), l.config].filter(Boolean).join(' — '); });
   if (rig.spreader) {
     const sp = project.rigging.spreader || {};
     out.push({
