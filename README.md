@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.11
+## What's new in v0.11.12
+
+- Lift category removed (top bar, Project page); the status of the checks is no longer in the top bar (see the Checks page).
 
 - Max Hs accepts a value or N/A (Project page and report).
 

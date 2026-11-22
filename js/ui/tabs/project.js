@@ -3,7 +3,7 @@
 // measures, communications.
 import { app } from '../app.js';
 import { brandLogo, setBrandLogo } from '../brand.js';
-import { el, field, panel, badge, toast } from '../dom.js';
+import { el, field, panel, toast } from '../dom.js';
 import { ENVIRONMENTS } from '../../engine/factors.js';
 import { SAFETY_MEASURES } from '../../state.js';
 
@@ -55,7 +55,6 @@ export function render(root) {
       field({ label: 'Over live plant', path: 'flags.overLive', type: 'checkbox' }),
       field({ label: 'Splash zone / subsea', path: 'flags.subsea', type: 'checkbox' }),
     ),
-    el('div', { class: 'note', style: { marginTop: '10px' }, id: 'cat-box' }),
   );
 
   const seq = panel(
@@ -206,14 +205,4 @@ function renderChecklist() {
   box.append(el('button', { class: 'small', style: { marginTop: '6px' }, onclick: () => { list.push({ label: 'New item', checked: false }); app.recompute(); renderChecklist(); } }, '+ Add item'));
 }
 
-function update(res) {
-  const box = document.getElementById('cat-box');
-  if (!box || !res?.category) return;
-  box.innerHTML = '';
-  box.append(
-    el('b', {}, `Indicative category: ${res.category.cat} `),
-    badge(res.status || 'info'),
-    el('div', { class: 'muted', style: { marginTop: '4px' } }, res.category.reasons.length ? `Reasons: ${res.category.reasons.join(', ')}` : 'No complex-lift criterion detected'),
-    el('div', { class: 'muted', style: { fontSize: '11px' } }, 'Indicative classification — apply your company / client lifting procedure.'),
-  );
-}
+function update() {}

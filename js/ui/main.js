@@ -108,17 +108,12 @@ function renderSummary(res) {
   }
   const r = res.rig;
   const k = (label, val, cls = '') => el('div', { class: `kpi ${cls}` }, label, el('b', {}, val));
-  const nf = res.checks.filter((c) => c.status === 'fail').length;
-  const nw = res.checks.filter((c) => c.status === 'warn').length;
-  const stTxt = res.status === 'fail' ? `${nf} failed` : res.status === 'warn' ? `${nw} warning(s)` : 'All checks OK';
   s.append(
     k('Load (×WCF)', `${fmt(r.W)} t`),
     k('Rigging', `${fmt(r.rigWeight)} t`),
     k('Hook load', `${fmt(res.shlCrane)} t`),
     k('DAF · SKL', `${fmt(r.factors.daf)} · ${fmt(r.factors.skl)}`),
     k('Max crane util.', res.craneMaxUtil != null ? `${(res.craneMaxUtil * 100).toFixed(0)} %` : '—'),
-    k('Category', res.category?.cat || '—'),
-    k('Status', stTxt, `status-${res.status}`),
   );
 }
 
