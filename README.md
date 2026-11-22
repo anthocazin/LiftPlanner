@@ -28,7 +28,7 @@ The current project and the inventory are saved automatically in the browser. **
 
 At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPlannerLight.html`](dist/LiftPlannerLight.html)), made for the phone:
 
-1. **Photos**: take one or more photos of the load (side, front…) and tap the lift points 1, 2, 3… on them.
+1. **Photos**: take one or more photos of the load (side, front…) and tap the lift points A, B, C… on them.
 2. **Load & crane**: weight, **one factor** (1 by default), crane SWL at the min. and max. radius.
 3. **Rigging**: master link supplied / master link of the crane / legs on the hook, the parts of a leg (shackle, round sling, wire rope, webbing, chain, G-link, hook…) in auto or chosen size, the **length of each leg**, standard or made-to-measure lengths. The legs are sized at **30°** with the same force in every leg (COG taken as centred).
 4. **Sketch**: the photo on a grid; place the crane hook (anywhere on the grid), legs A, B, C… are drawn from the points; drag their end to lengthen / shorten them.
@@ -37,7 +37,7 @@ At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPla
 
 v0.10.7: leg names **movable** on the sketch (with a leader line), rigging arrangement drawn like the Rigging page of the full version (no %), report laid out on as many A4 pages as needed: … step by step, sketches, rigging arrangement, then safety measures, communications and signature.
 
-v0.10.6: **each view has its own sketch** (hook and legs placed independently on every photo), view name in the corner (side / front / top / isometric view), legs named in a badge with the lift point number — A (1); all the views in the report, same size, without the leg legend. Signature from the name drawn like a hand signature (full and Light versions), with the **date and time of signature**.
+v0.10.6: **each view has its own sketch** (hook and legs placed independently on every photo), view name in the corner (side / front / top / isometric view), legs named in a badge; all the views in the report, same size, without the leg legend. Signature from the name drawn like a hand signature (full and Light versions), with the **date and time of signature**.
 
 v0.10.4: background removal by **tracing a line around the object** (points placed one by one, magnifier under the finger, points movable; holes traced the same way; brush to touch up).
 

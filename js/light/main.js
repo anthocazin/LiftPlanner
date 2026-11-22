@@ -115,7 +115,7 @@ function pointMarks(ids, P, r, fs, live) {
     const a = P(i + 1);
     if (!a) return;
     s += `<circle cx="${a.x}" cy="${a.y}" r="${r}" fill="#d64541" stroke="#fff" stroke-width="${r * 0.25}" ${live ? `data-m="p:${i + 1}" class="lt-drag"` : ''}/>`;
-    s += `<text x="${a.x}" y="${a.y + fs * 0.33}" font-size="${fs * 0.9}" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#fff" pointer-events="none">${i + 1}</text>`;
+    s += `<text x="${a.x}" y="${a.y + fs * 0.33}" font-size="${fs * 0.9}" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#fff" pointer-events="none">${esc(id)}</text>`;
   });
   return s;
 }
@@ -194,10 +194,10 @@ function stepPhotos() {
     el('div', { class: 'lt-row lt-n' }, el('span', {}, 'Lift points'),
       el('button', { onclick: () => { st.nPoints = Math.max(1, n - 1); changed(true); } }, '−'), el('b', {}, String(n)),
       el('button', { onclick: () => { st.nPoints = Math.min(8, n + 1); changed(true); } }, '+')));
-  if (!ph) { wrap.append(el('p', { class: 'muted' }, 'Take one or more photos (side, front, top…), then tap each lift point on them: 1, 2, 3…')); return wrap; }
+  if (!ph) { wrap.append(el('p', { class: 'muted' }, 'Take one or more photos (side, front, top…), then tap each lift point on them: A, B, C…')); return wrap; }
   wrap.append(thumbs(cur, (p) => { cur = p.id; render(); }));
   const chips = el('div', { class: 'lt-row lt-chips' }, el('span', {}, 'Tap point:'),
-    legIds(st).map((_, i) => el('button', { class: `chip ${activePt === i + 1 ? 'on' : ''} ${ph.points[i + 1] ? 'set' : ''}`, onclick: () => { activePt = i + 1; render(); } }, String(i + 1))));
+    legIds(st).map((_, i) => el('button', { class: `chip ${activePt === i + 1 ? 'on' : ''} ${ph.points[i + 1] ? 'set' : ''}`, onclick: () => { activePt = i + 1; render(); } }, legIds(st)[i])));
   const uv = (p) => ({ u: Math.min(1, Math.max(0, p.x / ph.w)), v: Math.min(1, Math.max(0, p.y / ph.h)) });
   const view = interactive(() => photoMarked(ph, true), {
     cls: `lt-photo ${ph.mask ? 'cut' : ''}`,
@@ -212,7 +212,7 @@ function stepPhotos() {
       ph.mask ? el('button', { onclick: () => { ph.mask = null; changed(true); } }, 'Put the background back') : null),
     el('div', { class: 'lt-row' },
       el('select', { onchange: (e) => { ph.name = e.target.value; changed(true); } }, VIEWS.map((v) => el('option', { value: v, selected: v === ph.name }, v))),
-      el('button', { onclick: () => { delete ph.points[activePt]; changed(true); } }, `Clear point ${activePt}`),
+      el('button', { onclick: () => { delete ph.points[activePt]; changed(true); } }, `Clear point ${legIds(st)[activePt - 1] || ''}`),
       el('button', { class: 'danger', onclick: () => { if (!confirm('Remove this photo?')) return; st.photos = st.photos.filter((p) => p !== ph); if (st.sketch === ph.id) st.sketch = st.photos[0]?.id || null; cur = st.photos[0]?.id || null; changed(true); } }, 'Remove photo')),
     el('p', { class: 'muted small' }, 'Tap the photo to place the point selected (it then goes to the next one); drag a point to move it.'));
   return wrap;
@@ -289,7 +289,7 @@ function stepRigging() {
     const l = out.legs.find((x) => x.pointId === id);
     const s = l?.parts?.[l.li];
     const what = s?.kind === 'chain' ? 'chain' : 'sling';
-    return el('label', { class: 'lt-f' }, el('span', {}, `${id} (point ${i + 1})`),
+    return el('label', { class: 'lt-f' }, el('span', {}, `Leg ${id}`),
       el('input', { type: 'number', value: store()[id] ?? '', placeholder: 'm', onchange: (e) => { store()[id] = num(e.target.value); changed(true); } }), el('i', {}, 'm'),
       sl ? (l?.Leff && givenLen(id) ? el('small', { class: 'muted' }, `${s?.kind === 'chain' && s.links ? `${s.links} links · ` : ''}leg ${fmt(l.Leff, 2)} m (point → hook)`) : null)
         : s?.length_m ? el('small', { class: 'muted' }, `${what} ${fmt(s.length_m, 2)} m${s.kind === 'chain' && s.links ? ` (${s.links} links)` : ''}`) : null);
@@ -371,7 +371,7 @@ function boardSvg(ph, b, live) {
       const L = givenLen(id);
       const anchor = { x: a.x * 0.58 + t.x * 0.42, y: a.y * 0.58 + t.y * 0.42 };
       const pos = b.labels[id] || anchor;
-      const txt = `${id} (${i + 1})${L ? ` ${fmt(L, 2)} m` : ''}`;
+      const txt = `${id}${L ? ` ${fmt(L, 2)} m` : ''}`;
       const bw = txt.length * 21 + 26;
       if (b.labels[id]) lines += `<line x1="${anchor.x}" y1="${anchor.y}" x2="${pos.x}" y2="${pos.y}" stroke="#b4561a" stroke-width="2.5"/><circle cx="${anchor.x}" cy="${anchor.y}" r="5" fill="#b4561a"/>`;
       badges += `<g><rect x="${pos.x - bw / 2}" y="${pos.y - 26}" width="${bw}" height="50" rx="10" fill="#fff" stroke="#e8822a" stroke-width="4" ${live ? `data-m="l:${id}" class="lt-move"` : ''}/><text x="${pos.x}" y="${pos.y + 13}" font-size="36" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#b4561a" pointer-events="none">${esc(txt)}</text></g>`;
@@ -422,7 +422,7 @@ function stepSketch() {
         b.y = bottom - bh();
         view.innerHTML = boardSvg(ph, b, true);
       }, onchange: () => changed() }))),
-    missing.length ? el('p', { class: 'note warn small' }, `Points not placed on this photo: ${missing.map((id) => `${legIds(st).indexOf(id) + 1} (${id})`).join(', ')} — place them in step 1.`) : '',
+    missing.length ? el('p', { class: 'note warn small' }, `Points not placed on this photo: ${missing.join(', ')} — place them in step 1.`) : '',
     el('div', { class: 'lt-row' },
       el('button', { onclick: () => { const pts = legIds(st).map((_, i) => ph.points[i + 1]).filter(Boolean); if (!pts.length || !b.hook) return; b.hook.x = b.x + (pts.reduce((a, q) => a + q.u, 0) / pts.length) * b.w; changed(true); } }, 'Hook above the middle'),
       el('button', { onclick: () => { b.hook = null; b.tops = {}; changed(true); } }, 'Place the hook again'),

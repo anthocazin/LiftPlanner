@@ -47,7 +47,7 @@ function icon(kind, x, y, part, item) {
 
 /**
  * opts: { width, interactive, highlight: { leg, part } | { head: true } | { point }, lite (LiftPlanner Light: no
- *   utilisation, no angle, a padeye drawn at every lift point, the lift point number next to its letter) }
+ *   utilisation, no angle, a padeye drawn at every lift point) }
  * → { svg, W, H, drops: [{ x, y, w, h, key, level, idx }] }
  */
 export function schematicSvg(project, res, { width = 900, interactive = false, highlight = null, lite = false } = {}) {
@@ -134,7 +134,7 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
       else if (kind === 'ring') s += `<ellipse cx="${c.x}" cy="${yy + 10}" rx="8" ry="10" fill="none" stroke="#3c4652" stroke-width="3.5"/><rect x="${c.x - 10}" y="${yy + 18}" width="20" height="5" fill="#9aa5b1"/>`;
       else s += `<rect x="${c.x - 24}" y="${yy + 4}" width="48" height="18" fill="#e8edf2" stroke="#3c4652" stroke-dasharray="4 3"/>`;
       s += `<rect x="${c.x - 40}" y="${yy + 22}" width="80" height="6" fill="#9aa5b1"/>`;
-      s += `<text x="${c.x}" y="${yy + 44}" font-size="13" font-weight="800" text-anchor="middle" fill="#c0392b">${esc(c.point.id)}${lite ? ` (${pts.indexOf(c.point) + 1})` : ''}</text>`;
+      s += `<text x="${c.x}" y="${yy + 44}" font-size="13" font-weight="800" text-anchor="middle" fill="#c0392b">${esc(c.point.id)}</text>`;
       const pl = kind === 'padeye' ? `pad eye ${c.point.swl_t ? `${fmt(c.point.swl_t, 1)}t` : '?'}` : kind === 'ring' ? `ring ${c.point.swl_t ? `${fmt(c.point.swl_t, 1)}t` : '?'}` : 'no pad eye';
       if (lite) {
         if (leg) s += `<text x="${c.x}" y="${yy + 58}" font-size="10.5" text-anchor="middle" fill="#173a5e" font-weight="600">${fmt(leg.Tstatic, 2)} t</text>`;
