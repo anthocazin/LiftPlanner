@@ -352,10 +352,10 @@ function boardSvg(ph, b, live) {
   const bh = (b.w * ph.h) / ph.w;
   const P = (n) => (ph.points[n] ? { x: b.x + ph.points[n].u * b.w, y: b.y + ph.points[n].v * bh } : null);
   const r = 18, fs = 30, sw = 6;
-  const g = ++uid;
-  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${BOARD.w} ${BOARD.h}" class="lt-board">`;
-  s += `<defs><pattern id="g${g}a" width="25" height="25" patternUnits="userSpaceOnUse"><path d="M25 0H0V25" fill="none" stroke="#e3e8ee" stroke-width="1.2"/></pattern><pattern id="g${g}b" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#g${g}a)"/><path d="M100 0H0V100" fill="none" stroke="#c4ced9" stroke-width="2"/></pattern></defs>`;
-  s += `<rect width="${BOARD.w}" height="${BOARD.h}" fill="#fff"/><rect width="${BOARD.w}" height="${BOARD.h}" fill="url(#g${g}b)"/>`;
+  // white background; in the report the view is cropped around what is drawn (photo, hook, names)
+  const box = { x0: b.x, y0: b.y, x1: b.x + b.w, y1: b.y + bh };
+  const grow = (x0, y0, x1, y1) => { box.x0 = Math.min(box.x0, x0); box.y0 = Math.min(box.y0, y0); box.x1 = Math.max(box.x1, x1); box.y1 = Math.max(box.y1, y1); };
+  let s = `<rect x="-2000" y="-2000" width="${BOARD.w + 4000}" height="${BOARD.h + 4000}" fill="#fff"/>`;
   s += photoSvg(ph, b.x, b.y, b.w, bh, live ? 'data-m="photo" class="lt-move"' : '');
   if (live) s += `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${bh}" fill="none" stroke="#9aa7b4" stroke-width="2" stroke-dasharray="8 6" pointer-events="none"/>`;
   const ids = legIds(st);
@@ -375,15 +375,19 @@ function boardSvg(ph, b, live) {
       const txt = `${id}${L ? ` ${fmt(L, 2)} m` : ''}`;
       const bw = txt.length * 21 + 26;
       if (b.labels[id]) lines += `<line x1="${anchor.x}" y1="${anchor.y}" x2="${pos.x}" y2="${pos.y}" stroke="#b4561a" stroke-width="2.5"/><circle cx="${anchor.x}" cy="${anchor.y}" r="5" fill="#b4561a"/>`;
+ grow(pos.x - bw / 2, pos.y - 26, pos.x + bw / 2, pos.y + 24);
       badges += `<g><rect x="${pos.x - bw / 2}" y="${pos.y - 26}" width="${bw}" height="50" rx="10" fill="#fff" stroke="#e8822a" stroke-width="4" ${live ? `data-m="l:${id}" class="lt-move"` : ''}/><text x="${pos.x}" y="${pos.y + 13}" font-size="36" font-weight="800" text-anchor="middle" font-family="Arial, sans-serif" fill="#b4561a" pointer-events="none">${esc(txt)}</text></g>`;
     });
     s += lines + badges;
+    grow(h.x - 30, h.y - 74, h.x + r * 2 + 90, h.y + 30);
     s += `<path d="M${h.x} ${h.y - 70}V${h.y - 18}" stroke="#1c2733" stroke-width="4"/><circle cx="${h.x}" cy="${h.y}" r="${r * 1.3}" fill="#f2b705" stroke="#1c2733" stroke-width="3" ${live ? 'data-m="hook" class="lt-drag"' : ''}/>` + label(h.x + r * 2, h.y - r * 0.4, 'Hook', '#7a5a10', fs);
   }
   s += pointMarks(ids, P, r, fs, false);
   const vn = esc(ph.name || 'View');
-  s += `<rect x="12" y="12" width="${vn.length * 23 + 36}" height="62" rx="8" fill="#0f2742"/><text x="30" y="56" font-size="38" font-weight="700" font-family="Arial, sans-serif" fill="#fff">${vn}</text>`;
-  return `${s}</svg>`;
+  const pad = 24;
+  const vb = live ? { x: 0, y: 0, w: BOARD.w, h: BOARD.h } : { x: box.x0 - pad, y: box.y0 - pad - 74, w: box.x1 - box.x0 + 2 * pad, h: box.y1 - box.y0 + 2 * pad + 74 };
+  s += `<rect x="${vb.x + 12}" y="${vb.y + 12}" width="${vn.length * 23 + 36}" height="62" rx="8" fill="#0f2742"/><text x="${vb.x + 30}" y="${vb.y + 56}" font-size="38" font-weight="700" font-family="Arial, sans-serif" fill="#fff">${vn}</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb.x} ${vb.y} ${vb.w} ${vb.h}" class="lt-board">${s}</svg>`;
 }
 
 function stepSketch() {
@@ -587,7 +591,7 @@ function printPlan() {
       tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
       steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
     el('div', {}, bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
-      views.length ? el('div', { class: `figs views v${views.length <= 2 ? 2 : 3}` }, views.map((p) => drawing(boardSvg(p, boardFor(p), false), 'sk'))) : el('div', { class: 'p-empty' }, 'No photo')),
+      views.length ? viewsRow(views) : el('div', { class: 'p-empty' }, 'No photo')),
     fan ? el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement'), drawing(fan, 'fan')) : null,
     el('table', { class: 'tb' },
       sec('Possible safety measures to be considered', '(tick as applicable and detail in ‘step-by-step’)', 3),
@@ -627,6 +631,22 @@ function printPlan() {
     document.title = `Lift plan${st.title ? ` - ${st.title}` : ''}${st.date ? ` - ${st.date}` : ''}`;
     setTimeout(() => { window.print(); setTimeout(() => { document.title = t; }, 500); }, 50);
   });
+}
+
+/** The sketches of the report: cropped, side by side, all at the same scale, centred on the page. */
+function viewsRow(views) {
+  const svgs = views.map((p) => boardSvg(p, boardFor(p), false));
+  const vbs = svgs.map((x) => (x.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+) ([\d.]+)"/) || []).slice(1).map(Number));
+  const perRow = views.length <= 3 ? views.length : Math.ceil(views.length / 2);
+  const rows = [];
+  for (let i = 0; i < views.length; i += perRow) rows.push(svgs.slice(i, i + perRow).map((x, j) => ({ x, vb: vbs[i + j] })));
+  // mm per board unit: every row fits the width of the page (186 mm with the gaps), no view taller than 95 mm
+  const k = Math.min(...rows.map((r) => (186 - 4 * (r.length - 1)) / r.reduce((t, v) => t + (v.vb[2] || 1000), 0)), ...vbs.map((v) => 95 / (v[3] || 1000)));
+  return el('div', {}, rows.map((r) => el('div', { class: 'views' }, r.map((v) => {
+    const d = el('div', { class: 'drawing sk', html: v.x });
+    d.querySelector('svg')?.setAttribute('style', `width:${((v.vb[2] || 1000) * k).toFixed(1)}mm;height:auto;max-width:none;max-height:none`);
+    return d;
+  }))));
 }
 
 // ------------------------------------------------------------------ file

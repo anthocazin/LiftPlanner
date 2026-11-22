@@ -193,10 +193,11 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 .lt-rep .drawing.fan svg { max-height: 85mm; }
 .lt-rep .ph-b { margin-top: 6px; }
 .lt-rep .ph-b .drawing.ph svg { max-height: 48mm; }
-.lt-rep .figs.views { gap: 6px; }
-.lt-rep .figs.views.v2 { grid-template-columns: 1fr 1fr; }
-.lt-rep .figs.views.v3 { grid-template-columns: 1fr 1fr 1fr; }
-.lt-rep .figs.views .drawing svg { max-height: none; }
+.lt-rep .views { display: flex; justify-content: center; align-items: flex-end; gap: 4mm; margin-bottom: 8px; }
+.lt-rep .views .drawing { border: 0; }
+.lt-rep .views .drawing { flex: 0 0 auto; }
+.lt-rep .drawing.fan { border: 0; }
+.lt-rep .drawing.fan svg { margin: 0 auto; }
 .lt-rep .signed { font-size: 8.5px; color: #333; margin-top: 2px; }
 .lt-rep .figs.f3 { grid-template-columns: repeat(3, 1fr); }
 .lt-rep .drawing { border: 1px solid #bbb; }

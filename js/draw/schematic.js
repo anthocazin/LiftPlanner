@@ -55,16 +55,17 @@ export function schematicSvg(project, res, { width = 900, interactive = false, h
   const proj = project.rigging;
   // engineering office lift plan, in the report: no utilisation, share nor angle (the angle only serves the checks)
   const quiet = !interactive && project.load?.setupMode === 'import';
-  const W = Math.max(520, width);
   const used = (project.load.liftPoints || []).filter((p) => p.used !== false);
+  const nCol = used.length;
+  // lite: the columns (icons) symmetric about the hook, the same margin on both sides for the labels
+  const W = lite ? Math.max(420, (nCol - 1) * 210 + 2 * 185) : Math.max(520, width);
   if (!used.length) return { svg: '', W, H: 0, drops: [], empty: true };
   const isSp = proj.type === 'spreader';
   const legOf = (key) => rig?.legs?.find((l) => l.key === key);
   const pts = [...used]; // in the order of the list (A, B, C…)
-  const nCol = pts.length;
-  const colW = Math.min(230, (W - 40) / nCol);
+  const colW = lite ? 210 : Math.min(230, (W - 40) / nCol);
   // icons on the left of their column, labels on the right: the whole group is centred
-  const x0 = (W - colW * nCol) / 2 + colW * 0.22;
+  const x0 = lite ? W / 2 - ((nCol - 1) * colW) / 2 : (W - colW * nCol) / 2 + colW * 0.22;
   let s = '';
   const drops = [];
   const head = rig?.head;
