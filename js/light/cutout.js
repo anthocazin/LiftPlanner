@@ -292,17 +292,3 @@ export async function openCutout(ph, onSave) {
   draw();
 }
 
-/** Extent of the object kept by a mask (for masks saved before the extent was recorded). */
-export async function maskExtent(ph) {
-  if (!ph.mask) return null;
-  const m = await loadImg(ph.mask);
-  const w = Math.min(400, ph.w), h = Math.round((w * ph.h) / ph.w);
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  const x = c.getContext('2d');
-  x.drawImage(m, 0, 0, w, h);
-  const d = x.getImageData(0, 0, w, h).data;
-  let x0 = w, y0 = h, x1 = -1, y1 = -1;
-  for (let p = 0; p < w * h; p++) if (d[p * 4] > 127) { const px = p % w, py = (p - px) / w; if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; }
-  return x1 >= 0 ? { u0: x0 / w, v0: y0 / h, u1: (x1 + 1) / w, v1: (y1 + 1) / h } : null;
-}

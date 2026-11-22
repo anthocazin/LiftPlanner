@@ -18,9 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.4
+## What's new in v0.11.5
 
-- Light sketches: the legs go straight to the hook (no handles); **every view at about the same scale** (the object — the part kept by the cut-out, else the photo — has the same height on the side, front and isometric views, the top view the width of the widest), one slider for the size of all the views.
+- Light sketches: the legs go straight to the hook (no handles); the size of each photo is set by hand.
+- Full version, engineering office lift plan: the **sling length can be changed on the Rigging page** (legs table or a click on the sling); the other legs change by the same length (5.5 / 5.5 / 6 / 6 m, one 5.5 m set to 6 m → 6 / 6 / 6.5 / 6.5 m).
 
 ## What's new in v0.11.2
 
@@ -40,7 +41,7 @@ At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPla
 1. **Photos**: take one or more photos of the load (side, front…) and tap the lift points A, B, C… on them.
 2. **Load & crane**: weight, **one factor** (1 by default), crane SWL at the min. and max. radius.
 3. **Rigging**: master link supplied / master link of the crane / legs on the hook, the parts of a leg (shackle, round sling, wire rope, webbing, chain, G-link, hook…) in auto or chosen size, the **length of each leg**, standard or made-to-measure lengths. The legs are sized at **30°** with the same force in every leg (COG taken as centred).
-4. **Sketch**: every photo on a grid, all at about the same scale; place the crane hook (anywhere on the grid), legs A, B, C… are drawn from the points to it; their names can be moved.
+4. **Sketch**: every photo on a grid (its size set by hand); place the crane hook (anywhere on the grid), legs A, B, C… are drawn from the points to it; their names can be moved.
 5. **Steps & safety**: short step by step (editable) and the safety measures that apply.
 6. **Plan**: checks (SWL of every part, compatibility of the parts, crane at the max. radius), equipment list, prepared by + date + signature (written from the name or drawn), and the **PDF** (page 1: lifting plan, load / crane, equipment, step by step, sketch with all the photos, rigging arrangement to scale; page 2: safety measures, communications, signature).
 

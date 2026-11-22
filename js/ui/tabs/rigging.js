@@ -297,7 +297,12 @@ function openPop(ref, ev) {
       [['direct', 'Straight (×1.0)'], ['choke', 'Choked (×0.8)']].forEach(([k, v]) => h.append(el('option', { value: k, selected: (cur.hitch || 'direct') === k }, v)));
       box.append(h);
       if (cur.hitch === 'choke') box.append(el('label', {}, 'Length taken by the choke (m) ', el('input', { type: 'number', step: 'any', value: cur.wrap_m ?? '', style: { width: '70px' }, onchange: (e) => { target().wrap_m = e.target.value === '' ? null : Number(e.target.value); done(); } })));
-      box.append(el('label', {}, cur.kind === 'chain' ? 'Fixed length ' : 'Fixed EWL ', el('input', { type: 'number', step: 'any', value: cur.lock || cur.fixed ? cur.length_m ?? '' : '', placeholder: 'auto', style: { width: '70px' }, onchange: (e) => { const t = target(); t.length_m = Number(e.target.value) || null; t.lock = !!t.length_m; done(); } }), ' m'));
+      if (app.project.load.setupMode === 'import') {
+        const leg = app.result?.rig?.legs?.find((l) => l.key === key);
+        const L = leg?.parts?.[leg.li]?.length_m;
+        box.append(el('label', { title: 'The other legs change by the same length' }, cur.kind === 'chain' ? 'Chain length ' : 'Sling length (EWL) ', el('input', { type: 'number', step: 'any', value: L ?? '', style: { width: '70px' }, onchange: (e) => { closePop(); setSlingLength(key, Number(String(e.target.value).replace(',', '.'))); } }), ' m'),
+          el('div', { class: 'muted', style: { fontSize: '11px', maxWidth: '260px' } }, 'Leg lengths of the engineering office: the other legs are lengthened (or shortened) by the same amount.'));
+      } else box.append(el('label', {}, cur.kind === 'chain' ? 'Fixed length ' : 'Fixed EWL ', el('input', { type: 'number', step: 'any', value: cur.lock || cur.fixed ? cur.length_m ?? '' : '', placeholder: 'auto', style: { width: '70px' }, onchange: (e) => { const t = target(); t.length_m = Number(e.target.value) || null; t.lock = !!t.length_m; done(); } }), ' m'));
     }
     box.append(el('div', { class: 'row' },
       el('button', { class: 'small danger', onclick: () => { editable(key, lvl).splice(i, 1); done(); } }, 'Remove'),
@@ -312,6 +317,36 @@ function placePop(box, ev) {
   box.style.left = `${Math.max(8, Math.min(window.innerWidth - r.width - 10, ev.clientX + 8))}px`;
   box.style.top = `${Math.max(8, Math.min(window.innerHeight - r.height - 10, ev.clientY + 8)) + window.scrollY}px`;
   pop = box;
+}
+
+// ---------------------------------------------------------------- sling lengths of the engineering office lift plan
+/**
+ * Engineering office lift plan (leg lengths imposed): the sling of leg `key` gets the length typed and
+ * every other leg is lengthened (or shortened) by the same amount. E.g. 5.5 / 5.5 / 6 / 6 m, one 5.5 m
+ * set to 6 m → 6 / 6 / 6.5 / 6.5 m.
+ */
+function setSlingLength(key, newLen) {
+  const rig = app.result?.rig;
+  const leg = rig?.legs?.find((l) => l.key === key);
+  const cur = leg?.parts?.[leg.li]?.length_m;
+  if (!(newLen > 0) || !(cur > 0) || !leg) return;
+  const d = newLen - cur;
+  if (Math.abs(d) < 1e-6) return;
+  const R = app.project.rigging;
+  const be = app.project.load.bePlan;
+  R.legs = R.legs || {};
+  const r3 = (v) => Math.round(v * 1000) / 1000;
+  for (const l of rig.legs.filter((x) => x.level !== 'top')) {
+    const r = (R.legs[l.pointId] = R.legs[l.pointId] || {});
+    // the leg changed: exactly the sling typed (+ its hardware); the others: the same difference
+    const L = l.key === key ? newLen + (l.hwLength || 0) - (l.wrap || 0) : (Number(r.Leff_m) || l.Leff) + d;
+    r.Leff_m = r3(L);
+    const b = be?.legs?.find((x) => x.id === l.pointId);
+    if (b) b.len = r.Leff_m;
+  }
+  app.recompute();
+  window.__rerender?.();
+  toast(`Sling of leg ${key}: ${fmt(newLen, 2)} m — the other legs ${d > 0 ? '+' : '−'}${fmt(Math.abs(d), 2)} m`);
 }
 
 // ---------------------------------------------------------------- update
@@ -367,7 +402,9 @@ function update(res) {
       el('td', { class: 'num' }, nd.target ? lenTxt(nd.target.L, nd.target.elem) : '—'),
       el('td', { class: 'num' }, nd.max ? lenTxt(nd.max.L, nd.max.elem) : '—'),
       canImpose ? el('td', {}, l.level === 'top' ? '' : imposeInput(l)) : null,
-      el('td', {}, len?.item ? niceName(len.item, { length_m: len.length_m, links: len.kind === 'chain' ? len.links : null }) : '—'),
+      el('td', {}, len?.item ? (canImpose && l.level !== 'top'
+        ? el('span', { class: 'nowrap' }, `${niceName(len.item)} — `, el('input', { type: 'number', step: 'any', value: len.length_m ?? '', style: { width: '66px' }, title: 'Sling length: the other legs change by the same length', onchange: (e) => setSlingLength(l.key, Number(String(e.target.value).replace(',', '.'))) }), ' m', len.kind === 'chain' && len.links ? el('span', { class: 'muted' }, ` (${len.links} links)`) : null)
+        : niceName(len.item, { length_m: len.length_m, links: len.kind === 'chain' ? len.links : null })) : '—'),
       el('td', { class: 'num', style: { color: l.angleV > mx + 0.2 ? 'var(--fail)' : l.angleV > tgt + 0.2 ? 'var(--warn)' : '' } }, `${fmt(l.Leff, 2)} m · ${l.angleV.toFixed(1)}°`),
       el('td', {}, utilBar(utilMax)),
     ));
