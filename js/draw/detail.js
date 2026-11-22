@@ -408,15 +408,10 @@ export function drawRiggingFan(project, res, opts = {}) {
   const ids = (project.load.liftPoints || []).filter((q) => q.used !== false).map((q) => q.id);
   const legs = rig.legs.filter((l) => l.level === 'main').sort((a, b) => ids.indexOf(a.pointId) - ids.indexOf(b.pointId));
   if (!legs.length || rig.type === 'spreader') return drawRiggingDetail(project, res, opts);
-  // sling / chain bodies all cut by the same length: a shorter leg looks shorter
-  const Lof = (l) => Number(l.parts?.[l.li]?.length_m) || 0;
-  const Ls = legs.map(Lof);
-  const Lmax = Math.max(...Ls), Lmin = Math.min(...Ls.filter((v) => v > 0), Lmax);
-  const base = Math.max(420, (Lmax - Lmin) * 1000 + 260); // shown length of the longest body (mm)
-  const cut = Lmax * 1000 - base;
+  // sling / chain bodies all shown with the same (cut) length: the length is written beside each leg
+  const Ls = legs.map((l) => Number(l.parts?.[l.li]?.length_m) || 0);
   const lite = !!opts.lite;
-  // lite: bodies shown between 240 and 480 mm (a shorter leg still looks shorter, the parts stay readable)
-  const disp = (L) => (lite ? 240 + (Lmax > Lmin ? (240 * (L - Lmin)) / (Lmax - Lmin) : 120) : Math.max(200, L * 1000 - cut));
+  const disp = () => (lite ? 360 : 420);
   const cols = legs.map((l, i) => { const d = disp(Ls[i]); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d, lite }); });
   const c0 = cols[0];
   const gap = 46; // px between the crane hook and the top of the legs

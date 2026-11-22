@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.5
+## What's new in v0.11.6
+
+- Rigging arrangement (to scale): every leg drawn with the same length (the sling / chain body is cut), its length written beside it.
 
 - Light sketches: the legs go straight to the hook (no handles); the size of each photo is set by hand.
 - Full version, engineering office lift plan: the **sling length can be changed on the Rigging page** (legs table or a click on the sling); the other legs change by the same length (5.5 / 5.5 / 6 / 6 m, one 5.5 m set to 6 m → 6 / 6 / 6.5 / 6.5 m).
