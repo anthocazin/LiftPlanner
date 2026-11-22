@@ -18,6 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.3
+
+- **Import a lift plan, freely**: no coordinates any more. Draw each leg on the plan — ✎ Draw, a click on its lift point, a click on the hook (the next legs need one click: same hook) — and type its length. The angle to the vertical is read on the plan (or typed), the lift points follow from the length and the angle, the COG is under the hook. Markers can be dragged; the drawn legs are kept for a later edit.
+
 ## What's new in v0.8.2
 
 - **Decimal comma accepted everywhere** (5,853 = 5.853; spaces between thousands: 1 501 = 1501). A number field of the browser used to drop the comma (5,853 → 5853 m), which put the COG and the points kilometres away.
@@ -33,7 +37,7 @@ The current project and the inventory are saved automatically in the browser. **
 
 ## What's new in v0.8
 
-- **Import a lift plan of the engineering office** (Load page, *⇪ Import a lift plan*): the drawing (PDF or image — a sheet can be framed to keep only the view), its reference, the weight, the **lift points measured from the COG** and the **known leg lengths** (overall lift point → hook, or sling EWL). On a PDF, click a dimension on the drawing to put it in the field selected. The legs keep the lengths given; LiftPlanner computes the hook height, angles, tensions, the estimated tilt and **any slack leg**, and chooses the shackles, slings and master link for the forces. The plan is printed in the report.
+- **Import a lift plan of the engineering office** (Load page, *⇪ Import a lift plan*): the drawing (PDF or image — a sheet can be framed to keep only the view), its reference, the weight and the legs with their known lengths (since v0.8.3: drawn on the plan). On a PDF, click a dimension on the drawing to put it in the field selected. The legs keep the lengths given; LiftPlanner computes the hook height, angles, tensions, the estimated tilt and **any slack leg**, and chooses the shackles, slings and master link for the forces. The plan is printed in the report.
 - **Imposed leg length** on the Rigging page (legs table): length lift point → hook known, kept as given (empty = chosen by LiftPlanner).
 - **Report drawings as windows**: point at a drawing in the preview to move it (← →), set half or whole page width (½ ⬌), make it smaller or bigger (− +), remove it (✕) — or drag its corner ◢ to resize freely (width in % of the page, height in mm). Rows fill up to the page width; layout saved with the project, *Reset the layout* to go back. Your own drawings are windows too.
 
