@@ -18,7 +18,9 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
-## What's new in v0.11.7
+## What's new in v0.11.8
+
+- Engineering office lift plan: the drawings of the lift plan (rigging arrangement to scale and schematic) show no angle, utilisation % nor leg force — the angle typed is only used for the checks.
 
 - Light, rigging arrangement: the minimum SWL required ("min … t") is no longer written; only the name and the length of the parts.
 

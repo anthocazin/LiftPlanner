@@ -175,7 +175,7 @@ function chainDraw(item, y0, links, dispMax = 520) {
 }
 
 /** Builds the column of one leg (coordinates in mm, y down): from the hook down to the lift point. */
-function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite = false } = {}) {
+function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite = false, quiet = lite } = {}) {
   const head = rig.head || {};
   const parts = [];
   const labels = [];
@@ -185,8 +185,9 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite
   let barA = 40;
   let minX = -60, maxX = 60;
   const ext = (hw) => { minX = Math.min(minX, -hw); maxX = Math.max(maxX, hw); };
-  // lite (LiftPlanner Light): no utilisation, no angle, the padeye seen face-on
-  const util = (F, wll) => (wll && !lite ? `${Math.round((F / wll) * 100)} %` : '');
+  // quiet (engineering office lift plan, Light): no utilisation, no angle, no leg force;
+  // lite (LiftPlanner Light): quiet + the padeye seen face-on
+  const util = (F, wll) => (wll && !quiet ? `${Math.round((F / wll) * 100)} %` : '');
   const j = (...xs) => xs.filter(Boolean).join(' · ');
   const F = leg.Fdesign;
   const sp = project.rigging.spreader || {};
@@ -246,7 +247,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite
       ext(sr.w / 2 + 20);
       labels.push({
         y: sr.mid, x: sr.w / 2, strong: true,
-        t: lite ? [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''}`] : [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''} · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: quiet ? [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''}`] : [niceName(it), `EWL ${fmt(p.length_m)} m${p.hitch === 'choke' ? ' choked' : ''} · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -sr.w / 2, y: sr.mid, t: `${fmt(p.length_m)} m` });
       slingSvg = sr.svg; // drawn last (on top of the bow)
@@ -264,7 +265,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite
       ext(c.halfWidth + 10);
       labels.push({
         y: c.mid, x: c.halfWidth, strong: true,
-        t: lite ? [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links)`] : [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: quiet ? [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links)`] : [niceName(it), `${fmt(p.length_m, 2)} m (${p.links} links) · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
       inline.push({ x: -c.halfWidth, y: c.mid, t: `${fmt(p.length_m, 2)} m` });
       y = c.end; bar = c.nextBar; barA = c.a;
@@ -332,7 +333,7 @@ function buildColumn(leg, rig, project, { slingDisp = 420, chainDisp = 520, lite
           y = pe.bottom;
         } else y = pinCenter + d.pinDia;
         parts.push(r.svg);
-        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: lite ? [niceName(it), `pin Ø${d.pinDia}`] : [niceName(it), `${util(F, it.wll_t * sf)} · pin Ø${d.pinDia}`] });
+        labels.push({ y: pinCenter - d.insideLength * 0.45, x: r.halfWidth, t: quiet ? [niceName(it), `pin Ø${d.pinDia}`] : [niceName(it), `${util(F, it.wll_t * sf)} · pin Ø${d.pinDia}`] });
         ext(r.halfWidth + d.pinDia);
         bar = 'depth'; barA = d.pinDia;
       }
@@ -411,8 +412,10 @@ export function drawRiggingFan(project, res, opts = {}) {
   // sling / chain bodies all shown with the same (cut) length: the length is written beside each leg
   const Ls = legs.map((l) => Number(l.parts?.[l.li]?.length_m) || 0);
   const lite = !!opts.lite;
+  // engineering office lift plan: the angle only serves the checks — no angle, %, nor leg force shown
+  const quiet = lite || project.load?.setupMode === 'import';
   const disp = () => (lite ? 360 : 420);
-  const cols = legs.map((l, i) => { const d = disp(Ls[i]); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d, lite }); });
+  const cols = legs.map((l, i) => { const d = disp(Ls[i]); return buildColumn(l, rig, project, { slingDisp: d, chainDisp: d, lite, quiet }); });
   const c0 = cols[0];
   const gap = 46; // px between the crane hook and the top of the legs
   const legSpan = Math.max(...cols.map((c) => c.height - c.headY));
@@ -456,7 +459,7 @@ export function drawRiggingFan(project, res, opts = {}) {
     for (const il of c.inline) body += label(cx + il.x * s - 6, Y(il.y) + 5, il.t, { 'text-anchor': 'end', 'font-size': FS, 'font-weight': 700, fill: '#173a5e' });
     const by = Y(c.height);
     body += text(cx, by + (lite ? 26 : 20), lite ? `${l.pointId} (${ids.indexOf(l.pointId) + 1})` : l.pointId, { 'text-anchor': 'middle', 'font-size': lite ? 26 : 18, 'font-weight': 800, fill: '#c0392b' });
-    if (!lite) body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
+    if (!quiet) body += text(cx, by + 37, `${fmt(l.Tstatic)} t · ${l.angleV.toFixed(1)}°`, { 'text-anchor': 'middle', 'font-size': FS - 1.5, fill: '#173a5e', 'font-weight': 600 });
     if (!lab) continue;
     const tx = cx + half + 14;
     let last = -1e9;
