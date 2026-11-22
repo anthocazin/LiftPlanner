@@ -20,7 +20,7 @@ The current project and the inventory are saved automatically in the browser. **
 
 ## What's new in v0.11.2
 
-- **Signature from the name** redone: written in a signature font (3 styles to choose from, loaded from Google Fonts; without network, the handwriting font of the computer), with the date and time of signature.
+- **Signature from the name removed** (full and Light): signatures are drawn (mouse, finger or pen), with the date and time of signature.
 - **Company logo** kept in this browser (never in the repository) and added automatically at the top left of the reports — full version (Project page) and Light (Plan step).
 
 ## What's new in v0.11.0 — simpler

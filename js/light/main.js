@@ -5,7 +5,7 @@ import { el, fmt, toast } from '../ui/dom.js';
 import { listByType, listSlingFamily, listChainFamily, niceName } from '../catalog/index.js';
 import { isLengthPart } from '../engine/rigging.js';
 import { schematicSvg } from '../draw/schematic.js';
-import { openSignPad, openNameSignature } from '../ui/signpad.js';
+import { openSignPad } from '../ui/signpad.js';
 import { brandLogo, setBrandLogo, shrinkLogo } from '../ui/brand.js';
 import { openCutout } from './cutout.js';
 import { newState, compute, legIds, checkKey, PALETTE, HEADS, ANGLE, BOARD, SAFETY_MEASURES, DEFAULT_STEPS, DEFAULT_SAFETY } from './model.js';
@@ -497,8 +497,7 @@ function stepPlan() {
       el('div', { class: 'lt-sig' }, sigImg ? el('img', { src: sigImg, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
       signedTxt() ? el('p', { class: 'muted small' }, signedTxt()) : null,
       el('div', { class: 'lt-row' },
-        el('button', { onclick: () => { if (!openNameSignature(st.preparedBy, setSignature)) toast('Type the name first'); } }, '✍ From the name'),
-        el('button', { onclick: () => openSignPad('Prepared by', (u) => setSignature(u), st.preparedBy) }, '✎ Draw'),
+        el('button', { onclick: () => openSignPad('Prepared by', (u) => setSignature(u), st.preparedBy) }, '✎ Sign'),
         sigImg ? el('button', { class: 'danger', onclick: () => setSignature(null) }, 'Remove') : null)),
     logoCard());
 }

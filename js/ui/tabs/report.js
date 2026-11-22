@@ -13,7 +13,7 @@ import { ENVIRONMENTS } from '../../engine/factors.js';
 import { pointKind } from '../../engine/rigging.js';
 import { SAFETY_MEASURES, CHECKLIFT, getPath, setPath } from '../../state.js';
 import { craneSwl } from './crane.js';
-import { openSignPad, openNameSignature } from '../signpad.js';
+import { openSignPad } from '../signpad.js';
 import { brandLogo } from '../brand.js';
 import { bePlanSvg, legCompositions } from '../../draw/beplan.js';
 
@@ -695,16 +695,6 @@ function signoffPanel() {
       el('div', { class: 'sign-prev' }, img ? el('img', { src: img, alt: '' }) : el('span', { class: 'muted' }, 'No signature')),
       el('div', { class: 'row' },
         el('button', { class: 'small primary', onclick: () => signFor(k, t) }, img ? 'Sign again' : '✎ Draw the signature'),
-        el('button', { class: 'small', title: 'Signature written from the name', onclick: () => {
-          const ok = openNameSignature(p.project[k], (url) => {
-            so.signature = url;
-            so.signedAt = url ? new Date().toISOString() : null;
-            so.date = new Date().toISOString().slice(0, 10);
-            app.recompute();
-            window.__rerender?.();
-          });
-          if (!ok) alert('Type the name first');
-        } }, '✍ From the name'),
         img ? el('button', { class: 'small danger', onclick: () => { so.signature = null; so.signedAt = null; app.recompute(); window.__rerender?.(); } }, 'Remove') : null),
       signedText(so) ? el('div', { class: 'muted', style: { fontSize: '12px' } }, signedText(so)) : null);
   };
