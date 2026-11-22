@@ -18,6 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.5
+
+- Lift plan import: **standard slings** (default) — each sling is the standard length nearest to its leg (lengths asked, actual lengths and slings shown on the Load page) — or **exact lengths** (made to measure). Also on the Rigging page for imposed leg lengths.
+
 ## What's new in v0.8.4
 
 - **Import a lift plan = simplified method**: the plan (PDF or image) for the report, the weight, the legs and their lengths — that's all. The COG is taken as centred, so **every leg carries the same force**: weight × factors ÷ number of legs ÷ cos 30° (angle to the vertical assumed, editable). Shackles, slings and master link are chosen for that force; the leg lengths stay as given. *Set up from the drawing instead* goes back to the real geometry.

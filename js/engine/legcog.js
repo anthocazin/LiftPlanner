@@ -106,3 +106,31 @@ export function cogFromLegs(project, rules) {
   }
   return { cog, hook, n };
 }
+
+/**
+ * Simplified method (lift plan of the engineering office, COG taken as centred): the lift points are
+ * laid out evenly around the COG (4 legs: square), each leg at `angleDeg` to the vertical with its
+ * length (m, lift point → hook). lengths: { pointId: L }. Moves the points of `ld`; false if a
+ * length is missing.
+ */
+export function equalShareLayout(ld, lengths, angleDeg) {
+  const pts = (ld.liftPoints || []).filter((q) => q.used !== false);
+  const n = pts.length;
+  if (!n) return false;
+  const a = ((n === 1 ? 0 : Number(angleDeg) || 30) * Math.PI) / 180;
+  const geo = pts.map((q, i) => {
+    const L = Number(lengths[q.id]);
+    if (!(L > 0)) return null;
+    const phi = (2 * Math.PI * i) / n + (n === 4 ? Math.PI / 4 : n === 3 ? Math.PI / 2 : 0);
+    return { q, x: L * Math.sin(a) * Math.cos(phi), y: L * Math.sin(a) * Math.sin(phi), drop: L * Math.cos(a) };
+  });
+  if (geo.some((g) => !g)) return false;
+  const c = ld.cog_mm || { x: 0, y: 0, z: 0 };
+  const H = Math.max(...geo.map((g) => g.drop));
+  geo.forEach((g) => {
+    g.q.x = Math.round((+c.x || 0) + g.x * 1000);
+    g.q.y = Math.round((+c.y || 0) + g.y * 1000);
+    g.q.z = Math.round((H - g.drop) * 1000);
+  });
+  return true;
+}

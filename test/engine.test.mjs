@@ -522,3 +522,27 @@ test('equal share (COG taken as centred): same force in every leg at the angle a
   r.legs.forEach((l) => { near(l.angleV, 30, 0.05); near(l.R, W / 4, 1e-9); near(l.Tstatic, W / 4 / Math.cos(a), 1e-3); });
   assert.deepEqual(r.tilt.slack, []);
 });
+
+test('simplified method with standard slings: nearest standard length, legs laid out again at the angle', () => {
+  const Ls = [5.85, 6.15, 5.86, 5.56];
+  const pts = Ls.map((_, i) => ['ABCD'[i], 0, 0, 0]);
+  const p = baseProject(pts, { x: 0, y: 0, z: 0 });
+  p.load.cogBasis = 'centred';
+  p.rigging.equalShare = true;
+  p.rigging.equalAngle_deg = 30;
+  p.rigging.design.imposedStd = true;
+  p.rigging.legs = Object.fromEntries(pts.map(([id], i) => [id, { Leff_m: Ls[i] }]));
+  const r = computeProject(p).rig;
+  r.legs.forEach((l, i) => {
+    const s = l.parts[l.li];
+    assert.ok(Math.abs(s.length_m * 2 - Math.round(s.length_m * 2)) < 1e-9, `standard length ${s.length_m}`);
+    assert.ok(Math.abs(l.Leff - Ls[i]) < 0.6, `actual ${l.Leff} vs asked ${Ls[i]}`);
+    near(l.angleV, 30, 0.05);
+  });
+  assert.deepEqual(r.tilt.slack, []);
+  const T = r.legs.map((l) => l.Tstatic);
+  T.forEach((t) => near(t, T[0], 1e-3));
+  // exact lengths: the leg is the length asked
+  p.rigging.design.imposedStd = false;
+  computeProject(p).rig.legs.forEach((l, i) => near(l.Leff, Ls[i], 0.0015));
+});

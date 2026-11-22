@@ -283,7 +283,8 @@ function sizeLengthElement(leg, Lreq, roundMode) {
     leg.slingLength = c.length_m;
   } else {
     let L;
-    if (imp) L = Math.max(0.3, Math.round(need * 1000) / 1000);
+    if (imp && leg.impStd) L = p.item?.length_m ? Number(p.item.length_m) : roundSlingLength(need, 'nearest', stdLengths(p.item));
+    else if (imp) L = Math.max(0.3, Math.round(need * 1000) / 1000);
     else if (p.lock && Number(p.length_m) > 0) L = Number(p.length_m);
     else if (p.item?.length_m) L = Number(p.item.length_m);
     else L = roundSlingLength(need, roundMode, stdLengths(p.item));
@@ -566,6 +567,7 @@ function solveHook(project, ctx) {
         parts: r.parts, li: r.li, errors: r.errors, Fsel: F, Fdesign: tD.T[i] * fac, Flen,
         angleV: deg(Math.acos(Math.min(1, u.z))), azimuth: deg(Math.atan2(p.pos.y - cog.y, p.pos.x - cog.x)),
         imposed: Number(rig.legs?.[p.id]?.Leff_m) > 0 ? Number(rig.legs[p.id].Leff_m) : null,
+        impStd: !!design.imposedStd,
       };
       aliasComps(leg);
       return leg;

@@ -5,6 +5,7 @@ import { app } from './app.js';
 import { el, toast, fmt } from './dom.js';
 import { openSource } from './pdfutil.js';
 import { isLengthPart } from '../engine/rigging.js';
+import { equalShareLayout } from '../engine/legcog.js';
 import { panZoomBox } from './panzoom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -26,31 +27,26 @@ export function applyPlanImport(p, d) {
     if (!(num(l.len) > 0)) throw new Error(`Leg ${l.id}: type its length (m)`);
     if (num(l.len) > 60) throw new Error(`Leg ${l.id}: ${num(l.len)} m? The lengths are in metres (e.g. 5.85 or 5,85).`);
   }
-  const n = legs.length;
-  const A = n === 1 ? 0 : num(d.angle) ?? 30;
+  const A = legs.length === 1 ? 0 : num(d.angle) ?? 30;
   if (!(A >= 0 && A < 80)) throw new Error(`Angle to the vertical ${A}°? (0 to 80°)`);
   if (num(d.weight) > 0) ld.weight_t = num(d.weight);
-  // layout: legs spread evenly around the COG (4 legs: square), each at the angle A
-  const a = rad(A);
-  const geo = legs.map((l, i) => {
-    const L = num(l.len), phi = (2 * Math.PI * i) / n + (n === 4 ? Math.PI / 4 : n === 3 ? Math.PI / 2 : 0);
-    return { id: String(l.id).trim(), L, x: L * Math.sin(a) * Math.cos(phi), y: L * Math.sin(a) * Math.sin(phi), drop: L * Math.cos(a) };
-  });
-  const H = Math.max(...geo.map((g) => g.drop));
+  const geo = legs.map((l) => ({ id: String(l.id).trim(), L: num(l.len) }));
   const tpl = ld.liftPoints.find((q) => q.kind === 'padeye' || q.padeye) || ld.liftPoints[0] || { kind: 'padeye', padeye: true };
   const { id: _i, x: _x, y: _y, z: _z, picks: _p, used: _u, ...props } = tpl;
   ld.liftPoints = geo.map((g) => {
     const old = ld.liftPoints.find((q) => q.id === g.id);
     const base = old ? (({ id, x, y, z, picks, ...o }) => o)(old) : { ...props };
-    return { ...base, id: g.id, x: Math.round(g.x * 1000), y: Math.round(g.y * 1000), z: Math.round((H - g.drop) * 1000), used: true, picks: {} };
+    return { ...base, id: g.id, x: 0, y: 0, z: 0, used: true, picks: {} };
   });
   ld.cog_mm = { x: 0, y: 0, z: 0 };
   ld.cogBasis = 'centred';
   ld.cogZUnknown = true;
+  // legs spread evenly around the COG (4 legs: square), each at the angle A with its length
+  equalShareLayout(ld, Object.fromEntries(geo.map((g) => [g.id, g.L])), A);
   const d0 = ld.dims_mm || {};
   if (+d0.L > 0 && +d0.W > 0) ld.origin_mm = { x: -Math.round(d0.L / 2), y: -Math.round(d0.W / 2), z: Math.round(Math.max(...ld.liftPoints.map((q) => q.z)) - (+d0.H || 0)) };
   ld.setupMode = 'import';
-  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len) })) };
+  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, std: d.std !== false, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len) })) };
   delete ld.bePlan.hook;
   if (d.image) Object.assign(ld.bePlan, { image: d.image, w: d.w, h: d.h, file: d.file || '', page: d.page || 1 });
   // rigging: legs on the hook, lengths kept, same share for every leg, sized for the angle assumed
@@ -58,8 +54,10 @@ export function applyPlanImport(p, d) {
   const wasSpreader = rig.type === 'spreader';
   rig.type = 'hook';
   rig.equalShare = true;
+  rig.equalAngle_deg = A;
   rig.design = rig.design || {};
   rig.design.sizingAngleV_deg = A > 0 ? A : null;
+  rig.design.imposedStd = d.std !== false; // standard sling lengths (nearest), or made to measure
   rig.legs = rig.legs || {};
   for (const g of geo) {
     const leg = (rig.legs[g.id] = rig.legs[g.id] || {});
@@ -86,7 +84,7 @@ function fromProject() {
   const p = app.project, ld = p.load, be = ld.bePlan || {};
   const legs = (be.legs || []).map((l) => ({ id: l.id, len: l.len ?? null }));
   if (!legs.length) (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => legs.push({ id: q.id, len: num(p.rigging.legs?.[q.id]?.Leff_m) }));
-  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, legs };
+  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, std: be.std !== false, legs };
 }
 
 export function openPlanImport(onDone) {
@@ -96,7 +94,7 @@ export function openPlanImport(onDone) {
   const st = {
     src: null, page: ld.bePlan?.page || 1, zoom: 1, crop: null, cropMode: false, text: [], drag: null, active: null,
     image: ld.bePlan?.image || null, size: null,
-    ...(had ? fromProject() : { ref: '', weight: ld.weight_t ?? null, angle: 30, legs: ['A', 'B', 'C', 'D'].map((id) => ({ id, len: null })) }),
+    ...(had ? fromProject() : { ref: '', weight: ld.weight_t ?? null, angle: 30, std: true, legs: ['A', 'B', 'C', 'D'].map((id) => ({ id, len: null })) }),
   };
 
   const side = el('div', { class: 'wz-side pi-side' });
@@ -151,7 +149,10 @@ export function openPlanImport(onDone) {
           el('thead', {}, el('tr', {}, ['Leg', 'Length (m)', ''].map((h) => el('th', {}, h)))), tb),
         el('div', { class: 'row', style: { gap: '6px', marginTop: '6px' } },
           el('button', { class: 'small', onclick: () => { const used = new Set(st.legs.map((l) => l.id)); st.legs.push({ id: IDS.split('').find((c) => !used.has(c)) || `L${st.legs.length + 1}`, len: null }); buildSide(); } }, '+ Leg'),
-          el('button', { class: 'small', title: 'The length of the first leg given, on every leg', onclick: () => { const L = st.legs.find((l) => l.len > 0)?.len; if (!L) return toast('Type the length of one leg first'); st.legs.forEach((l) => { l.len = L; }); buildSide(); } }, 'Same length on every leg'))),
+          el('button', { class: 'small', title: 'The length of the first leg given, on every leg', onclick: () => { const L = st.legs.find((l) => l.len > 0)?.len; if (!L) return toast('Type the length of one leg first'); st.legs.forEach((l) => { l.len = L; }); buildSide(); } }, 'Same length on every leg')),
+        el('div', { style: { marginTop: '8px' } }, el('span', { class: 'lbl', style: { fontSize: '12.5px' } }, 'Slings'),
+          el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: st.std, onchange: () => { st.std = true; } }), ' Standard lengths (the nearest to each leg)'),
+          el('label', { class: 'check', style: { display: 'flex' } }, el('input', { type: 'radio', name: 'pi-std', checked: !st.std, onchange: () => { st.std = false; } }), ' Exact lengths (made to measure)'))),
       el('div', { class: 'pi-step' }, el('b', {}, '4. Angle of the legs'),
         el('label', { class: 'field' }, el('span', { class: 'lbl' }, 'Angle to the vertical taken for every leg (°)'),
           el('input', { type: 'number', value: st.angle ?? '', oninput: (e) => { st.angle = num(e.target.value); } }))),
@@ -282,7 +283,7 @@ export function openPlanImport(onDone) {
   // ---------------------------------------------------------------- apply
   async function apply() {
     try {
-      const d = { ref: st.ref, weight: st.weight, angle: st.angle, legs: st.legs };
+      const d = { ref: st.ref, weight: st.weight, angle: st.angle, std: st.std, legs: st.legs };
       if (st.src) {
         const size = st.src.pageSize(st.page);
         const r = st.crop || { x: 0, y: 0, w: size.w, h: size.h };
@@ -322,9 +323,13 @@ export function importedSummary(res) {
   const tb = el('tbody');
   (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => {
     const l = legs.find((x) => x.pointId === q.id && x.level !== 'top');
+    const asked = be.legs?.find((x) => x.id === q.id)?.len;
+    const sl = l?.parts?.[l.li];
     tb.append(el('tr', {},
       el('td', {}, el('b', {}, q.id)),
+      el('td', { class: 'num' }, asked ? `${fmt(asked, 2)} m` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Leff, 2)} m` : '—'),
+      el('td', { class: 'num' }, sl?.length_m ? `${fmt(sl.length_m, sl.kind === 'chain' ? 2 : be.std === false ? 3 : 1)} m` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Tstatic)} t` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Fdesign)} t` : '—'),
       el('td', {}, l?.parts?.filter((x) => x.item).map((x) => x.item.name || x.item.id).join(' → ') || '')));
@@ -334,7 +339,7 @@ export function importedSummary(res) {
     be.image ? el('img', { src: be.image, alt: '', class: 'pi-thumb', title: 'Printed in the report — click to edit', onclick: () => openPlanImport() }) : el('div', { class: 'pi-thumb muted' }, 'No drawing'),
     el('div', {},
       el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, [be.ref || 'No reference', be.file ? ` · ${be.file}` : '', ` · weight ${fmt(ld.weight_t)} t`].join('')),
-      el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Leg', 'Length', 'Force per leg', 'Design force', 'Rigging'].map((h, i) => el('th', { class: i && i < 4 ? 'num' : '' }, h)))), tb),
+      el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Leg', 'Length asked', 'Actual length', be.std === false ? 'Sling (exact)' : 'Sling (standard)', 'Force per leg', 'Design force', 'Rigging'].map((h, i) => el('th', { class: i && i < 6 ? 'num' : '' }, h)))), tb),
       el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } },
         `COG taken as centred: same force in the ${n} legs, at ${fmt(be.angle ?? 30, 0)}° to the vertical (weight × factors ÷ ${n} ÷ cos ${fmt(be.angle ?? 30, 0)}°).`)));
 }

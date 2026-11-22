@@ -161,6 +161,7 @@ export function render(root) {
         : field({ label: 'Target angle to vertical', path: `${R}design.targetAngleV_deg`, unit: '°', hint: `max ${rules.maxAngleV_deg ?? 45}° (Settings)` }),
       field({ label: 'Sling lengths', path: `${R}design.roundLengths`, type: 'select', options: [['nearest', 'Each leg: nearest standard length'], ['up', 'Each leg: standard length rounded up'], ['set', 'Same length on every leg (matched set)'], ['exact', 'Each leg: made to measure']], hint: 'Standard lengths every 0.5 m. Each leg is sized with its own hardware.' }),
       field({ label: 'Sizing angle (min.)', path: `${R}design.sizingAngleV_deg`, unit: '°', placeholder: 'actual', hint: 'Slings and shackles sized for at least this angle to the vertical (empty: the actual angle)' }),
+      field({ type: 'checkbox', label: 'Imposed leg lengths: standard slings (nearest length)', path: `${R}design.imposedStd` }),
       field({ label: 'Same size on every leg', path: `${R}design.uniformLegs`, type: 'select', options: [['true', 'Yes'], ['false', 'No — each leg on its own force']], onchange: (v) => { rig.design.uniformLegs = v === 'true'; app.recompute(); } }),
     ),
     el('details', { class: 'sub' }, el('summary', {}, 'Shackle ranges used by "auto"'),

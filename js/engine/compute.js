@@ -4,7 +4,7 @@ import { riggingChecks, craneCheck, DEFAULT_RULES, STATUS_ORDER } from './checks
 import { isLengthPart } from './rigging.js';
 import { setUserCatalog, itemWeight_t, niceName } from '../catalog/index.js';
 import { chartRange } from './crane.js';
-import { cogFromLegs } from './legcog.js';
+import { cogFromLegs, equalShareLayout } from './legcog.js';
 
 export function buildBOM(rig, project) {
   const lines = new Map();
@@ -95,6 +95,11 @@ export function computeProject(project) {
   const rules = { ...DEFAULT_RULES, ...(project.rules || {}), ...(project.load?.padeyeRules || {}) };
   // COG under the hook given by the known leg lengths (lift plan of the engineering office)
   let legCog = null;
+  // simplified method: legs laid out at the angle assumed with their actual lengths (standard slings)
+  if (project.rigging?.equalShare && ld.cogBasis === 'centred') {
+    const r0 = solveRigging(project, rules);
+    if (!r0.error && r0.legs?.length) equalShareLayout(ld, Object.fromEntries(r0.legs.filter((l) => l.level !== 'top').map((l) => [l.pointId, l.Leff])), project.rigging.equalAngle_deg ?? 30);
+  }
   if (ld.cogBasis === 'legs') {
     legCog = cogFromLegs(project, rules);
     if (legCog.cog) ld.cog_mm = legCog.cog;
