@@ -41,7 +41,8 @@ export function niceName(item, { length_m = null, links = null } = {}) {
   if (!item) return '—';
   if (item.user && item.name) return item.name;
   const w = `${t1(item.wll_t)}t`;
-  const len = links ? ` — ${links} links` : length_m != null ? ` — ${Math.round(length_m * 100) / 100} m` : '';
+  // chains too are given by their length (the number of links stays internal)
+  const len = length_m != null ? ` — ${Math.round(length_m * 100) / 100} m` : '';
   switch (item.type) {
     case 'shackle': return `Shackle ${w}${item.wideBody ? ' wide body' : ''}`;
     case 'roundsling': return `Roundsling ${w}${item.family === 'RS-UHMWPE' ? ' UHMWPE' : ''}${len}`;

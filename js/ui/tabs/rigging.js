@@ -400,7 +400,7 @@ function update(res) {
     const len = l.parts[l.li];
     const nd = l.need || {};
     const utilMax = Math.max(...l.parts.filter((p) => p.item).map((p) => l.Fdesign / (p.item.wll_t * (p.factor || 1))));
-    const lenTxt = (L, elem) => `${fmt(L, 2)} m${len ? ` (${len.kind === 'chain' && len.item ? `${Math.ceil((elem * 1000) / len.item.dims.pitch - 1e-6)} links` : `sling ${fmt(elem, 2)} m`})` : ''}`;
+    const lenTxt = (L, elem) => `${fmt(L, 2)} m${len ? ` (${len.kind === 'chain' && len.item ? `chain ${fmt(elem, 2)} m` : `sling ${fmt(elem, 2)} m`})` : ''}`;
     tb.append(el('tr', {},
       el('td', {}, el('b', {}, l.label)),
       el('td', { class: 'num' }, `${fmt(l.R)} t`, el('span', { class: 'muted' }, ` (${(l.share * 100).toFixed(1)} %)`)),

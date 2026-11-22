@@ -18,6 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.8
+
+- **Chains given by their length** (m) everywhere — rigging, drawings, checks, report, inventory — instead of a number of links (the length is still a whole number of links).
+
 ## What's new in v0.8.7
 
 - **Imposed leg lengths follow the "Sling lengths" setting** (Rigging page): nearest standard, standard rounded up, same length on every leg (matched set) or made to measure — the slings are updated at once. The separate "standard slings" checkbox is gone; *Standard / Exact* in the import sets this same setting.

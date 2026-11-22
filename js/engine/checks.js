@@ -61,7 +61,7 @@ export function riggingChecks(rig, project, rules) {
       if (isLengthPart(p)) {
         const wll = it.wll_t * (p.factor || 1);
         const what = p.kind === 'chain'
-          ? `${niceName(it)} — ${p.links} links = ${(p.length_m || 0).toFixed(3)} m`
+          ? `${niceName(it)} — length ${(p.length_m || 0).toFixed(2)} m`
           : `${niceName(it)} — EWL ${(p.length_m || 0).toFixed(2)} m`;
         push(out, {
           cat: p.kind === 'chain' ? 'Chains' : 'Slings', item: name, label: `${what}${p.hitch === 'choke' ? ' (choked ×0.8)' : ''}${p.defaulted ? ' — length not set, 1 m assumed' : ''}`,

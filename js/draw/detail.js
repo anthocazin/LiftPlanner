@@ -235,9 +235,9 @@ function buildColumn(leg, rig, project, { slingDisp = 420 } = {}) {
       ext(c.halfWidth + 10);
       labels.push({
         y: c.mid, x: c.halfWidth, strong: true,
-        t: [niceName(it), `${p.links} links = ${fmt(p.length_m, 3)} m · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
+        t: [niceName(it), `Length ${fmt(p.length_m, 2)} m · ${util(F, wll)}`, `${fmt(F)} t · ${leg.angleV.toFixed(1)}° to vertical`],
       });
-      inline.push({ x: -c.halfWidth, y: c.mid, t: `${p.links} links` });
+      inline.push({ x: -c.halfWidth, y: c.mid, t: `${fmt(p.length_m, 2)} m` });
       y = c.end; bar = c.nextBar; barA = c.a;
       continue;
     }
