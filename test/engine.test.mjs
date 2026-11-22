@@ -530,7 +530,7 @@ test('simplified method with standard slings: nearest standard length, legs laid
   p.load.cogBasis = 'centred';
   p.rigging.equalShare = true;
   p.rigging.equalAngle_deg = 30;
-  p.rigging.design.imposedStd = true;
+  p.rigging.design.roundLengths = 'nearest';
   p.rigging.legs = Object.fromEntries(pts.map(([id], i) => [id, { Leff_m: Ls[i] }]));
   const r = computeProject(p).rig;
   r.legs.forEach((l, i) => {
@@ -542,7 +542,13 @@ test('simplified method with standard slings: nearest standard length, legs laid
   assert.deepEqual(r.tilt.slack, []);
   const T = r.legs.map((l) => l.Tstatic);
   T.forEach((t) => near(t, T[0], 1e-3));
+  // rounded up / matched set / exact
+  p.rigging.design.roundLengths = 'up';
+  computeProject(p).rig.legs.forEach((l, i) => assert.ok(l.Leff >= Ls[i] - 1e-9 && l.Leff < Ls[i] + 0.5 + 1e-9, `up ${l.Leff} vs ${Ls[i]}`));
+  p.rigging.design.roundLengths = 'set';
+  const ss = computeProject(p).rig.legs.map((l) => l.parts[l.li].length_m);
+  ss.forEach((x) => near(x, ss[0], 1e-9));
   // exact lengths: the leg is the length asked
-  p.rigging.design.imposedStd = false;
+  p.rigging.design.roundLengths = 'exact';
   computeProject(p).rig.legs.forEach((l, i) => near(l.Leff, Ls[i], 0.0015));
 });

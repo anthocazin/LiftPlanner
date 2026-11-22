@@ -283,8 +283,9 @@ function sizeLengthElement(leg, Lreq, roundMode) {
     leg.slingLength = c.length_m;
   } else {
     let L;
-    if (imp && leg.impStd) L = p.item?.length_m ? Number(p.item.length_m) : roundSlingLength(need, 'nearest', stdLengths(p.item));
-    else if (imp) L = Math.max(0.3, Math.round(need * 1000) / 1000);
+    // imposed leg length: the sling follows the "Sling lengths" setting (standard, or made to measure)
+    if (imp && roundMode === 'exact') L = Math.max(0.3, Math.round(need * 1000) / 1000);
+    else if (imp) L = p.item?.length_m ? Number(p.item.length_m) : roundSlingLength(need, roundMode === 'up' ? 'up' : 'nearest', stdLengths(p.item));
     else if (p.lock && Number(p.length_m) > 0) L = Number(p.length_m);
     else if (p.item?.length_m) L = Number(p.item.length_m);
     else L = roundSlingLength(need, roundMode, stdLengths(p.item));
@@ -343,10 +344,18 @@ function bestSizingHeight(legs, cog, zDesign, roundMode, angleMaxDeg) {
 /** "Matched set" mode: one standard sling length (rounded up from the longest requirement) for a group. */
 function applyLengthSet(legs, roundMode) {
   if (roundMode !== 'set') return;
-  const free = legs.filter((l) => {
-    const p = l.parts[l.li];
-    return p && p.kind === 'sling' && !(p.lock && Number(p.length_m) > 0) && !p.item?.length_m && !(l.imposed > 0);
-  });
+  const isSling = (l) => { const p = l.parts[l.li]; return p && p.kind === 'sling' && !(p.lock && Number(p.length_m) > 0) && !p.item?.length_m; };
+  // imposed leg lengths: one standard length for the set, the nearest to their mean
+  const imp = legs.filter((l) => isSling(l) && l.imposed > 0);
+  if (imp.length) {
+    const Li = standardLength(imp.reduce((t, l) => t + l.slingLengthReq, 0) / imp.length, stdLengths(imp[0].parts[imp[0].li].item), false);
+    imp.forEach((l) => {
+      l.parts[l.li].length_m = Li;
+      l.slingLength = Li;
+      l.Leff = Li + l.hwLength - (l.wrap || 0);
+    });
+  }
+  const free = legs.filter((l) => isSling(l) && !(l.imposed > 0));
   if (!free.length) return;
   const maxReq = Math.max(...free.map((l) => l.slingLengthReq));
   const L = standardLength(maxReq, stdLengths(free[0].parts[free[0].li].item), true);
@@ -567,7 +576,6 @@ function solveHook(project, ctx) {
         parts: r.parts, li: r.li, errors: r.errors, Fsel: F, Fdesign: tD.T[i] * fac, Flen,
         angleV: deg(Math.acos(Math.min(1, u.z))), azimuth: deg(Math.atan2(p.pos.y - cog.y, p.pos.x - cog.x)),
         imposed: Number(rig.legs?.[p.id]?.Leff_m) > 0 ? Number(rig.legs[p.id].Leff_m) : null,
-        impStd: !!design.imposedStd,
       };
       aliasComps(leg);
       return leg;

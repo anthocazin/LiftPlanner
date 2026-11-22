@@ -48,7 +48,7 @@ export function applyPlanImport(p, d) {
   const d0 = ld.dims_mm || {};
   if (+d0.L > 0 && +d0.W > 0) ld.origin_mm = { x: -Math.round(d0.L / 2), y: -Math.round(d0.W / 2), z: Math.round(Math.max(...ld.liftPoints.map((q) => q.z)) - (+d0.H || 0)) };
   ld.setupMode = 'import';
-  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, std: d.std !== false, hook: d.hook || null, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len), p: l.p || null })) };
+  ld.bePlan = { ...(ld.bePlan || {}), ref: d.ref || '', lenKind: 'overall', angle: A, hook: d.hook || null, legs: legs.map((l) => ({ id: String(l.id).trim(), len: num(l.len), p: l.p || null })) };
   if (d.image) Object.assign(ld.bePlan, { image: d.image, w: d.w, h: d.h, file: d.file || '', page: d.page || 1 });
   // rigging: legs on the hook, lengths kept, same share for every leg, sized for the angle assumed
   const rig = p.rigging;
@@ -58,7 +58,10 @@ export function applyPlanImport(p, d) {
   rig.equalAngle_deg = A;
   rig.design = rig.design || {};
   rig.design.sizingAngleV_deg = A > 0 ? A : null;
-  rig.design.imposedStd = d.std !== false; // standard sling lengths (nearest), or made to measure
+  // slings: standard lengths (the setting kept if already standard), or made to measure
+  if (d.std === false) rig.design.roundLengths = 'exact';
+  else if (!rig.design.roundLengths || rig.design.roundLengths === 'exact') rig.design.roundLengths = 'nearest';
+  delete rig.design.imposedStd;
   rig.legs = rig.legs || {};
   for (const g of geo) {
     const leg = (rig.legs[g.id] = rig.legs[g.id] || {});
@@ -85,7 +88,7 @@ function fromProject() {
   const p = app.project, ld = p.load, be = ld.bePlan || {};
   const legs = (be.legs || []).map((l) => ({ id: l.id, len: l.len ?? null, p: l.p || null }));
   if (!legs.length) (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => legs.push({ id: q.id, len: num(p.rigging.legs?.[q.id]?.Leff_m), p: null }));
-  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, std: be.std !== false, legs, hook: be.hook || null };
+  return { ref: be.ref || '', weight: ld.weight_t ?? null, angle: be.angle ?? p.rigging.design?.sizingAngleV_deg ?? 30, std: p.rigging.design?.roundLengths !== 'exact', legs, hook: be.hook || null };
 }
 
 export function openPlanImport(onDone) {
@@ -380,6 +383,7 @@ export function openPlanImport(onDone) {
 /** Summary shown on the Load page once a lift plan has been imported. */
 export function importedSummary(res) {
   const p = app.project, ld = p.load, be = ld.bePlan || {};
+  const exact = p.rigging.design?.roundLengths === 'exact';
   const legs = res?.rig?.legs || [];
   const tb = el('tbody');
   (ld.liftPoints || []).filter((q) => q.used !== false).forEach((q) => {
@@ -390,7 +394,7 @@ export function importedSummary(res) {
       el('td', {}, el('b', {}, q.id)),
       el('td', { class: 'num' }, asked ? `${fmt(asked, 2)} m` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Leff, 2)} m` : '—'),
-      el('td', { class: 'num' }, sl?.length_m ? `${fmt(sl.length_m, sl.kind === 'chain' ? 2 : be.std === false ? 3 : 1)} m` : '—'),
+      el('td', { class: 'num' }, sl?.length_m ? `${fmt(sl.length_m, sl.kind === 'chain' ? 2 : exact ? 3 : 1)} m` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Tstatic)} t` : '—'),
       el('td', { class: 'num' }, l ? `${fmt(l.Fdesign)} t` : '—'),
       el('td', {}, l?.parts?.filter((x) => x.item).map((x) => x.item.name || x.item.id).join(' → ') || '')));
@@ -400,7 +404,7 @@ export function importedSummary(res) {
     be.image ? el('div', { class: 'pi-thumb', title: 'Printed in the report — click to edit', onclick: () => openPlanImport(), html: bePlanSvg(be, safeImg(be.image), { maxHeight: '260px' }) || `<img src="${safeImg(be.image) || ''}" alt="" style="width:100%">` }) : el('div', { class: 'pi-thumb muted' }, 'No drawing'),
     el('div', {},
       el('div', { class: 'muted', style: { fontSize: '12px', marginBottom: '4px' } }, [be.ref || 'No reference', be.file ? ` · ${be.file}` : '', ` · weight ${fmt(ld.weight_t)} t`].join('')),
-      el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Leg', 'Length asked', 'Actual length', be.std === false ? 'Sling (exact)' : 'Sling (standard)', 'Force per leg', 'Design force', 'Rigging'].map((h, i) => el('th', { class: i && i < 6 ? 'num' : '' }, h)))), tb),
+      el('table', { class: 'data compact' }, el('thead', {}, el('tr', {}, ['Leg', 'Length asked', 'Actual length', exact ? 'Sling (exact)' : 'Sling (standard)', 'Force per leg', 'Design force', 'Rigging'].map((h, i) => el('th', { class: i && i < 6 ? 'num' : '' }, h)))), tb),
       el('p', { class: 'muted', style: { fontSize: '12px', margin: '6px 0 0' } },
         `COG taken as centred: same force in the ${n} legs, at ${fmt(be.angle ?? 30, 0)}° to the vertical (weight × factors ÷ ${n} ÷ cos ${fmt(be.angle ?? 30, 0)}°).`)));
 }

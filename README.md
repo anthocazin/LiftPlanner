@@ -18,6 +18,10 @@ Lift planning tool for **offshore and onshore lifts**: import the drawing of the
 
 The current project and the inventory are saved automatically in the browser. **Save** produces a `.liftplan.json` file to archive with the lift plan (drawing views, logos and your own report drawings included). Three examples are in [`examples/`](examples/).
 
+## What's new in v0.8.7
+
+- **Imposed leg lengths follow the "Sling lengths" setting** (Rigging page): nearest standard, standard rounded up, same length on every leg (matched set) or made to measure — the slings are updated at once. The separate "standard slings" checkbox is gone; *Standard / Exact* in the import sets this same setting.
+
 ## What's new in v0.8.6
 
 - Lift plan import: **hook and lift points placed on the plan, for the sketch only** (optional): *✎ Place the hook*, then a click on each lift point (the legs follow one after the other); markers can be dragged. In the report the plan shows the hook and the legs **named A, B, C…**, with below it **what each leg is made of** (legs with the same rigging grouped) and the master link. Calculation unchanged (COG centred, equal forces).
