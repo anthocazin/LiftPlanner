@@ -27,7 +27,7 @@ At [`light/`](light/) (online: `…/LiftPlanner/light/`, offline: [`dist/LiftPla
 3. **Rigging**: master link supplied / master link of the crane / legs on the hook, the parts of a leg (shackle, round sling, wire rope, webbing, chain, G-link, hook…) in auto or chosen size, the **length of each leg**, standard or made-to-measure lengths. The legs are sized at **30°** with the same force in every leg (COG taken as centred).
 4. **Sketch**: the photo on a grid; place the crane hook (anywhere on the grid), legs A, B, C… are drawn from the points; drag their end to lengthen / shorten them.
 5. **Steps & safety**: short step by step (editable) and the safety measures that apply.
-6. **Plan**: checks (SWL of every part, compatibility of the parts, crane at the max. radius), equipment list, prepared by + date + signature (written from the name or drawn), and the **PDF** (page 1: sketch, data, rigging arrangement to scale, equipment; page 2: step by step, safety measures, photos, signature).
+6. **Plan**: checks (SWL of every part, compatibility of the parts, crane at the max. radius), equipment list, prepared by + date + signature (written from the name or drawn), and the **PDF** (page 1: lifting plan, load / crane, equipment, step by step, sketch, rigging arrangement to scale; page 2: safety measures, communications, photos, signature).
 
 v0.10.2: lengths given as the **sling length** (EWL, the leg adds the shackles and links) or as the leg length; **padeye** drawn at the lift points; rigging arrangement easier to read (no utilisation, no 30° — that angle is only used for the sizing); **project name**, **communications** (primary / secondary / other, checked) and a responsible per step; PDF laid out like the report of the full version.
 

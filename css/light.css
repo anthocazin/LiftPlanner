@@ -180,6 +180,10 @@ details summary { cursor: pointer; margin: 10px 0 6px; color: var(--muted); }
 .lt-rep .bar { background: #8db3e2; font-weight: 700; padding: 3px 6px; border: 1px solid #7f7f7f; margin: 4px 0 6px; font-size: 10px; }
 .lt-rep .sub-t { font-weight: 700; color: #173a5e; margin: 0 0 4px; font-size: 10px; }
 .lt-rep .figs { display: grid; grid-template-columns: 1fr 1.25fr; gap: 6px; margin-bottom: 6px; align-items: start; }
+.lt-rep .figs.sk2 { grid-template-columns: 1.15fr 1fr; }
+.lt-rep .figs.sk2 .lt-legend { font-size: 9.5px; line-height: 1.5; }
+.lt-rep .drawing.fan { padding: 4px 0; }
+.lt-rep .drawing.fan svg { max-height: 85mm; }
 .lt-rep .figs.f3 { grid-template-columns: repeat(3, 1fr); }
 .lt-rep .drawing { border: 1px solid #bbb; }
 .lt-rep .drawing svg { display: block; width: 100%; height: auto; max-height: 100mm; margin: 0 auto; }

@@ -516,6 +516,7 @@ function printPlan() {
   const swlMax = Number(c.swlMax_t) > 0 ? Number(c.swlMax_t) : null;
   const headTxt = st.head === 'hook' ? 'Legs directly on the crane hook' : st.head === 'crane' ? 'On the master link of the crane' : out.rig?.head?.masterlink ? `On ${niceName(out.rig.head.masterlink)}` : 'On a master link';
   const fan = fanSvg(470);
+  const steps = st.steps.filter((t) => String(t.note || '').trim());
 
   const p1 = el('div', { class: 'p-in lt-rep' }, header,
     el('table', { class: 'tb' },
@@ -539,19 +540,18 @@ function printPlan() {
       out.bom.map((b) => tr(el('td', { class: 'c' }, String(b.qty)), el('td', {}, b.name),
         el('td', { class: 'c' }, b.ewl_m != null ? `${fmt(b.ewl_m)} m${b.links ? ` (${b.links} links)` : ''}` : 'n/a'),
         el('td', { class: 'c' }, b.wll_t != null ? `${fmt(b.wll_t)} t` : '—'), el('td', {}, b.config || '')))),
+    el('table', { class: 'tb steps' },
+      tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
+      steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
     bar('Sketch detailing the rigging-up of the lifting equipment and lifting accessories'),
-    el('div', { class: 'figs' },
+    el('div', { class: 'figs sk2' },
       el('div', {}, el('div', { class: 'sub-t' }, 'Sketch'), sk ? drawing(boardSvg(sk, boardFor(sk), false), 'sk') : el('div', { class: 'p-empty' }, 'No photo')),
-      el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), fan ? drawing(fan, 'fan') : el('div', { class: 'p-empty' }, '—'))),
-    legend(),
-    bar('Calculation summary'),
-    el('div', { class: `p-res ${out.status}` }, out.status === 'ok' ? `✓ All ${live.length} checks OK — SWL of every part, parts compatible with each other, crane at the max. radius` : `${bad.length} point(s) to resolve`),
-    bad.length ? el('ul', { class: 'p-bad' }, bad.slice(0, 8).map((x) => el('li', {}, `${x.item}: ${x.label}`))) : null);
+      el('div', {}, el('div', { class: 'sub-t' }, 'Legs'), legend())),
+    fan ? el('div', {}, el('div', { class: 'sub-t' }, 'Rigging arrangement (to scale)'), drawing(fan, 'fan')) : null);
 
   const third = Math.ceil(SAFETY_MEASURES.length / 3);
   const col = (k) => el('td', { class: 'small' }, SAFETY_MEASURES.slice(k * third, (k + 1) * third).map((m) => el('div', {}, box(st.safety.includes(m)), ' ', m)));
   const further = st.safety.filter((x) => !SAFETY_MEASURES.includes(x));
-  const steps = st.steps.filter((t) => String(t.note || '').trim());
   const p2 = el('div', { class: 'p-in lt-rep' }, header.cloneNode(true),
     el('table', { class: 'tb' },
       sec('Possible safety measures to be considered', '(tick as applicable and detail in ‘step-by-step’)', 3),
@@ -562,9 +562,6 @@ function printPlan() {
       tr(
         el('td', {}, el('b', {}, 'Communication available:'), el('div', {}, box(!!cm.primary), ` Primary (${cm.primary || '—'})   `, box(!!cm.secondary), ` Secondary (${cm.secondary || '—'})   `, box(!!cm.other), ` Other: ${cm.other || '—'}`)),
         el('td', {}, el('b', {}, 'Communications checks:'), el('div', {}, box(!!cm.primaryChecked), ' Primary checked   ', box(!!cm.secondaryChecked), ' Secondary checked')))),
-    el('table', { class: 'tb steps' },
-      tr(el('th', { colspan: '2', class: 'sec' }, 'Step-by-step details of lifting operation'), el('th', { class: 'sec resp' }, 'Responsible')),
-      steps.map((t, i) => tr(el('td', { class: 'c n' }, String(i + 1)), el('td', {}, t.note), el('td', { class: 'c' }, t.resp || '')))),
     others.length ? bar('Photos') : null,
     others.length ? el('div', { class: 'figs f3' }, others.slice(0, 3).map((p) => el('div', {}, el('div', { class: 'sub-t' }, p.name), drawing(photoMarked(p, false), 'ph')))) : null,
     el('table', { class: 'tb signoff' },
