@@ -6,7 +6,7 @@ import { app } from './app.js';
 import { el, fmt, toast } from './dom.js';
 import { openSource, scanText } from './pdfutil.js';
 import { loadView, lvState, AXES } from './loadview.js';
-import { openPlanImport, importedSummary } from './planimport.js';
+import { openPlanImport, importedSummary, leaveImport } from './planimport.js';
 import { panZoomBox } from './panzoom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -68,7 +68,7 @@ function build() {
         el('h2', {}, 'Load from the engineering office lift plan'),
         el('div', { class: 'row' },
           importBtn('Edit the import…'),
-          el('button', { class: 'small', title: 'Keep the points and lengths, and set up the load from its drawing (views, points clicked)', onclick: () => { ld.setupMode = 'drawing'; app.recompute(); rebuild(); } }, 'Set up from the drawing instead'))),
+          el('button', { class: 'small', title: 'Set up the load from its drawing (views, points and COG clicked): real geometry instead of equal shares', onclick: () => { leaveImport(app.project); app.recompute(); window.__rerender?.(); } }, 'Set up from the drawing instead'))),
       sum);
     return;
   }

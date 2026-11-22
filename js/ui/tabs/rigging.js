@@ -207,7 +207,7 @@ export function render(root) {
   lviews = [loadView('xy', { editable: true, height: 320, title: 'Plan — XY' }), loadView('xz', { editable: true, height: 320, title: 'Front — XZ' }), loadView('yz', { editable: true, height: 320, title: 'Side — YZ' })];
   const views = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Views'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Drag the lift points or the COG in the views: lengths and forces update live. Drag the background to move, wheel to zoom.')),
     el('div', { class: 'grid g3', style: { gap: '8px' } }, ...lviews));
-  const legs = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Legs — load share and lengths'), el('span', { class: 'muted', style: { fontSize: '12px' } }, 'Lengths bearing to bearing (lift point → hook). The hook is above the COG.')), el('div', { id: 'legs-table', class: 'tbl-wrap' }));
+  const legs = panel(null, el('div', { class: 'panel-head' }, el('h2', {}, 'Legs — load share and lengths'), el('span', { class: 'muted', style: { fontSize: '12px' } }, app.project.rigging.equalShare ? 'Lift plan of the engineering office: COG taken as centred, same force in every leg.' : 'Lengths bearing to bearing (lift point → hook). The hook is above the COG.')), el('div', { id: 'legs-table', class: 'tbl-wrap' }));
   root.append(el('div', { class: 'grid g2' }, config, spreader || el('div', { id: 'factors-mini' })), schemPanel, legs, views);
   update(app.result);
   root._update = update;

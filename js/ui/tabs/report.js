@@ -433,8 +433,10 @@ export function buildReport() {
       el('td', {}, el('b', {}, 'Centre of Gravity:'), el('div', { style: { margin: '4px 0' } },
         tk(() => ld.cogBasis === 'obvious', () => { ld.cogBasis = 'obvious'; }), ' Obvious  ',
         tk(() => ['estimated', 'geometric'].includes(ld.cogBasis), () => { ld.cogBasis = 'estimated'; }), ' Estimated  ',
-        tk(() => ld.cogBasis === 'drawing' || ld.cogBasis === 'legs' || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
-        ld.cogBasis === 'legs'
+        tk(() => ['drawing', 'legs', 'centred'].includes(ld.cogBasis) || !ld.cogBasis, () => { ld.cogBasis = 'drawing'; }), ' Drawing'),
+        ld.cogBasis === 'centred'
+          ? el('div', {}, 'Taken as centred — same force in every leg (lift plan of the engineering office)')
+          : ld.cogBasis === 'legs'
           ? el('div', {}, `X ${fmt(ld.cog_mm?.x, 0)} · Y ${fmt(ld.cog_mm?.y, 0)}${ld.cogZUnknown ? '' : ` · Z ${fmt(ld.cog_mm?.z, 0)}`} mm — under the hook given by the leg lengths of the lift plan`)
           : el('div', {}, 'X ', ed('load.cog_mm.x', { num: true }), ' · Y ', ed('load.cog_mm.y', { num: true }), ' · Z ', ed('load.cog_mm.z', { num: true }), ' mm'),
         ld.cogBasis === 'geometric' ? el('div', {}, 'Geometric centre of the part (weight assumed evenly spread)') : null),

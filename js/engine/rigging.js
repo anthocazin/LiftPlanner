@@ -133,6 +133,17 @@ function envelopeTensions(zTop, pts, W, cog, env) {
   return { ...nominal, Tnom: nominal.T, T, Rmin };
 }
 
+/**
+ * COG taken as centred (lift plan of the engineering office, simplified method): every leg carries
+ * the same vertical share W / n; its tension follows from its angle.
+ */
+function shareEqually(t, top, ptsPos) {
+  const W = t.R.reduce((a, b) => a + b, 0);
+  const R = ptsPos.map(() => W / ptsPos.length);
+  const T = ptsPos.map((p, i) => R[i] / Math.max(1e-6, vnorm(vsub(top, p)).z));
+  return { ...t, R, T, Tnom: T, Rmin: R };
+}
+
 /** Nominal / max / min vertical reactions over the COG envelope. */
 function envelopeReactions(ptsPos, W, cog, env) {
   const R = distributeVertical(ptsPos, cog, W).R;
@@ -536,8 +547,9 @@ function solveHook(project, ctx) {
     zDesign = Math.max(...pts.map((p) => p.pos.z + hdist(cog, p.pos) / Math.tan(a)));
     if (n === 1 || zDesign - zPadMax < 0.3) zDesign = Math.max(zDesign, zPadMax + (Number(design.minHeight_m) || 1.0));
   }
-  const tD = envelopeTensions(zDesign, pts.map((p) => p.pos), W, cog, env);
+  let tD = envelopeTensions(zDesign, pts.map((p) => p.pos), W, cog, env);
   const topD = v3(cog.x, cog.y, zDesign);
+  if (rig.equalShare) tD = shareEqually(tD, topD, pts.map((p) => p.pos));
 
   const betaD = Math.max(...pts.map((p) => deg(Math.acos(Math.min(1, vnorm(vsub(topD, p.pos)).z)))));
   const build = (Fmin = []) => {
@@ -577,7 +589,8 @@ function solveHook(project, ctx) {
     const valid = zLeg.filter((z) => z != null);
     const zHook = valid.length ? mean(valid) : zDesign;
     const hook = v3(cog.x, cog.y, zHook);
-    const tA = envelopeTensions(zHook, pts.map((p) => p.pos), W, cog, env);
+    let tA = envelopeTensions(zHook, pts.map((p) => p.pos), W, cog, env);
+    if (rig.equalShare) tA = shareEqually(tA, hook, pts.map((p) => p.pos));
     legs = legs.map((leg, i) => finalizeLeg(leg, hook, tA, i, fac, zLeg[i]));
     applySizingAngle(legs, design, fac);
     return { legs, head, hook, tooShort, zHook };

@@ -508,3 +508,17 @@ test('COG from leg lengths: lengths that cannot meet above the points are report
   assert.ok(res.checks.some((c) => c.status === 'fail' && /do not meet above the lift points/.test(c.label)));
   near(p.load.cog_mm.x, 2000, 0); near(p.load.cog_mm.y, 1500, 0);
 });
+
+test('equal share (COG taken as centred): same force in every leg at the angle assumed', () => {
+  // 4 legs of different lengths laid out at 30° around the COG (as the lift plan import does)
+  const Ls = [5.5, 6.0, 6.2, 5.8], a = Math.PI / 6;
+  const H = Math.max(...Ls.map((L) => L * Math.cos(a)));
+  const pts = Ls.map((L, i) => { const f = Math.PI / 4 + (i * Math.PI) / 2; return ['ABCD'[i], L * Math.sin(a) * Math.cos(f) * 1000, L * Math.sin(a) * Math.sin(f) * 1000, (H - L * Math.cos(a)) * 1000]; });
+  const p = baseProject(pts, { x: 0, y: 0, z: 0 });
+  p.rigging.equalShare = true;
+  p.rigging.legs = Object.fromEntries(pts.map(([id], i) => [id, { Leff_m: Ls[i] }]));
+  const r = computeProject(p).rig;
+  const W = r.legs.reduce((t, l) => t + l.R, 0);
+  r.legs.forEach((l) => { near(l.angleV, 30, 0.05); near(l.R, W / 4, 1e-9); near(l.Tstatic, W / 4 / Math.cos(a), 1e-3); });
+  assert.deepEqual(r.tilt.slack, []);
+});

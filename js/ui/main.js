@@ -28,7 +28,7 @@ const TABS = [
 // short help on top of every page, and the order of the pages (Next → buttons)
 const INTRO = {
   project: ['1 / 7', 'Who, where and how: identification printed in the report header, the lift steps (details and responsible), weather limits and safety measures.'],
-  load: ['2 / 7', 'The object to lift: weight, lift points and COG — set up from its drawing (a frame and an origin for each view, then the points clicked), or imported from the lift plan of the engineering office (legs drawn on the plan, with their length).'],
+  load: ['2 / 7', 'The object to lift: weight, lift points and COG — set up from its drawing (a frame and an origin for each view, then the points clicked), or imported from the lift plan of the engineering office (legs and lengths, COG taken as centred).'],
   crane: ['3 / 7', 'The crane and its load chart (SWL against radius). Save a crane in "My cranes" to reuse it; a PDF load chart can be read into the table.'],
   rigging: ['4 / 7', 'From the crane hook down to the lift points: click a "+" to add an item to a leg. Sizes are chosen automatically from the force in every leg; the sling length of every leg from the target angle and its own hardware.'],
   results: ['5 / 7', 'Every check with its result. Click a warning to open the item to adjust; the grey line explains why it matters.'],
